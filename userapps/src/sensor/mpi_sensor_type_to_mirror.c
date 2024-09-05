@@ -99,6 +99,41 @@ static struct sensor_type_mirror_t type_mirror_tbl[] = {
 #elif defined(CONFIG_BOARD_K230_CANMV_DONGSHANPI)
 static struct sensor_type_mirror_t type_mirror_tbl[] = {
     // {.type =, .mirror = },
+#if defined (CONFIG_MPP_ENABLE_SENSOR_OV5647)
+    {.type = OV5647_MIPI_CSI0_2592x1944_10FPS_10BIT_LINEAR, .mirror = 0},
+    {.type = OV5647_MIPI_CSI0_1920X1080_30FPS_10BIT_LINEAR, .mirror = 0},
+    {.type = OV5647_MIPI_CSI0_1280X960_45FPS_10BIT_LINEAR, .mirror = 0},
+    {.type = OV5647_MIPI_CSI0_1280X720_60FPS_10BIT_LINEAR, .mirror = 0},
+    {.type = OV5647_MIPI_CSI0_640x480_90FPS_10BIT_LINEAR, .mirror = 0},
+
+    {.type = OV5647_MIPI_CSI1_2592x1944_10FPS_10BIT_LINEAR, .mirror = 0},
+    {.type = OV5647_MIPI_CSI1_1920X1080_30FPS_10BIT_LINEAR, .mirror = 0},
+    {.type = OV5647_MIPI_CSI1_1280X960_45FPS_10BIT_LINEAR, .mirror = 0},
+    {.type = OV5647_MIPI_CSI1_1280X720_60FPS_10BIT_LINEAR, .mirror = 0},
+    {.type = OV5647_MIPI_CSI1_640x480_90FPS_10BIT_LINEAR, .mirror = 0},
+
+    {.type = OV5647_MIPI_CSI2_2592x1944_10FPS_10BIT_LINEAR, .mirror = 0},
+    {.type = OV5647_MIPI_CSI2_1920X1080_30FPS_10BIT_LINEAR, .mirror = 0},
+    {.type = OV5647_MIPI_CSI2_1280X960_45FPS_10BIT_LINEAR, .mirror = 0},
+    {.type = OV5647_MIPI_CSI2_1280X720_60FPS_10BIT_LINEAR, .mirror = 0},
+    {.type = OV5647_MIPI_CSI2_640x480_90FPS_10BIT_LINEAR, .mirror = 0},
+#endif // CONFIG_MPP_ENABLE_SENSOR_OV5647
+#if defined (CONFIG_MPP_ENABLE_SENSOR_GC2093)
+    {.type = GC2093_MIPI_CSI0_1920X1080_30FPS_10BIT_LINEAR, .mirror = 0},
+    {.type = GC2093_MIPI_CSI0_1920X1080_60FPS_10BIT_LINEAR, .mirror = 0},
+    {.type = GC2093_MIPI_CSI0_1280X960_90FPS_10BIT_LINEAR, .mirror = 0},
+    {.type = GC2093_MIPI_CSI0_1280X720_90FPS_10BIT_LINEAR, .mirror = 0},
+
+    {.type = GC2093_MIPI_CSI1_1920X1080_30FPS_10BIT_LINEAR, .mirror = 0},
+    {.type = GC2093_MIPI_CSI1_1920X1080_60FPS_10BIT_LINEAR, .mirror = 0},
+    {.type = GC2093_MIPI_CSI1_1280X960_90FPS_10BIT_LINEAR, .mirror = 0},
+    {.type = GC2093_MIPI_CSI1_1280X720_90FPS_10BIT_LINEAR, .mirror = 0},
+
+    {.type = GC2093_MIPI_CSI2_1920X1080_30FPS_10BIT_LINEAR, .mirror = 0},
+    {.type = GC2093_MIPI_CSI2_1920X1080_60FPS_10BIT_LINEAR, .mirror = 0},
+    {.type = GC2093_MIPI_CSI2_1280X960_90FPS_10BIT_LINEAR, .mirror = 0},
+    {.type = GC2093_MIPI_CSI2_1280X720_90FPS_10BIT_LINEAR, .mirror = 0},
+#endif // CONFIG_MPP_ENABLE_SENSOR_GC2093
 };
 #elif defined(CONFIG_BOARD_K230D_CANMV_BPI_ZERO)
 static struct sensor_type_mirror_t type_mirror_tbl[] = {
