@@ -40,7 +40,6 @@
 #include "k_type.h"
 
 #include "k_vo_comm.h"
-#include "connector_dev.h"
 #include "k_connector_comm.h"
 
 
@@ -80,6 +79,7 @@ extern struct connector_driver_dev ili9881c_connector_drv;
 extern struct connector_driver_dev nt35516_connector_drv;
 extern struct connector_driver_dev nt35532_connector_drv;
 extern struct connector_driver_dev gc9503_connector_drv;
+extern struct connector_driver_dev st7102_connector_drv;
 
 #if defined (CONFIG_MPP_ENABLE_DSI_DEBUGGER)
 extern struct connector_driver_dev debugger_connector_dev;

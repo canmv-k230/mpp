@@ -367,6 +367,10 @@ menu "MPP Configuration"
             bool "Enable LCD Display Panel Driver gc9503"
             default n
 
+        config MPP_DSI_ENABLE_LCD_ST7102
+            bool "Enable LCD Display Panel Driver st7102"
+            default n
+
     endmenu
 
     menu "Middleware Configuration"
