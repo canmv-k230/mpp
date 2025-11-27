@@ -37,6 +37,7 @@ extern "C" {
 #define K_IOC_TYPE_VVI      'I'
 #define K_IOC_TYPE_VVO      'O'
 #define K_IOC_TYPE_DMA      'M'
+#define K_IOC_TYPE_GSDMA    'G'
 #define K_IOC_TYPE_DPU      'U'
 
 #define K_IOC_TYPE_AI       'i'

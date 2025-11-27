@@ -5,12 +5,15 @@ include $(MPP_SRC_DIR)/userapps/sample/rt-smart.mk
 
 CURRECT_DIR_NAME=$(shell basename `pwd`)
 LOCAL_SRC_DIR = $(shell pwd)
-BIN = $(MPP_USERAPP_SMAPLE_ELF_DIR)/$(CURRECT_DIR_NAME).elf
+BIN = $(MPP_SRC_DIR)/userapps/sample/elf/$(CURRECT_DIR_NAME).elf
 BUILD := $(SDK_RTSMART_BUILD_DIR)/mpp/userapps/sample/$(CURRECT_DIR_NAME)
 LIBPATH = $(MPP_LIB_PATH)
 LIBS = $(MPP_LIBS)
 
-LOCAL_CFLAGS = -I$(LOCAL_SRC_DIR)
+# Add hal_utils header path for timing
+HAL_UTILS_INC = $(MPP_SRC_DIR)/../libs/rtsmart_hal/utils
+
+LOCAL_CFLAGS = -I$(LOCAL_SRC_DIR) -I$(HAL_UTILS_INC)
 
 SRCS = $(wildcard *.c)
 COBJS 	:= $(patsubst %, $(BUILD)/%, $(SRCS:.c=.o))

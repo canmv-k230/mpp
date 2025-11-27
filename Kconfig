@@ -401,9 +401,6 @@ menu "MPP Configuration"
                 config MPP_ENABLE_USER_SAMPLES_OPENCV_CAMERA_TEST
                     bool "OpenCV Camera Test Sample"
 
-                config MPP_ENABLE_USER_SAMPLES_SAMPLE_ADC
-                    bool "ADC Sample"
-
                 config MPP_ENABLE_USER_SAMPLES_SAMPLE_AHD_SENSOR
                     bool "AHD Sensor Sample"
                     depends on MPP_ENABLE_SENSOR_XS9950
@@ -416,20 +413,14 @@ menu "MPP Configuration"
                 config MPP_ENABLE_USER_SAMPLES_SAMPLE_AV
                     bool "AV Sample"
 
-                config MPP_ENABLE_USER_SAMPLES_SAMPLE_CANAN_UART_RX
-                    bool "Canaan UART RX Sample"
-
-                config MPP_ENABLE_USER_SAMPLES_SAMPLE_CANAN_UART_TX
-                    bool "Canaan UART TX Sample"
-
                 config MPP_ENABLE_USER_SAMPLES_SAMPLE_CIPHER
                     bool "Cipher Sample"
 
                 config MPP_ENABLE_USER_SAMPLES_SAMPLE_CSC
                     bool "CSC Sample"
 
-                config MPP_ENABLE_USER_SAMPLES_SAMPLE_DMA
-                    bool "DMA Sample"
+                config MPP_ENABLE_USER_SAMPLES_SAMPLE_GSDMA
+                    bool "GSDMA Sample"
 
                 config MPP_ENABLE_USER_SAMPLES_SAMPLE_DMA_BIND
                     bool "DMA Bind Sample"
@@ -457,9 +448,6 @@ menu "MPP Configuration"
 
                 config MPP_ENABLE_USER_SAMPLES_SAMPLE_FFT
                     bool "FFT Sample"
-
-                config MPP_ENABLE_USER_SAMPLES_SAMPLE_GPIO
-                    bool "GPIO Sample"
 
                 config MPP_ENABLE_USER_SAMPLES_SAMPLE_I2C_SLAVE
                     bool "I2C Slave Sample"
@@ -492,9 +480,6 @@ menu "MPP Configuration"
                 config MPP_ENABLE_USER_SAMPLES_SAMPLE_TRIPLE_CAMERA_FACEDETECT
                     bool "Triple Camera Face Detection Sample"
 
-                config MPP_ENABLE_USER_SAMPLES_SAMPLE_TS
-                    bool "TSensor Sample"
-
                 config MPP_ENABLE_USER_SAMPLES_SAMPLE_VB
                     bool "VB Sample"
 
@@ -521,9 +506,6 @@ menu "MPP Configuration"
 
                 config MPP_ENABLE_USER_SAMPLES_SAMPLE_VO
                     bool "VO Sample"
-
-                config MPP_ENABLE_USER_SAMPLES_SAMPLE_WDT
-                    bool "WDT Sample"
 
                 config MPP_ENABLE_USER_SAMPLES_SAMPLE_TIGER
                     bool "VGLite Sample Tiger"
