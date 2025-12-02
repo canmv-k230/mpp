@@ -183,7 +183,7 @@ static k_s32 sample_venc_init(void)
         return -1;
     }
 
-    if (K_SUCCESS != kd_mpi_venc_attach_vb_pool(VENC_CH_ID_0, poolid)) {
+    if (K_SUCCESS != kd_mpi_venc_attach_vb_pool(VENC_CH_ID_0, poolid, 4)) {
         printf("ERROR: attach venc pool failed\n");
 
         kd_mpi_vb_destory_pool(poolid);

@@ -1082,7 +1082,7 @@ int KdMedia::Impl::CreateVcapVEnc(IOnVEncData *on_venc_data)
 
     CreateVencVBPool();
 
-    kd_mpi_venc_attach_vb_pool(venc_chn_id_,venc_attach_pool_id_);
+    kd_mpi_venc_attach_vb_pool(venc_chn_id_,venc_attach_pool_id_, 10);
 
     k_venc_chn_attr chn_attr;
     memset(&chn_attr, 0, sizeof(chn_attr));

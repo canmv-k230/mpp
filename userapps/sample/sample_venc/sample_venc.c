@@ -607,7 +607,7 @@ k_s32 sample_venc_h265(k_vicap_sensor_type sensor_type)
     sample_vb_init(chnum, K_FALSE);
 
     venc_attach_pool_id = venc_vb_create_pool();
-    kd_mpi_venc_attach_vb_pool(ch,venc_attach_pool_id);
+    kd_mpi_venc_attach_vb_pool(ch,venc_attach_pool_id, OUTPUT_BUF_CNT);
 
     k_venc_chn_attr attr;
     memset(&attr, 0, sizeof(attr));
@@ -675,7 +675,7 @@ k_s32 sample_venc_jpeg(k_vicap_sensor_type sensor_type)
     sample_vb_init(chnum, K_FALSE);
 
     venc_attach_pool_id = venc_vb_create_pool();
-    kd_mpi_venc_attach_vb_pool(ch,venc_attach_pool_id);
+    kd_mpi_venc_attach_vb_pool(ch,venc_attach_pool_id, OUTPUT_BUF_CNT);
 
     k_venc_chn_attr attr;
     memset(&attr, 0, sizeof(attr));
@@ -764,7 +764,7 @@ k_s32 sample_venc_osd_h264(k_vicap_sensor_type sensor_type)
     prepare_osd(&osd_conf, &g_venc_conf.osd_blk_handle);
 
     venc_attach_pool_id = venc_vb_create_pool();
-    kd_mpi_venc_attach_vb_pool(ch,venc_attach_pool_id);
+    kd_mpi_venc_attach_vb_pool(ch,venc_attach_pool_id, OUTPUT_BUF_CNT);
 
     k_venc_chn_attr attr;
     memset(&attr, 0, sizeof(attr));
@@ -887,7 +887,7 @@ k_s32 sample_venc_osd_border_h265(k_vicap_sensor_type sensor_type)
     prepare_osd(&osd_conf, &g_venc_conf.osd_blk_handle);
 
     venc_attach_pool_id = venc_vb_create_pool();
-    kd_mpi_venc_attach_vb_pool(ch,venc_attach_pool_id);
+    kd_mpi_venc_attach_vb_pool(ch,venc_attach_pool_id, OUTPUT_BUF_CNT);
 
     k_venc_chn_attr attr;
     memset(&attr, 0, sizeof(attr));
