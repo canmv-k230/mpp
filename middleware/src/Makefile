@@ -5,7 +5,7 @@ include $(MPP_SRC_DIR)/middleware/rt-smart.mk
 
 include $(SDK_SRC_ROOT_DIR)/.config
 
-dir-y := kdmedia live555 mp4_format mp4_player rtsp_client rtsp_server
+dir-y := kdmedia live555 mp4_format mp4_player rtsp_client rtsp_server ogg
 
 dir-$(CONFIG_MPP_ENABLE_MIDDLEWARE_LIB_X264)		+= x264/src
 dir-$(CONFIG_MPP_ENABLE_MIDDLEWARE_LIB_FFMPEG)		+= ffmpeg/src

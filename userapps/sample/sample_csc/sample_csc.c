@@ -745,7 +745,7 @@ static k_s32 sample_venc_osd_h265()
     int index;
 
     venc_attach_pool_id = venc_vb_create_pool();
-    kd_mpi_venc_attach_vb_pool(ch,venc_attach_pool_id, VENC_BUF_CNT);
+    kd_mpi_venc_attach_vb_pool(ch,venc_attach_pool_id);
 
     memset(&attr, 0, sizeof(attr));
     attr.venc_attr.pic_width = width;

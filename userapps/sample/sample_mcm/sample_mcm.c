@@ -854,7 +854,7 @@ k_s32 sample_venc_start()
     int ret = 0;
 
     venc_attach_pool_id = venc_vb_create_pool();
-    kd_mpi_venc_attach_vb_pool(0,venc_attach_pool_id, VENC_BUF_NUM);
+    kd_mpi_venc_attach_vb_pool(0,venc_attach_pool_id);
 
     k_venc_chn_attr attr;
     memset(&attr, 0, sizeof(attr));

@@ -627,7 +627,12 @@ k_s32 kd_mpi_venc_detach_2d(k_u32 chn_num);
  * @see K_ERR_CODE_E
  * @note It can be set on the fly
  */
-k_s32 kd_mpi_venc_attach_vb_pool(k_u32 chn_num, k_u32 pool_id, k_u32 buff_num);
+k_s32 kd_mpi_venc_attach_vb_pool_ex(k_u32 chn_num, k_u32 pool_id, k_s32 buff_num);
+
+static inline k_s32 kd_mpi_venc_attach_vb_pool(k_u32 chn_num, k_u32 pool_id)
+{
+    return kd_mpi_venc_attach_vb_pool_ex(chn_num, pool_id, 0);
+}
 
 /**
  * @brief detach vb pool

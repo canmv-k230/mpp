@@ -560,7 +560,7 @@ int main(int argc, char const *argv[])
 
 
     venc_attach_pool_id = vb_create_pool();
-    kd_mpi_venc_attach_vb_pool(ch,venc_attach_pool_id, OUTPUT_BUF_CNT);
+    kd_mpi_venc_attach_vb_pool(ch,venc_attach_pool_id);
 
     k_venc_chn_attr attr;
     switch (k_payload)
