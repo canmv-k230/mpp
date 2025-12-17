@@ -71,6 +71,14 @@ static k_s32 audio_sample_vb_init() {
     return ret;
 }
 
+static int ogg_muxer_callback(const void *ptr, size_t size, void *user_data) {
+    int ret = kd_ogg_demuxer_feed_page(g_ogg_demuxer, (const uint8_t*)ptr, size);
+    if (ret != 0) {
+        fprintf(stderr, "Warning: failed to feed page (size=%zu), ret:%d\n", size, ret);
+    }
+    return 0;
+}
+
 // Initialize Ogg muxer
 static k_s32 init_ogg_muxer()
 {
@@ -80,6 +88,8 @@ static k_s32 init_ogg_muxer()
     muxer_params.sample_rate = SAMPLE_RATE;
     muxer_params.channels = 1;
     muxer_params.serial_no = 0;
+    muxer_params.write_cb = ogg_muxer_callback;
+    muxer_params.user_data = nullptr;
 
     int ret = kd_ogg_muxer_init(&g_ogg_muxer, &muxer_params);
     if (ret != 0) {
@@ -91,11 +101,26 @@ static k_s32 init_ogg_muxer()
     return 0;
 }
 
+// Callback for Opus frames
+void opus_frame_callback(const uint8_t* data, size_t len, void* user_data) {
+    static int frame_count = 0;
+    printf("[Frame %d] Opus packet: %zu bytes\n", ++frame_count, len);
+
+    g_audio_stream.len = len;
+    memcpy(g_audio_stream.stream, data, len);
+    if (K_SUCCESS != kd_mpi_adec_send_stream(0, &g_audio_stream, K_FALSE))
+    {
+        printf("========kd_mpi_adec_send_stream failed\n");
+    }
+}
+
 // Initialize Ogg demuxer
 static k_s32 init_ogg_demuxer()
 {
     kd_ogg_demuxer_params params;
     memset(&params, 0, sizeof(params));
+    params.frame_cb = opus_frame_callback;
+    params.user_data = NULL;
 
     int ret = kd_ogg_demuxer_init(&g_ogg_demuxer, &params);
     if (ret != 0) {
@@ -107,56 +132,30 @@ static k_s32 init_ogg_demuxer()
 }
 
 // Process Opus stream data
-static uint8_t g_data_ogg[1000];
-static uint32_t g_data_ogg_size = 0;
-static uint8_t g_data_opus[1000];
-static uint32_t g_data_opus_size = 0;
-
 static void do_opus_stream(k_audio_stream *stream) {
     if (!g_ogg_muxer || !stream)
         return;
 
     k_u8 *raw_data = (k_u8 *)kd_mpi_sys_mmap(stream->phys_addr, stream->len);
 
-    //muxer ogg
-    kd_ogg_frame_params_ex frame_params;
+    // Create frame parameters
+    kd_ogg_frame_params frame_params;
     frame_params.data = raw_data;
     frame_params.len = stream->len;
     frame_params.frame_samples = SAMPLE_RATE / AUDIO_PERSEC_DIV_NUM;
-    frame_params.out_page = g_data_ogg;
-    frame_params.out_page_size = &g_data_ogg_size;
 
-    int ret = kd_ogg_write_frame_ex(g_ogg_muxer, &frame_params);
+    printf("%s size:%d\n", __func__, stream->len);
+    int ret = kd_ogg_write_frame(g_ogg_muxer, &frame_params);
     if (ret != 0) {
-        printf("========kd_ogg_write_frame_ex failed\n");
+        cerr << "Failed to write Ogg frame: " << ret << endl;
     }
+
     kd_mpi_sys_munmap(raw_data, stream->len);
-
-    //demuxer ogg to opus
-    kd_ogg_page_params_ex page_parames;
-    page_parames.page_data = g_data_ogg;
-    page_parames.page_size = *frame_params.out_page_size;
-    page_parames.out_frame = g_data_opus;
-    page_parames.out_frame_size = &g_data_opus_size;
-
-    ret = kd_ogg_demuxer_feed_page_ex(g_ogg_demuxer, &page_parames);
-    if (ret != 0) {
-        printf("========kd_ogg_demuxer_feed_page_ex failed,ret:%d\n",ret);
-    }
-
-    //send opus to adec
-    g_audio_stream.len = *page_parames.out_frame_size;
-    memcpy(g_audio_stream.stream, page_parames.out_frame, *page_parames.out_frame_size);
-    if (K_SUCCESS != kd_mpi_adec_send_stream(0, &g_audio_stream, K_FALSE))
-    {
-        printf("========kd_mpi_adec_send_stream failed\n");
-    }
-
 }
 
 // Audio sample processing: AI -> AENC -> ADEC -> AO with Opus
-static k_s32 audio_sample_ogg(k_audio_dev ai_dev, k_ai_chn ai_chn, k_audio_dev ao_dev, k_ao_chn ao_chn,
-                                              k_aenc_chn aenc_chn, k_adec_chn adec_chn, k_u32 samplerate,
+static k_s32 audio_sample_ai_aenc_adec_ao_opus(k_audio_dev ai_dev, k_ai_chn ai_chn, k_audio_dev ao_dev, k_ao_chn ao_chn, 
+                                              k_aenc_chn aenc_chn, k_adec_chn adec_chn, k_u32 samplerate, 
                                               k_audio_bit_width bit_width, k_payload_type type, k_u32 enable_audio3a)
 {
     bit_width = KD_AUDIO_BIT_WIDTH_16;
@@ -284,9 +283,24 @@ static k_s32 audio_sample_ogg(k_audio_dev ai_dev, k_ai_chn ai_chn, k_audio_dev a
     return K_SUCCESS;
 }
 
-int main() {
-    audio_sample_vb_init();
-    audio_sample_ogg(0, 0, 0, 0, 0, 0, SAMPLE_RATE, KD_AUDIO_BIT_WIDTH_16, K_PT_OPUS, K_FALSE);
+#define MAX_FRAME_SIZE 4096
 
+int main() {
+    //audio_sample_vb_init();
+    //audio_sample_ai_aenc_adec_ao_opus(0, 0, 0, 0, 0, 0, SAMPLE_RATE, KD_AUDIO_BIT_WIDTH_16, K_PT_OPUS, K_FALSE);
+
+    kd_ogg_muxer_params muxer_params;
+    memset(muxer_params.filename, 0, sizeof(muxer_params.filename));
+
+    printf("=== kd_ogg_muxer_params 成员字节长度（K230 64位环境）===\n");
+    printf("filename: %zu 字节\n", sizeof(muxer_params.filename));
+    printf("sample_rate: %zu 字节\n", sizeof(muxer_params.sample_rate));
+    printf("channels: %zu 字节\n", sizeof(muxer_params.channels));
+    printf("serial_no: %zu 字节\n", sizeof(muxer_params.serial_no));
+    printf("write_cb: %zu 字节\n", sizeof(muxer_params.write_cb));
+    printf("user_data: %zu 字节\n", sizeof(muxer_params.user_data));
+    
+    // 额外打印整个结构体的总长度（含内存对齐）
+    printf("整个结构体总长度: %zu 字节\n", sizeof(muxer_params));
     return 0;
 }

@@ -1,0 +1,41 @@
+#include "libogg.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+
+// 回调函数：每当解析出一帧 Opus 数据时被调用
+void on_opus_frame(const uint8_t *data, size_t len, void *user_data) {
+    int *frame_index = (int *)user_data;
+    printf("Frame %d: %zu bytes\n", (*frame_index)++, len);
+}
+
+int main() {
+    kd_ogg_demuxer demuxer = NULL;
+    kd_ogg_demuxer_params params = {0};
+
+    // 设置输入文件路径（必须）
+    snprintf(params.filename, sizeof(params.filename), "/data/test.ogg");
+
+    // 设置帧回调（必须）
+    int frame_index = 0;
+    params.frame_cb = on_opus_frame;
+    params.user_data = &frame_index;
+
+    // 初始化解复用器（文件模式）
+    int ret = kd_ogg_demuxer_init(&demuxer, &params);
+    if (ret != 0) {
+        fprintf(stderr, "Failed to initialize demuxer: %d\n", ret);
+        return -1;
+    }
+
+    // 初始化成功后，params.sample_rate 和 params.channels 已被填充
+    printf("Ogg/Opus file opened. Sample rate: %u Hz, Channels: %u\n",
+           params.sample_rate, params.channels);
+
+    // 注意：在文件模式下，kd_ogg_demuxer_init 内部已读取并处理完整个文件，
+    // 所有帧都已通过 on_opus_frame 回调输出。
+
+    // 清理资源
+    kd_ogg_demuxer_destroy(demuxer);
+    return 0;
+}
