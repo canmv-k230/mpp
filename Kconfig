@@ -371,6 +371,10 @@ menu "MPP Configuration"
             bool "Enable LCD Display Panel Driver st7102"
             default n
 
+        config MPP_DSI_ENABLE_LCD_AML020T
+            bool "Enable LCD Display Panel Driver aml020t"
+            default n
+
     endmenu
 
     menu "Middleware Configuration"
