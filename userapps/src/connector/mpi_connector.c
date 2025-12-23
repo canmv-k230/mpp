@@ -324,6 +324,42 @@ k_connector_info connector_info_list[] = {
         },
         .type = ST7701_V1_MIPI_2LAN_480X640_30FPS, // maybe should change it
     },
+
+
+#elif CONFIG_BOARD_K230_CANMV_YAHBOOM
+    {
+        .connector_name = "st7701",
+        .screen_test_mode = 0,
+        .dsi_test_mode = 0,
+        .bg_color = BACKGROUND_BLACK_COLOR,
+        .intr_line = 10, // 1024 lines
+        .pixclk_div = 23,
+        .buff_num = 1,
+        .lan_num = K_DSI_2LAN,
+        .work_mode = K_BURST_MODE,
+        .cmd_mode = K_VO_LP_MODE,
+        .phy_attr = {
+            .n = 3,
+            .m = 97,
+            .voc = 0x27, // 0b00100111
+            .hs_freq = 0x80 | 0x02, // 0b10000010
+        },
+        .resolution = {
+            .pclk = 24750, // 24750 * 1000 / (480 + 6 + 10 + 20) / (640 + 60 + 180 + 220) = 43.60 fps
+            .phyclk = 297000,
+            .htotal = (480 + 6 + 10 + 20), // 516
+            .hdisplay = 480,
+            .hsync_len = 6,
+            .hback_porch = 10,
+            .hfront_porch = 20,
+            .vtotal = (640 + 60 + 180 + 220), // 1100
+            .vdisplay = 640,
+            .vsync_len = 60,
+            .vback_porch = 180,
+            .vfront_porch = 220,
+        },
+        .type = ST7701_V1_MIPI_2LAN_480X640_30FPS,
+    },
 #else
     {
         // TEST PASS
