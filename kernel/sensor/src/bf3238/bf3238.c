@@ -121,7 +121,7 @@ static int _sensor_power_state_set(struct sensor_driver_dev *dev, k_s32 on, k_u3
     } else {
         kd_pin_write(reset_gpio, GPIO_PV_LOW);
     }
-    rt_thread_mdelay(1);
+    rt_thread_mdelay(20);
 
     return 0;
 }
