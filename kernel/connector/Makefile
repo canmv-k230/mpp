@@ -27,6 +27,7 @@ src-$(CONFIG_MPP_DSI_ENABLE_LCD_NT35516) += src/nt35516.c
 src-$(CONFIG_MPP_DSI_ENABLE_LCD_NT35532) += src/nt35532.c
 src-$(CONFIG_MPP_DSI_ENABLE_LCD_GC9503) += src/gc9503.c
 src-$(CONFIG_MPP_DSI_ENABLE_LCD_ST7102) += src/st7102.c
+src-$(CONFIG_MPP_DSI_ENABLE_LCD_AML020T) += src/aml020t.c
 
 SRCS 	:= $(wildcard *.c)
 COBJS 	:= $(patsubst %, $(BUILD)/%, $(src-y:.c=.o))
