@@ -375,6 +375,9 @@ menu "MPP Configuration"
             bool "Enable LCD Display Panel Driver aml020t"
             default n
 
+        config MPP_DSI_ENABLE_LCD_JD9852
+            bool "Enable LCD Display Panel Driver JD9852"
+            default n
     endmenu
 
     menu "Middleware Configuration"

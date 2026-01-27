@@ -152,6 +152,10 @@ struct connector_driver_dev* connector_drv_list[] = {
     &st7701_connector_drv,
 #endif // CONFIG_MPP_DSI_ENABLE_LCD_ST7701
 
+#ifdef CONFIG_MPP_DSI_ENABLE_LCD_JD9852
+    &jd9852_connector_drv,
+#endif
+
 #ifdef CONFIG_MPP_DSI_ENABLE_LCD_ILI9806
     &ili9806_connector_drv,
 #endif // CONFIG_MPP_DSI_ENABLE_LCD_ILI9806
@@ -225,6 +229,7 @@ static const struct connector_type_name cth_table[] = {
     CONNECTOR_TYPE_NAME(LT9611_MIPI_4LAN_1280X720_50FPS),
     CONNECTOR_TYPE_NAME(LT9611_MIPI_4LAN_1280X720_30FPS),
     CONNECTOR_TYPE_NAME(LT9611_MIPI_4LAN_640X480_60FPS),
+    CONNECTOR_TYPE_NAME(JD9852_MIPI_1LAN_240X320_60FPS),
 
     CONNECTOR_TYPE_NAME(VIRTUAL_DISPLAY_DEVICE),
 #if defined (CONFIG_MPP_ENABLE_DSI_DEBUGGER)
