@@ -1,62 +1,62 @@
-include $(MPP_SRC_DIR)/userapps/src/mpp.mk
-include $(MPP_SRC_DIR)/userapps/src/rt-smart.mk
+include ../mkenv.mk
+include $(SDK_RTSMART_SRC_DIR)/libs/mk/toolchain_riscv64_musl.mk
 
-CURRECT_DIR_NAME=$(shell basename `pwd`)
-LOCAL_SRC_DIR = $(shell pwd)
-LIB = $(MPP_SRC_DIR)/userapps/lib/lib$(CURRECT_DIR_NAME).a
-BUILD := $(SDK_RTSMART_BUILD_DIR)/mpp/userapps/$(CURRECT_DIR_NAME)
+# Path Definitions
+DIR 	:= $(shell basename `pwd`)
+BUILD	:= $(SDK_RTSMART_BUILD_DIR)/mpp/userapps/$(DIR)
+# Direct target path for the library
+LIB		:= $(MPP_USERAPPS_LIB_INSTALL_PATH)/lib$(DIR).a
 
-LOCAL_CFLAGS = -I$(LOCAL_SRC_DIR)/
+include $(SDK_RTSMART_SRC_DIR)/libs/mk/libmpp.mk
 
-SRCS = $(wildcard *.c)
-COBJS 	:= $(patsubst %, $(BUILD)/%, $(SRCS:.c=.o))
-CDEPS 	:= $(patsubst %, $(BUILD)/%, $(SRCS:.c=.o.d))
+# Source and Object Handling
+C_SRCS          := $(wildcard *.c)
+CXX_SRCS        := $(wildcard *.cpp)
 
-CPP_SRCS = $(wildcard *.cpp)
-CPP_OBJS 	:= $(patsubst %, $(BUILD)/%, $(CPP_SRCS:.cpp=.o))
-CPP_DEPS 	:= $(patsubst %, $(BUILD)/%, $(CPP_SRCS:.cpp=.o.d))
+C_OBJS          := $(patsubst %.c, $(BUILD)/%.o, $(C_SRCS))
+CXX_OBJS        := $(patsubst %.cpp, $(BUILD)/%.o, $(CXX_SRCS))
 
-OBJS := $(COBJS) $(CPP_OBJS)
-DEPS := $(CDEPS) $(CPP_DEPS)
+OBJS            := $(C_OBJS) $(CXX_OBJS)
+DEPS            := $(OBJS:.o=.d)
 
-YMLS = $(wildcard $(LOCAL_SRC_DIR)/dewarp/*.yml)
-DWCFGS = $(patsubst %.yml,%.bin,$(YMLS))
+# Directory Creation Logic
+OBJ_DIRS        := $(sort $(dir $(OBJS)) $(MPP_USERAPPS_LIB_INSTALL_PATH))
 
-.PHONY: k230dwmapgen
-k230dwmapgen:
-	@cmake -S $(LOCAL_SRC_DIR)/dewarp/k230dwmapgen -B $(BUILD)/dewrap
-	@cmake --build $(BUILD)/dewrap -j
+# Compiler Flags
+C_CXX_FLAGS     := -fopenmp -march=rv64imafdcv -mabi=lp64d -mcmodel=medany -Os
+C_CXX_FLAGS     += -Iinclude -I. -Wall -Wextra -ffunction-sections -fdata-sections
+C_CXX_FLAGS     += -Wno-multichar -Wno-unused-result -Wno-unused-variable -Wno-format
+C_CXX_FLAGS     += $(LIB_CFLAGS)
 
-$(DWCFGS): %.bin : %.yml k230dwmapgen
-	@$(BUILD)/dewrap/k230dwmapgen-dump < $< > $@
+CFLAGS          := $(C_CXX_FLAGS) -std=gnu99
+CXX_FLAGS       := $(C_CXX_FLAGS) -std=c++20 -Wno-register 
 
-.PHONY: all
-all: $(LIB) $(DWCFGS)
-	@mkdir -p $(RTSMART_SRC_DIR)/userapps/root/bin/
-	@cp $(LOCAL_SRC_DIR)/config/* $(RTSMART_SRC_DIR)/userapps/root/bin/
-	@cp $(LOCAL_SRC_DIR)/dewarp/*.bin $(RTSMART_SRC_DIR)/userapps/root/bin/
-	@echo "Make lib$(CURRECT_DIR_NAME) done."
+# --- Targets ---
 
-.PHONY: clean
-clean:
-	@rm -rf $(LIB) $(OBJS) $(DEPS)
+.PHONY: all clean
 
-$(LIB): $(OBJS)
-	@echo "AR $@"
-	@$(AR) $(ARFLAGS) $@ $^
+# 'all' now ensures the library is built directly into the target and headers are synced
+all: $(LIB)
+	@$(ECHO) [BUILD] mpp userapps $(DIR) done.
 
-$(OBJS): $(BUILD)/%.o : %.c
-	@echo [CC] $<
-	@$(CC) $(CC_CFLAGS) $(LOCAL_CFLAGS) $(BSP_CFLGAS) $(RTSMART_CFLAGS) $(MPP_USER_CFLGAS) -MD -MP -MF $@.d -c $< -o $@
+# Rule to archive the library directly into the target folder
+$(LIB): $(OBJS) | $(MPP_USERAPPS_LIB_INSTALL_PATH)
+	@$(ECHO) "[AR] $@"
+	$(Q)$(AR) rcs $@ $^
 
-# $(sort $(var)) removes duplicates
-#
-# The net effect of this, is it causes the objects to depend on the
-# object directories (but only for existence), and the object directories
-# will be created if they don't exist.
-OBJ_DIRS = $(sort $(dir $(OBJS)))
-$(OBJS): | $(OBJ_DIRS)
+# Compilation rules for intermediate objects
+$(BUILD)/%.o : %.c | $(OBJ_DIRS)
+	@$(ECHO) "[CC] $@"
+	$(Q)$(CC) $(CFLAGS) -MD -MP -MF $(@:.o=.d) -c $< -o $@
+
+$(BUILD)/%.o : %.cpp | $(OBJ_DIRS)
+	@$(ECHO) "[CXX] $@"
+	$(Q)$(CXX) $(CXX_FLAGS) -MD -MP -MF $(@:.o=.d) -c $< -o $@
+
 $(OBJ_DIRS):
-	@mkdir -p $@
+	$(Q)mkdir -p $@
+
+clean:
+	$(Q)rm -rf $(LIB_TARGET) $(BUILD)
 
 -include $(DEPS)

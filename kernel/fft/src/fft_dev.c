@@ -30,6 +30,7 @@
 #include "io.h"
 #include "cache.h"
 #include "riscv_io.h"
+#include "rtdef.h"
 #include <rthw.h>
 
 #ifdef RT_USING_POSIX
@@ -39,10 +40,11 @@
 #endif
 
 #include "k_vvo_comm.h"
+#include "k_gsdma_comm.h"
 #include "k_module.h"
 #include "k_type.h"
-#include "k_dma_comm.h"
 #include "k_fft_ioctl.h"
+
 #include <lwp_user_mm.h>
 #include <board.h>
 #include <ioremap.h>
@@ -98,8 +100,6 @@ typedef struct
     volatile unsigned short int_num;
 }fft_dev_st;
 
-extern k_s32 sdma_transfer(k_sdma_transfer_cfg_t* cfg, k_s32 timeout);
-
 static void dump_buff(char *buff, int len)
 {
     int i=0;
@@ -130,6 +130,8 @@ static int fft_device_close(struct dfs_fd *file)
 
 static int fft_input_data_from_buff(fft_dev_st* pfft_dev, k_fft_args_st* pcfg)
 {
+    extern k_s32 sdma_send_transfer(k_sdma_transfer_cfg_t *cfg);
+
     int ret = 0;
     int fft_data_len = 64 << pcfg->reg.point << 2;
 
@@ -146,13 +148,14 @@ static int fft_input_data_from_buff(fft_dev_st* pfft_dev, k_fft_args_st* pcfg)
         .dst_addr = (void*)FFT_FIFI_REG_ADD,
         .dimension = DIMENSION1,
         .line_size = fft_data_len,
+        .timeout_ms = RT_WAITING_FOREVER,
         .ch_cfg.dat_mode = 0,
         .ch_cfg.src_fixed = 0,
         .ch_cfg.dst_fixed = 1,
         .ch_cfg.wr_outstanding = 15,
         .ch_cfg.rd_outstanding = 15,
     };
-    ret = sdma_transfer(&cfg, RT_WAITING_FOREVER);
+    ret = sdma_send_transfer(&cfg);
 
     if (ret)
         fft_reset(pfft_dev);
@@ -170,13 +173,14 @@ static int fft_copy_data_to_user(fft_dev_st* pfft_dev, k_fft_args_st* pcfg, void
         .dst_addr = (void*)(pcfg->data) + PV_OFFSET,
         .dimension = DIMENSION1,
         .line_size = fft_data_len,
+        .timeout_ms = RT_WAITING_FOREVER,
         .ch_cfg.dat_mode = 0,
         .ch_cfg.src_fixed = 1,
         .ch_cfg.dst_fixed = 0,
         .ch_cfg.wr_outstanding = 15,
         .ch_cfg.rd_outstanding = 15,
     };
-    ret = sdma_transfer(&cfg, RT_WAITING_FOREVER);
+    ret = sdma_send_transfer(&cfg);
 
     if (ret == 0) {
         rt_hw_cpu_dcache_invalidate(pcfg->data, sizeof(pcfg->data));

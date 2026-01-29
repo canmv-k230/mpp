@@ -48,9 +48,11 @@ typedef k_u32 k_aenc_chn;
 
 typedef struct {
     k_payload_type type;
+    k_u32 sample_rate;
+    k_u32 channels;
+    k_u32 bitrate;//bps
     k_u32 point_num_per_frame;
     k_u32 buf_size; /* buf size[2~K_MAX_AUDIO_FRAME_NUM] */
- //void ATTRIBUTE *value;
 } k_aenc_chn_attr;
 
  typedef struct {

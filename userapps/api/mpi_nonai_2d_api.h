@@ -43,6 +43,9 @@ extern "C" {
 /** \addtogroup     NONAI_2D */
 /** @{ */ /** <!-- [NONAI_2D] */
 
+k_s32 kd_mpi_nonai_2d_request_chn(k_u32* chn_num);
+k_s32 kd_mpi_nonai_2d_release_chn(k_u32 chn_num);
+
 /**
  * @brief Create encode channel
  *
@@ -147,6 +150,31 @@ k_s32 kd_mpi_nonai_2d_release_frame(k_u32 chn_num, k_video_frame_info *frame);
  *
  */
 k_s32 kd_mpi_nonai_2d_close();
+
+/**
+ * @brief attach vb pool
+ *
+ * @param [in] chn_num Channel number
+ * @param [in] vb pool id
+ * @return k_s32
+ * @retval 0 success
+ * @retval "not 0" see err code
+ * @see K_ERR_CODE_E
+ * @note It can be set on the fly
+ */
+k_s32 kd_mpi_nonai_2d_attach_vb_pool(k_u32 chn_num, k_u32 pool_id);
+
+/**
+ * @brief detach vb pool
+ *
+ * @param [in] chn_num Channel number
+ * @return k_s32
+ * @retval 0 success
+ * @retval "not 0" see err code
+ * @see K_ERR_CODE_E
+ * @note It can be set on the fly
+ */
+k_s32 kd_mpi_nonai_2d_detach_vb_pool(k_u32 chn_num);
 
 /** @} */ /** <!-- ==== NONAI_2D End ==== */
 #ifdef __cplusplus

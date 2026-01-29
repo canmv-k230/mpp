@@ -152,6 +152,8 @@ k_s32 kd_mpi_sys_munmap(void *virt_addr, k_u32 size);
  */
 k_s32 kd_mpi_sys_mmz_flush_cache(k_u64 phy_addr, void *virt_addr, k_u32 size);
 
+k_s32 kd_mpi_sys_mmz_invalidate_cache(k_u64 phy_addr, void *virt_addr, k_u32 size);
+
 /**
  * @brief Releases the MMZ in the user space
  *

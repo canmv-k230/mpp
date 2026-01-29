@@ -37,6 +37,8 @@
 #include "k_vb_comm.h"
 #include "k_video_comm.h"
 
+#include <string.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif /* End of #ifdef __cplusplus */
@@ -53,6 +55,20 @@ extern "C" {
  * @retval "Other value" valid pool ID
  */
 k_s32 kd_mpi_vb_create_pool(k_vb_pool_config *config);
+
+static inline __attribute((always_inline))
+k_s32 kd_mpi_vb_create_pool_ex(k_u64 blk_size, k_u32 blk_cnt, k_vb_remap_mode mode)
+{
+    k_vb_pool_config cfg;
+
+    memset(&cfg, 0x00, sizeof(cfg));
+
+    cfg.blk_size = blk_size;
+    cfg.blk_cnt = blk_cnt;
+    cfg.mode = mode;
+
+    return kd_mpi_vb_create_pool(&cfg);
+}
 
 /**
  * @brief Destroys a VB pool
@@ -331,6 +347,10 @@ k_s32 kd_mpi_vb_set_mod_pool_config(k_vb_uid vb_uid, const k_vb_config *config);
  * @see kd_mpi_vb_set_mod_pool_config
  */
 k_s32 kd_mpi_vb_get_mod_pool_config(k_vb_uid vb_uid, k_vb_config *config);
+
+k_s32 kd_mpi_vb_increase_block_refcnt(k_vb_blk_handle block);
+k_s32 kd_mpi_vb_decrease_block_refcnt(k_vb_blk_handle block);
+k_s32 kd_mpi_vb_get_block_refcnt(k_vb_blk_handle block);
 
 /** @} */ /** <!-- ==== SYSTEM_CTRL End ==== */
 #ifdef __cplusplus

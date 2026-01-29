@@ -24,28 +24,19 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
-#include <fcntl.h>
-#include <unistd.h>
-#include <pthread.h>
-#include "k_type.h"
-#include "k_dma_comm.h"
-//#include "k_dma_ioctl.h"
-#include <stdio.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <pthread.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include "sys/ioctl.h"
 #include "k_type.h"
 #include "mpi_fft_api.h"
-#define DEV_NAME "/dev/fft_device"
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <pthread.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/ioctl.h>
 #include <math.h>
+
+#define DEV_NAME "/dev/fft_device"
 
 #define ERET(A) {  if(A) \
     {printf("f=%s l=%d ret=%x \n", __func__, __LINE__, (A)); return (A); } }  

@@ -1,76 +1,74 @@
-include ../../../mkenv.mk
+# Include base configuration
+include ../../mkenv.mk
+include $(SDK_RTSMART_SRC_DIR)/libs/mk/toolchain_riscv64_musl.mk
 
-include $(MPP_SRC_DIR)/middleware/mpp.mk
-include $(MPP_SRC_DIR)/middleware/rt-smart.mk
+# Build configuration
+DIR 	:= $(shell basename `pwd`)
+BUILD	:= $(SDK_RTSMART_BUILD_DIR)/mpp/middleware/$(DIR)
+BIN 	:= $(SDK_RTSMART_BUILD_DIR)/mpp/middleware/mediaServer.elf
 
-AR = riscv64-unknown-linux-musl-ar
+# Source files handling
+C_SRCS    := $(wildcard *.c)
+CXX_SRCS  := $(wildcard *.cpp)
 
-CURRECT_DIR_NAME=$(shell basename `pwd`)
-LOCAL_SRC_DIR = $(shell pwd)
-LIB = $(MPP_MIDDLEWARE_ELF_INSTALL_PATH)/$(CURRECT_DIR_NAME).elf
-BUILD := $(SDK_RTSMART_BUILD_DIR)/mpp/middleware/$(CURRECT_DIR_NAME)
-LIBPATH = $(MPP_LIB_PATH)
-LIBS = $(MPP_LIBS)
+# Consistent variable naming
+C_OBJS    := $(patsubst %.c, $(BUILD)/%.o, $(C_SRCS))
+CXX_OBJS  := $(patsubst %.cpp, $(BUILD)/%.o, $(CXX_SRCS))
 
-LIBS_FOR_CONSOLE_APPLICATION = -lssl -lcrypto
-CC_CFLAGS_EX=-mcmodel=medany -march=rv64imafdcv -mabi=lp64d -Wall -O0 -g -gdwarf-2 -n --static $(KCFLAGS)
+OBJS      := $(C_OBJS) $(CXX_OBJS)
+DEPS      := $(OBJS:.o=.d)
 
-LIVE555_USAGEENVIRONMENT= ../UsageEnvironment
-LIVE555_BASICUSAGEENVIRONMENT= ../BasicUsageEnvironment
-LIVE555_GROUPSOCK = ../groupsock
-LIVE555_LIVEMEDIA = ../liveMedia
+# Directory creation logic - Captured and sorted
+OBJ_DIRS  := $(sort $(dir $(OBJS) $(BIN)))
 
-LOCAL_LIBS_PATH = -L$(LIVE555_USAGEENVIRONMENT) -L$(LIVE555_BASICUSAGEENVIRONMENT) -L$(LIVE555_GROUPSOCK) -L$(LIVE555_LIVEMEDIA)
-LOCAL_LIBS = -lliveMedia -lgroupsock -lBasicUsageEnvironment -lUsageEnvironment
+# Library configuration
+include $(SDK_RTSMART_SRC_DIR)/libs/mk/libmpp.mk
 
-LIVE555_COMPILE_OPTS = -DSOCKLEN_T=socklen_t -DNO_SSTREAM=1 -D_LARGEFILE_SOURCE=1 -D_FILE_OFFSET_BITS=64 -DNO_OPENSSL=1
+# Compiler flags
+C_CXX_FLAGS := -fopenmp -march=rv64imafdcv -mabi=lp64d -mcmodel=medany -Os
+C_CXX_FLAGS += -I. $(LIB_CFLAGS) -I$(SDK_SRC_ROOT_DIR)/include -include "generated/autoconf.h"
+C_CXX_FLAGS += -Wall -Wextra -ffunction-sections -fdata-sections
 
-LOCAL_CFLAGS = -I$(LOCAL_SRC_DIR) -I$(LIVE555_GROUPSOCK)/include -I$(LIVE555_USAGEENVIRONMENT)/include -I$(LIVE555_BASICUSAGEENVIRONMENT)/include -I$(LIVE555_LIVEMEDIA)/include
+C_CXX_FLAGS += -DSOCKLEN_T=socklen_t -DNO_SSTREAM=1 -D_LARGEFILE_SOURCE=1 -D_FILE_OFFSET_BITS=64 -DNO_OPENSSL=1
 
-WERROR_FLAGS = -Wno-register -Wno-multichar -Wno-pessimizing-move -Wno-deprecated-declarations -Wno-unused-result -Wno-unused-variable -Wno-format -Wno-return-type -Wno-sign-compare -Wno-unused-label
+CFLAGS 		:= $(C_CXX_FLAGS) -std=gnu99
+CXX_FLAGS 	:= $(C_CXX_FLAGS) -std=c++20 
 
-CXX_FLAGS = $(WERROR_FLAGS) \
-			$(LIVE555_COMPILE_OPTS) \
+# Linker flags
+LDFLAGS := -T $(SDK_RTSMART_SRC_DIR)/libs/mk/link.lds --static -Wl,--gc-sections
+LDFLAGS += $(LIB_LDFLAGS)
 
-SRCS = $(wildcard *.c)
-COBJS 	:= $(patsubst %, $(BUILD)/%, $(SRCS:.c=.o))
-CDEPS 	:= $(patsubst %, $(BUILD)/%, $(SRCS:.c=.o.d))
+# Phony targets
+.PHONY: all clean distclean
 
-CPP_SRCS = $(wildcard *.cpp)
-CPP_OBJS 	:= $(patsubst %, $(BUILD)/%, $(CPP_SRCS:.cpp=.o))
-CPP_DEPS 	:= $(patsubst %, $(BUILD)/%, $(CPP_SRCS:.cpp=.o.d))
+all: $(BIN)
+	@$(ECHO) [BUILD] mpp middleware $(DIR) done.
 
-OBJS := $(COBJS) $(CPP_OBJS)
-DEPS := $(CDEPS) $(CPP_DEPS)
 
-all:$(LIB)
-	@echo "Make mediaServer done."
+# Rule to link the final ELF - Order-only dependency on directory
+$(BIN): $(OBJS) | $(OBJ_DIRS)
+	@echo "[LD] $@"
+	$(Q)$(CXX) $^ $(LDFLAGS) -o $@
+	$(Q)$(STRIP) $@
 
-$(COBJS): $(BUILD)/%.o : %.c
-	@echo [CC] $@
-	@$(CC) $(CC_CFLAGS_EX) $(LOCAL_CFLAGS) $(BSP_CFLGAS) $(RTSMART_CFLAGS) $(MPP_USER_CFLGAS) $(LOCAL_LIBS) -MD -MP -MF $@.d -c $< -o $@
+# Rule for C objects - Order-only dependency on directory
+$(BUILD)/%.o: %.c | $(OBJ_DIRS)
+	@echo "[CC] $@"
+	$(Q)$(CC) $(CFLAGS) -MD -MP -MF $(@:.o=.d) -c $< -o $@
 
-$(CPP_OBJS): $(BUILD)/%.o : %.cpp
-	@echo [CXX] $@
-	@$(CPP) $(CC_CFLAGS_EX) $(CXX_FLAGS) $(LOCAL_CFLAGS) $(BSP_CFLGAS) $(RTSMART_CFLAGS) $(MPP_USER_CFLGAS) $(LOCAL_LIBS) -MD -MP -MF $@.d -c $< -o $@
+# Rule for C++ objects - Order-only dependency on directory
+$(BUILD)/%.o: %.cpp | $(OBJ_DIRS)
+	@echo "[CXX] $@"
+	$(Q)$(CXX) $(CXX_FLAGS) -MD -MP -MF $(@:.o=.d) -c $< -o $@
 
-$(LIB): $(OBJS)
-	@echo [LD] $@
-	@$(CPP) -o $@ $(LINKFLAG) -Wl,--whole-archive -Wl,--no-whole-archive -n --static $^ -L$(LIBPATH) -L$(MPP_MIDDLEWARE_LIB_INSTALL_PATH) $(CXX_FLAGS) $(LOCAL_LIBS) $(LOCAL_LIBS_PATH) -Wl,--start-group $(LIBS) -Wl,--end-group
+# Actual directory creation rule
+$(OBJ_DIRS):
+	$(Q)mkdir -p $@
 
 clean:
-	@rm -rf $(LIB) $(OBJS) $(DEPS)
+	@rm -rf $(BIN)
 
-.PHONY: all clean
-
-# $(sort $(var)) removes duplicates
-#
-# The net effect of this, is it causes the objects to depend on the
-# object directories (but only for existence), and the object directories
-# will be created if they don't exist.
-OBJ_DIRS = $(sort $(dir $(OBJS)))
-$(OBJS): | $(OBJ_DIRS)
-$(OBJ_DIRS):
-	@mkdir -p $@
+distclean: clean
+	@rm -rf $(BUILD)
 
 -include $(DEPS)

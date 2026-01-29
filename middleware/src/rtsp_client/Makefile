@@ -1,77 +1,74 @@
-include ../../mkenv.mk
+include ../mkenv.mk
+include $(SDK_RTSMART_SRC_DIR)/libs/mk/toolchain_riscv64_musl.mk
 
-include $(MPP_SRC_DIR)/middleware/mpp.mk
-include $(MPP_SRC_DIR)/middleware/rt-smart.mk
+# 1. Path Definitions
+DIR 	:= $(shell basename `pwd`)
+BUILD	:= $(SDK_RTSMART_BUILD_DIR)/mpp/middleware/$(DIR)
+# Direct target path for the library
+LIB		:= $(MPP_MIDDLEWARE_LIB_INSTALL_PATH)/lib$(DIR).a
 
-AR = riscv64-unknown-linux-musl-ar
+include $(SDK_RTSMART_SRC_DIR)/libs/mk/libmpp.mk
 
-CURRECT_DIR_NAME=$(shell basename `pwd`)
-LOCAL_SRC_DIR = $(shell pwd)
-LIB = $(MPP_MIDDLEWARE_LIB_INSTALL_PATH)/lib$(CURRECT_DIR_NAME).a
-BUILD := $(SDK_RTSMART_BUILD_DIR)/mpp/middleware/$(CURRECT_DIR_NAME)
-LIBPATH = $(MPP_LIB_PATH)
-LIBS = $(MPP_LIBS)
+# 2. Source and Object Handling
+C_SRCS          := $(wildcard *.c)
+CXX_SRCS        := $(wildcard *.cpp)
 
-LIBS_FOR_CONSOLE_APPLICATION = -lssl -lcrypto
-CC_CFLAGS_EX=-mcmodel=medany -march=rv64imafdcv -mabi=lp64d -Wall -O0 -g -gdwarf-2 -n --static $(KCFLAGS)
+C_OBJS          := $(patsubst %.c, $(BUILD)/%.o, $(C_SRCS))
+CXX_OBJS        := $(patsubst %.cpp, $(BUILD)/%.o, $(CXX_SRCS))
 
-LIVE555_USAGEENVIRONMENT= ../live555/UsageEnvironment
-LIVE555_BASICUSAGEENVIRONMENT= ../live555/BasicUsageEnvironment
-LIVE555_GROUPSOCK = ../live555/groupsock
-LIVE555_LIVEMEDIA = ../live555/liveMedia
+OBJS            := $(C_OBJS) $(CXX_OBJS)
+DEPS            := $(OBJS:.o=.d)
 
-LOCAL_LIBS_PATH = -L$(LIVE555_USAGEENVIRONMENT) -L$(LIVE555_BASICUSAGEENVIRONMENT) -L$(LIVE555_GROUPSOCK) -L$(LIVE555_LIVEMEDIA)
-LOCAL_LIBS = -lliveMedia -lgroupsock -lBasicUsageEnvironment -lUsageEnvironment
+# 3. Header Installation Mapping
+INCS            := $(wildcard include/*.h)
+INCS_INSTALL    := $(patsubst include/%, $(MPP_MIDDLEWARE_INC_INSTALL_PATH)/%, $(INCS))
 
-LIVE555_COMPILE_OPTS = -DSOCKLEN_T=socklen_t -DNO_SSTREAM=1 -D_LARGEFILE_SOURCE=1 -D_FILE_OFFSET_BITS=64 -DNO_OPENSSL=1
+# 4. Directory Creation Logic
+OBJ_DIRS        := $(sort $(dir $(OBJS)) $(MPP_MIDDLEWARE_LIB_INSTALL_PATH) $(MPP_MIDDLEWARE_INC_INSTALL_PATH))
 
-LOCAL_CFLAGS = -I$(LOCAL_SRC_DIR) -I$(LOCAL_SRC_DIR)/include -I$(LIVE555_GROUPSOCK)/include -I$(LIVE555_USAGEENVIRONMENT)/include -I$(LIVE555_BASICUSAGEENVIRONMENT)/include -I$(LIVE555_LIVEMEDIA)/include
+# 5. Compiler Flags
+C_CXX_FLAGS     := -fopenmp -march=rv64imafdcv -mabi=lp64d -mcmodel=medany -Os
+C_CXX_FLAGS     += -Iinclude -I. -Wall -Wextra -ffunction-sections -fdata-sections
+C_CXX_FLAGS     += -Wno-multichar -Wno-unused-result -Wno-unused-variable -Wno-format
+C_CXX_FLAGS     += $(LIB_CFLAGS)
 
-WERROR_FLAGS = -Wno-register -Wno-multichar -Wno-pessimizing-move -Wno-deprecated-declarations -Wno-unused-result -Wno-unused-variable -Wno-format -Wno-return-type -Wno-sign-compare -Wno-unused-label
+C_CXX_FLAGS 	+= -DSOCKLEN_T=socklen_t -DNO_SSTREAM=1 -D_LARGEFILE_SOURCE=1 -D_FILE_OFFSET_BITS=64 -DNO_OPENSSL=1
 
-CXX_FLAGS = -std=c++20 \
-			$(WERROR_FLAGS) \
-			$(LIVE555_COMPILE_OPTS) \
+CFLAGS          := $(C_CXX_FLAGS) -std=gnu99
+CXX_FLAGS       := $(C_CXX_FLAGS) -std=c++20 -Wno-register 
 
-SRCS = $(wildcard *.c)
-COBJS 	:= $(patsubst %, $(BUILD)/%, $(SRCS:.c=.o))
-CDEPS 	:= $(patsubst %, $(BUILD)/%, $(SRCS:.c=.o.d))
-
-CPP_SRCS = $(wildcard *.cpp)
-CPP_OBJS 	:= $(patsubst %, $(BUILD)/%, $(CPP_SRCS:.cpp=.o))
-CPP_DEPS 	:= $(patsubst %, $(BUILD)/%, $(CPP_SRCS:.cpp=.o.d))
-
-OBJS := $(COBJS) $(CPP_OBJS)
-DEPS := $(CDEPS) $(CPP_DEPS)
-
-all:$(LIB)
-	@echo "Make lib$(CURRECT_DIR_NAME) done."
-
-$(COBJS): $(BUILD)/%.o : %.c
-	@echo [CC] $@
-	@$(CC) $(CC_CFLAGS_EX) $(LOCAL_CFLAGS) $(BSP_CFLGAS) $(RTSMART_CFLAGS) $(MPP_USER_CFLGAS) $(LOCAL_LIBS) -MD -MP -MF $@.d -c $< -o $@
-
-$(CPP_OBJS): $(BUILD)/%.o : %.cpp
-	@echo [CXX] $@
-	@$(CPP) $(CC_CFLAGS_EX) $(CXX_FLAGS) $(LOCAL_CFLAGS) $(BSP_CFLGAS) $(RTSMART_CFLAGS) $(MPP_USER_CFLGAS) $(LOCAL_LIBS) -MD -MP -MF $@.d -c $< -o $@
-
-$(LIB): $(OBJS)
-	@echo [LD] $@
-	@$(AR) $(ARFLAGS) $@ $^
-
-clean:
-	@rm -rf $(LIB) $(OBJS) $(DEPS)
+# --- Targets ---
 
 .PHONY: all clean
 
-# $(sort $(var)) removes duplicates
-#
-# The net effect of this, is it causes the objects to depend on the
-# object directories (but only for existence), and the object directories
-# will be created if they don't exist.
-OBJ_DIRS = $(sort $(dir $(OBJS)))
-$(OBJS): | $(OBJ_DIRS)
+# 'all' now ensures the library is built directly into the target and headers are synced
+all: $(LIB) $(INCS_INSTALL)
+	@$(ECHO) [BUILD] mpp middleware $(DIR) done.
+
+
+# Rule to copy headers to the SDK (only if they changed)
+$(MPP_MIDDLEWARE_INC_INSTALL_PATH)/%: include/% | $(MPP_MIDDLEWARE_INC_INSTALL_PATH)
+	@echo "[CP] $<"
+	$(Q)cp -f $< $@
+
+# Rule to archive the library directly into the target folder
+$(LIB): $(OBJS) | $(MPP_MIDDLEWARE_LIB_INSTALL_PATH)
+	@echo "[AR] $@"
+	$(Q)$(AR) rcs $@ $^
+
+# Compilation rules for intermediate objects
+$(BUILD)/%.o : %.c | $(OBJ_DIRS)
+	@echo "[CC] $@"
+	$(Q)$(CC) $(CFLAGS) -MD -MP -MF $(@:.o=.d) -c $< -o $@
+
+$(BUILD)/%.o : %.cpp | $(OBJ_DIRS)
+	@echo "[CXX] $@"
+	$(Q)$(CXX) $(CXX_FLAGS) -MD -MP -MF $(@:.o=.d) -c $< -o $@
+
 $(OBJ_DIRS):
-	@mkdir -p $@
+	$(Q)mkdir -p $@
+
+clean:
+	$(Q)rm -rf $(LIB_TARGET) $(BUILD)
 
 -include $(DEPS)

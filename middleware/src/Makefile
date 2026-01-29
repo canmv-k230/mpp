@@ -1,33 +1,55 @@
-include ../mkenv.mk
+include mkenv.mk
 
-include $(MPP_SRC_DIR)/middleware/mpp.mk
-include $(MPP_SRC_DIR)/middleware/rt-smart.mk
+subdirs-y := kdmedia live555 mp4_format mp4_player rtsp_client rtsp_server ogg
 
-include $(SDK_SRC_ROOT_DIR)/.config
-
-dir-y := kdmedia live555 mp4_format mp4_player rtsp_client rtsp_server
-
-dir-$(CONFIG_MPP_ENABLE_MIDDLEWARE_LIB_X264)		+= x264/src
-dir-$(CONFIG_MPP_ENABLE_MIDDLEWARE_LIB_FFMPEG)		+= ffmpeg/src
-dir-$(CONFIG_MPP_ENABLE_MIDDLEWARE_LIB_RTSP_PUSHER)	+= rtsp_pusher
-
-# Add directories to the build system
-dirs := $(dir-y)
-
-all:
-	@rm -rf $(MPP_MIDDLEWARE_LIB_INSTALL_PATH)/*
-	@$(foreach dir,$(dirs), \
-		$(MAKE) -C $(dir) all || exit $?; \
-		if [ "$(dir)" = "ffmpeg/src" ] || [ "$(dir)" = "x264/src" ]; then \
-			$(MAKE) -C $(dir) install || exit $?; \
-		fi; \
-	)
-
-	@echo "Make MPP middleware libraries done."
-
-clean:
-	@rm -rf $(MPP_MIDDLEWARE_LIB_INSTALL_PATH)/*
-	@$(foreach dir,$(dirs),$(MAKE) -C $(dir) clean || exit $?;)
-	@echo "Clean MPP middleware libraries done."
+subdirs-$(CONFIG_MPP_ENABLE_MIDDLEWARE_LIB_X264)		+= x264/src
+subdirs-$(CONFIG_MPP_ENABLE_MIDDLEWARE_LIB_FFMPEG)		+= ffmpeg/src
+subdirs-$(CONFIG_MPP_ENABLE_MIDDLEWARE_LIB_RTSP_PUSHER)	+= rtsp_pusher
 
 .PHONY: all clean
+
+all: $(subdirs-y)
+	@echo [BUILD] mpp middleware done.
+
+clean:
+	$(Q)rm -rf $(MPP_MIDDLEWARE_LIB_INSTALL_PATH)/*
+	@for dir in $(subdirs-y); do \
+		echo "[CLEAN] mpp middleware $$dir"; \
+		$(MAKE) -C $$dir clean || exit $?; \
+	done
+
+ifneq ($(strip $(subdirs-y)),)
+.PHONY: $(subdirs-y)
+
+$(subdirs-y):
+	@echo "[BUILD] mpp middleware $@"
+	@$(MAKE) -C $@ all || exit $?;
+	@# Use shell conditional to check the target name during execution
+	@case "$@" in \
+		"ffmpeg/src" | "x264/src") \
+			echo "[INSTALL] $@"; \
+			$(MAKE) -C $@ install || exit $?; \
+			;; \
+	esac
+
+endif
+
+# Define Dependencies (Sequential Order)
+
+rtsp_client: live555
+
+rtsp_server: live555
+
+mp4_player: mp4_format
+
+ifeq ($(CONFIG_MPP_ENABLE_MIDDLEWARE_LIB_X264),y)
+
+ffmpeg/src: x264/src
+
+endif
+
+ifeq ($(CONFIG_MPP_ENABLE_MIDDLEWARE_LIB_RTSP_PUSHER),y)
+
+rtsp_pusher:ffmpeg/src
+
+endif

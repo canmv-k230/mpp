@@ -506,7 +506,40 @@ k_connector_info connector_info_list[] = {
         .type = ILI9881_MIPI_4LAN_800X1280_60FPS, // maybe should change it
     },
 #endif
-
+#if defined(CONFIG_MPP_DSI_ENABLE_LCD_JD9852)
+    {
+    .connector_name = "jd9852", // maybe should change it
+    .screen_test_mode = 0,
+    .dsi_test_mode = 0,
+    .bg_color = BACKGROUND_BLACK_COLOR,
+    .intr_line = 8, // 256 lines
+    .pixclk_div = 107,
+    .lan_num = K_DSI_1LAN,
+    .work_mode = K_BURST_MODE,
+    .cmd_mode = K_VO_LP_MODE,
+    .phy_attr = {
+        .n = 1,
+        .m = 42,
+        .voc = 0x37, // 0b00110111
+        .hs_freq = 0x80 | 0x31, // 0b10110001
+    },
+    .resolution = {
+        .pclk = 5500, // 5500 * 1000 / (240 + 4 + 20 + 40) / (320 + 8 + 24 + 32) = 47.11 fps
+        .phyclk = 132000,
+        .htotal = (240 + 4 + 20 + 40), // 304
+        .hdisplay = 240,
+        .hsync_len = 4,
+        .hback_porch = 20,
+        .hfront_porch = 40,
+        .vtotal = (320 + 8 + 24 + 32), // 384
+        .vdisplay = 320,
+        .vsync_len = 8,
+        .vback_porch = 24,
+        .vfront_porch = 32,
+    },
+    .type = JD9852_MIPI_1LAN_240X320_60FPS, // maybe should change it
+	},
+#endif
 #if defined(CONFIG_MPP_DSI_ENABLE_LCD_NT35516)
     {
         // TEST PASS

@@ -142,6 +142,7 @@ struct k_dw_settings {
     u32 lut_height;
     // for statistics purpose
     u8 vdev_id;
+    u32 attach_pool_id;
 };
 
 struct k_dw_load_request {

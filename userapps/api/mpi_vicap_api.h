@@ -357,8 +357,10 @@ k_s32 kd_mpi_vicap_again_set(k_vicap_dev dev_num, k_sensor_gain gain);
 
 k_s32 kd_mpi_vicap_intg_time_set(k_vicap_dev dev_num, k_sensor_intg_time time);
 
-k_s32 kd_mpi_viap_set_af_enable(k_vicap_dev dev_num, k_bool enable);
-k_s32 kd_mpi_viap_get_af_enable(k_vicap_dev dev_num, k_bool *enable);
+k_s32 kd_mpi_vicap_set_af_enable(k_vicap_dev dev_num, k_bool enable);
+k_s32 kd_mpi_vicap_get_af_enable(k_vicap_dev dev_num, k_bool *enable);
+
+k_s32 kd_mpi_vicap_tuning_helper(k_vicap_dev dev_num, void* data);
 
 /** @} */ /** <!-- ==== VICAP End ==== */
 

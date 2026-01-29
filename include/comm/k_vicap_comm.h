@@ -405,6 +405,7 @@ typedef struct {
     k_pixel_format pix_format;
     k_u32 buffer_num;
     k_u32 buffer_size;
+    k_s32 buffer_pool_id; // set to VB_INVALID_POOLID will auto create
     k_u8 alignment; // 0: 1 byte, 1: 2 byte ... 12: 4096 byte
     k_u8 fps; // 0: original FPS
 } k_vicap_chn_attr;
@@ -434,7 +435,7 @@ typedef struct {
     k_vicap_window acq_win;
     k_vicap_work_mode mode;
     k_vicap_input_type input_type;
-    k_vicap_image_pattern image_pat;
+    k_vicap_image_pattern image_pat; // only use when VICAP_WORK_LOAD_IMAGE_MODE
     k_vicap_isp_pipe_ctrl pipe_ctrl;
     k_u32 cpature_frame;
     k_vicap_sensor_info sensor_info;
@@ -442,6 +443,7 @@ typedef struct {
     k_bool dev_enable;
     k_u32 buffer_num;
     k_u32 buffer_size;
+    k_s32 buffer_pool_id; // set to VB_INVALID_POOLID will auto create
     k_vicap_mirror mirror;
     k_bool fastboot_enable;
 } k_vicap_dev_attr;
@@ -601,6 +603,7 @@ typedef struct {
     k_vicap_mcm_cfg cfg;
     k_vicap_chn mcm_chn;
     k_u32 buff_num;
+    k_s32 buffer_pool_id;// set to VB_INVALID_POOLID will auto create
     k_u32 work_mode;
 }k_vicap_mcm_chn_attr;
 

@@ -66,9 +66,6 @@ typedef struct
     k_u32 pic_width;            /*max decoded picture width*/
     k_u32 pic_height;           /*max decoded picture height*/
     k_u32 stream_buf_size;      /*single input vb size*/
-    k_u32 frame_buf_size;       /*single output vb size*/
-    k_u32 frame_buf_cnt;        /*output vb count*/
-    k_u32 frame_buf_pool_id;
 } k_vdec_chn_attr;
 
 typedef struct
@@ -152,7 +149,6 @@ typedef struct
 #define K_ERR_VDEC_NOTREADY          K_DEF_ERR(K_ID_VDEC, K_ERR_LEVEL_ERROR, K_ERR_NOTREADY)
 #define K_ERR_VDEC_BADADDR           K_DEF_ERR(K_ID_VDEC, K_ERR_LEVEL_ERROR, K_ERR_BADADDR)
 #define K_ERR_VDEC_BUSY              K_DEF_ERR(K_ID_VDEC, K_ERR_LEVEL_ERROR, K_ERR_BUSY)
-#define K_ERR_VDEC_NOT_PERM          K_DEF_ERR(K_ID_VDEC, K_ERR_LEVEL_ERROR, K_ERR_NOT_PERM)
 
 
 /** @} */ /** <!-- ==== VDEC End ==== */

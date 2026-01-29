@@ -67,8 +67,6 @@ typedef enum
 typedef struct
 {
     k_payload_type type;          /*stream payload type */
-    k_u32 stream_buf_size;        /*single output vb size */
-    k_u32 stream_buf_cnt;         /*output vb count */
     k_u32 pic_width;              /*channel picture width */
     k_u32 pic_height;             /*channel picture height */
     k_venc_profile profile;       /*channel profile */

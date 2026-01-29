@@ -1,63 +1,81 @@
-include ../../mkenv.mk
+include ../mkenv.mk
+include $(SDK_RTSMART_SRC_DIR)/libs/mk/toolchain_riscv64_musl.mk
 
-include $(MPP_SRC_DIR)/middleware/mpp.mk
-include $(MPP_SRC_DIR)/middleware/rt-smart.mk
+# 1. Path Definitions
+DIR 	:= $(shell basename `pwd`)
+BUILD	:= $(SDK_RTSMART_BUILD_DIR)/mpp/middleware/$(DIR)
+# Direct target path for the library
+LIB		:= $(MPP_MIDDLEWARE_LIB_INSTALL_PATH)/lib$(DIR).a
 
-CC=riscv64-unknown-linux-musl-gcc
-AR=riscv64-unknown-linux-musl-ar
+include $(SDK_RTSMART_SRC_DIR)/libs/mk/libmpp.mk
 
-CURRECT_DIR_NAME=$(shell pwd)
-LIB = $(MPP_MIDDLEWARE_LIB_INSTALL_PATH)/libmp4.a
+# 2. Source and Object Handling
+C_SRCS	:= \
+	$(wildcard src/*.c) \
+	$(wildcard src/libflv/source/*.c) \
+	$(wildcard src/libmov/source/*.c) \
 
-BUILD := $(SDK_RTSMART_BUILD_DIR)/mpp/middleware/mp4_format
+CXX_SRCS	:= \
+	$(wildcard src/*.cpp) \
+	$(wildcard src/libflv/source/*.cpp) \
+	$(wildcard src/libmov/source/*.cpp) \
 
-INCS := -I$(CURRECT_DIR_NAME)/include
-INCS += -I$(CURRECT_DIR_NAME)/src/libflv/include
-INCS += -I$(CURRECT_DIR_NAME)/src/libmov/include
+C_OBJS          := $(patsubst %.c, $(BUILD)/%.o, $(C_SRCS))
+CXX_OBJS        := $(patsubst %.cpp, $(BUILD)/%.o, $(CXX_SRCS))
 
-SRC_DIRS := src
-SRC_DIRS += src/libmov/source
-SRC_DIRS += src/libflv/source
+OBJS            := $(C_OBJS) $(CXX_OBJS)
+DEPS            := $(OBJS:.o=.d)
 
-SRCS = $(foreach dir, $(SRC_DIRS), $(wildcard $(dir)/*.c))
+# 3. Header Installation Mapping
+INCS            := $(wildcard include/*.h)
+INCS_INSTALL    := $(patsubst include/%, $(MPP_MIDDLEWARE_INC_INSTALL_PATH)/%, $(INCS))
 
-COBJS 	:= $(patsubst %, $(BUILD)/%, $(SRCS:.c=.o))
-CDEPS 	:= $(patsubst %, $(BUILD)/%, $(SRCS:.c=.o.d))
+# 4. Directory Creation Logic
+OBJ_DIRS        := $(sort $(dir $(OBJS)) $(MPP_MIDDLEWARE_LIB_INSTALL_PATH) $(MPP_MIDDLEWARE_INC_INSTALL_PATH))
 
-CPP_SRCS = $(wildcard *.cpp)
-CPP_OBJS 	:= $(patsubst %, $(BUILD)/%, $(CPP_SRCS:.cpp=.o))
-CPP_DEPS 	:= $(patsubst %, $(BUILD)/%, $(CPP_SRCS:.cpp=.o.d))
+# 5. Compiler Flags
+C_CXX_FLAGS     := -fopenmp -march=rv64imafdcv -mabi=lp64d -mcmodel=medany -Os
+C_CXX_FLAGS     += -Iinclude -I. -Wall -Wextra -ffunction-sections -fdata-sections
+C_CXX_FLAGS     += -Wno-multichar -Wno-unused-result -Wno-unused-variable -Wno-format
+C_CXX_FLAGS     += $(LIB_CFLAGS)
 
-OBJS := $(COBJS) $(CPP_OBJS)
-DEPS := $(CDEPS) $(CPP_DEPS)
+C_CXX_FLAGS		+= -Isrc/libflv/include -Isrc/libmov/include
 
-CFLAGS :=
-DEFINE :=
+CFLAGS          := $(C_CXX_FLAGS) -std=gnu99
+CXX_FLAGS       := $(C_CXX_FLAGS) -std=c++20 -Wno-register 
 
-all:$(LIB)
-	@echo "Make lib$(CURRECT_DIR_NAME) done."
-
-$(OBJS) : $(BUILD)/%.o: %.c
-	@echo [CC] $@
-	@$(CC) -c -fPIC $(CFLAGS) $< -o $@ $(INCS)  $(DEFINE) -MD -MP -MF $@.d
-
-$(LIB) : $(OBJS)
-	@echo [LD] $@
-	@$(AR) $(ARFLAGS) $@ $^
-
-clean:
-	@rm -f $(LIB) $(OBJS) $(DEPS)
+# --- Targets ---
 
 .PHONY: all clean
 
-# $(sort $(var)) removes duplicates
-#
-# The net effect of this, is it causes the objects to depend on the
-# object directories (but only for existence), and the object directories
-# will be created if they don't exist.
-OBJ_DIRS = $(sort $(dir $(OBJS)))
-$(OBJS): | $(OBJ_DIRS)
+# 'all' now ensures the library is built directly into the target and headers are synced
+all: $(LIB) $(INCS_INSTALL)
+	@$(ECHO) [BUILD] mpp middleware $(DIR) done.
+
+
+# Rule to copy headers to the SDK (only if they changed)
+$(MPP_MIDDLEWARE_INC_INSTALL_PATH)/%: include/% | $(MPP_MIDDLEWARE_INC_INSTALL_PATH)
+	@echo "[CP] $<"
+	$(Q)cp -f $< $@
+
+# Rule to archive the library directly into the target folder
+$(LIB): $(OBJS) | $(MPP_MIDDLEWARE_LIB_INSTALL_PATH)
+	@echo "[AR] $@"
+	$(Q)$(AR) rcs $@ $^
+
+# Compilation rules for intermediate objects
+$(BUILD)/%.o : %.c | $(OBJ_DIRS)
+	@echo "[CC] $@"
+	$(Q)$(CC) $(CFLAGS) -MD -MP -MF $(@:.o=.d) -c $< -o $@
+
+$(BUILD)/%.o : %.cpp | $(OBJ_DIRS)
+	@echo "[CXX] $@"
+	$(Q)$(CXX) $(CXX_FLAGS) -MD -MP -MF $(@:.o=.d) -c $< -o $@
+
 $(OBJ_DIRS):
-	@mkdir -p $@
+	$(Q)mkdir -p $@
+
+clean:
+	$(Q)rm -rf $(LIB_TARGET) $(BUILD)
 
 -include $(DEPS)

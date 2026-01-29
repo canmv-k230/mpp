@@ -1,16 +1,13 @@
+include ../mkenv.mk
+include $(SDK_RTSMART_SRC_DIR)/libs/mk/toolchain_riscv64_musl.mk
 
-include $(MPP_SRC_DIR)/kernel/mpp.mk
-include $(MPP_SRC_DIR)/kernel/rt-smart.mk
+# Path Definitions
+DIR 	:= $(shell basename `pwd`)
+BUILD	:= $(SDK_RTSMART_BUILD_DIR)/mpp/kernel/$(DIR)
+# Direct target path for the library
+LIB		:= $(MPP_KERNEL_LIB_INSTALL_PATH)/lib$(DIR).a
 
-include $(SDK_SRC_ROOT_DIR)/.config
-
-CURRECT_DIR_NAME=$(shell basename `pwd`)
-LOCAL_SRC_DIR = $(shell pwd)
-LIB = $(MPP_SRC_DIR)/kernel/lib/lib$(CURRECT_DIR_NAME).a
-BUILD := $(SDK_RTSMART_BUILD_DIR)/mpp/kernel/$(CURRECT_DIR_NAME)
-
-LOCAL_CFLAGS = -I$(LOCAL_SRC_DIR)/src/ \
-			   -I$(RTSMART_SRC_DIR)/kernel/bsp/maix3/board/interdrv/gpio
+# Source and Object Handling
 
 src-y := src/connector_comm.c src/connector_dev.c
 
@@ -29,42 +26,56 @@ src-$(CONFIG_MPP_DSI_ENABLE_LCD_NT35532) += src/nt35532.c
 src-$(CONFIG_MPP_DSI_ENABLE_LCD_GC9503) += src/gc9503.c
 src-$(CONFIG_MPP_DSI_ENABLE_LCD_ST7102) += src/st7102.c
 src-$(CONFIG_MPP_DSI_ENABLE_LCD_AML020T) += src/aml020t.c
+src-$(CONFIG_MPP_DSI_ENABLE_LCD_JD9852) += src/jd9852.c
 
-SRCS = $(wildcard *.c)
-COBJS 	:= $(patsubst %, $(BUILD)/%, $(src-y:.c=.o))
-CDEPS 	:= $(patsubst %, $(BUILD)/%, $(src-y:.c=.o.d))
+C_SRCS          := $(src-y)
+CXX_SRCS        := $(wildcard src/*.cpp)
 
-CPP_SRCS = $(wildcard *.cpp)
-CPP_OBJS 	:= $(patsubst %, $(BUILD)/%, $(CPP_SRCS:.cpp=.o))
-CPP_DEPS 	:= $(patsubst %, $(BUILD)/%, $(CPP_SRCS:.cpp=.o.d))
+C_OBJS          := $(patsubst %.c, $(BUILD)/%.o, $(C_SRCS))
+CXX_OBJS        := $(patsubst %.cpp, $(BUILD)/%.o, $(CXX_SRCS))
 
-OBJS := $(COBJS) $(CPP_OBJS)
-DEPS := $(CDEPS) $(CPP_DEPS)
+OBJS            := $(C_OBJS) $(CXX_OBJS)
+DEPS            := $(OBJS:.o=.d)
 
-.PHONY: all
+# Directory Creation Logic
+OBJ_DIRS        := $(sort $(dir $(OBJS)) $(MPP_KERNEL_LIB_INSTALL_PATH))
+
+# Compiler Flags
+C_CXX_FLAGS     := -fopenmp -march=rv64imafdcv -mabi=lp64d -mcmodel=medany -O0
+C_CXX_FLAGS     += -Iinclude -I. -Wall -Wextra -ffunction-sections -fdata-sections
+C_CXX_FLAGS     += -Wno-multichar -Wno-unused-result -Wno-unused-variable -Wno-format
+C_CXX_FLAGS     += $(LIB_CFLAGS) $(MPP_KERNEL_CFLAGS)
+
+CFLAGS          := $(C_CXX_FLAGS) -std=gnu99
+CXX_FLAGS       := $(C_CXX_FLAGS) -std=c++20 -Wno-register 
+
+# --- Targets ---
+
+.PHONY: all clean
+
+# 'all' now ensures the library is built directly into the target and headers are synced
 all: $(LIB)
-	@echo "Make lib$(CURRECT_DIR_NAME) done."
+	@$(ECHO) [BUILD] mpp kernel $(DIR) done.
 
-.PHONY: clean
-clean:
-	@rm -rf $(LIB) $(OBJS) $(DEPS)
 
-$(LIB): $(OBJS)
-	@echo "AR $@"
-	@$(AR) $(ARFLAGS) $@ $(OBJS)
+# Rule to archive the library directly into the target folder
+$(LIB): $(OBJS) | $(MPP_KERNEL_LIB_INSTALL_PATH)
+	@echo "[AR] $@"
+	$(Q)$(AR) rcs $@ $^
 
-$(OBJS): $(BUILD)/%.o : %.c
-	@echo [CC] $<
-	@$(CC) $(CC_CFLAGS) -Wno-error $(LOCAL_CFLAGS) $(BSP_CFLGAS) $(RTSMART_CFLAGS) $(MPP_DRIVER_CFLGAS) -MD -MP -MF $@.d -c $< -o $@
+# Compilation rules for intermediate objects
+$(BUILD)/%.o : %.c | $(OBJ_DIRS)
+	@echo "[CC] $@"
+	$(Q)$(CC) $(CFLAGS) -MD -MP -MF $(@:.o=.d) -c $< -o $@
 
-# $(sort $(var)) removes duplicates
-#
-# The net effect of this, is it causes the objects to depend on the
-# object directories (but only for existence), and the object directories
-# will be created if they don't exist.
-OBJ_DIRS = $(sort $(dir $(OBJS)))
-$(OBJS): | $(OBJ_DIRS)
+$(BUILD)/%.o : %.cpp | $(OBJ_DIRS)
+	@echo "[CXX] $@"
+	$(Q)$(CXX) $(CXX_FLAGS) -MD -MP -MF $(@:.o=.d) -c $< -o $@
+
 $(OBJ_DIRS):
-	@mkdir -p $@
+	$(Q)mkdir -p $@
+
+clean:
+	$(Q)rm -rf $(LIB_TARGET) $(BUILD)
 
 -include $(DEPS)

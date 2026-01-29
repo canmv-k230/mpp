@@ -15,7 +15,7 @@ enum class KdMediaVideoType {
 };
 
 struct KdMediaInputConfig {
-    bool video_valid = false;
+    bool video_valid = true;
     k_vicap_sensor_type sensor_type = SENSOR_TYPE_MAX;
     int sensor_num = 1;
     KdMediaVideoType video_type = KdMediaVideoType::kVideoTypeH265;

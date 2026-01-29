@@ -99,15 +99,7 @@ k_s32 sys_init(k_bool init_vo)
 
     k_vb_config config;
     memset(&config, 0, sizeof(config));
-    config.max_pool_cnt = 4;
-
-    config.comm_pool[0].blk_cnt = 150;
-    config.comm_pool[0].blk_size = g_max_sample_rate * 2 * 4 / AUDIO_PERSEC_DIV_NUM;
-    config.comm_pool[0].mode =  VB_REMAP_MODE_CACHED ;
-
-    config.comm_pool[1].blk_cnt = 2;
-    config.comm_pool[1].blk_size = g_max_sample_rate * 2 * 4 / AUDIO_PERSEC_DIV_NUM * 2; // ao use
-    config.comm_pool[1].mode = VB_REMAP_MODE_CACHED ;
+    config.max_pool_cnt = 64;
 
      /* vb pool config */
     ret = kd_mpi_vb_set_config(&config);
@@ -197,6 +189,7 @@ static k_s32 _initvo(k_u32 width,k_u32 height,k_u32 vdec_chn,int type)
 
 k_s32 disp_open(k_payload_type video_dec_type,k_u32 width,k_u32 height,int type)
 {
+    int ch = 0;
 
     if (_vdec_vb_create_pool(0) != K_SUCCESS)
     {
@@ -204,15 +197,17 @@ k_s32 disp_open(k_payload_type video_dec_type,k_u32 width,k_u32 height,int type)
         return K_FAILED;
     }
 
-    int ch = 0;
+    if (kd_mpi_vdec_attach_vb_pool(ch,g_vdec_conf[ch].output_pool_id) != K_SUCCESS)
+    {
+        printf("kd_mpi_vdec_attach_vb_pool error\n");
+        return K_FAILED;
+    }
+
     k_vdec_chn_attr attr;
     attr.pic_width = VDEC_MAX_WIDTH;
     attr.pic_height = VDEC_MAX_HEIGHT;
-    attr.frame_buf_cnt = OUTPUT_BUF_CNT;
-    attr.frame_buf_size = FRAME_BUF_SIZE;
     attr.stream_buf_size = STREAM_BUF_SIZE;
     attr.type = video_dec_type;
-    attr.frame_buf_pool_id = g_vdec_conf[ch].output_pool_id;
 
     if (K_SUCCESS != kd_mpi_vdec_create_chn(ch, &attr))
     {
@@ -285,13 +280,13 @@ static k_s32 kd_sample_sys_get_vb_block_from_pool_id(k_u32 pool_id, k_u64 *phys_
 
     handle = kd_mpi_vb_get_block(pool_id, blk_size, mmz_name);
     if(handle == VB_INVALID_HANDLE) {
-        printf("kd_mpi_vb_get_block get failed\n");
+        //printf("kd_mpi_vb_get_block get failed\n");
         return -1;
     }
 
     get_phys_addr = kd_mpi_vb_handle_to_phyaddr(handle);
     if(get_phys_addr == 0) {
-        printf("kd_mpi_vb_handle_to_phyaddr failed\n");
+        printf("kd_mpi_vb_handle_to_phyaddr failed111:0x%x,pool_id:%d\n",handle,pool_id);
         return -1;
     }
 
@@ -407,6 +402,8 @@ k_s32 disp_close()
         return K_FAILED;
     }
 
+    kd_mpi_vdec_detach_vb_pool(ch);
+
     if (K_SUCCESS != kd_mpi_vdec_destroy_chn(ch))
     {
         printf("kd_mpi_vdec_destroy_chn failed\n");
@@ -462,13 +459,13 @@ static k_s32 kd_sample_sys_get_vb_block(k_u32 *pool_id, k_u64 *phys_addr, k_u64 
 
     handle = kd_mpi_vb_get_block(VB_INVALID_POOLID, blk_size, mmz_name);
     if(handle == VB_INVALID_HANDLE) {
-        printf("kd_mpi_vb_get_block get failed\n");
+        printf("kd_mpi_vb_get_block get failed22\n");
         return -1;
     }
 
     get_phys_addr = kd_mpi_vb_handle_to_phyaddr(handle);
     if(get_phys_addr == 0) {
-        printf("kd_mpi_vb_handle_to_phyaddr failed\n");
+        printf("kd_mpi_vb_handle_to_phyaddr failed2222:0x%x\n",handle);
         return -1;
     }
 

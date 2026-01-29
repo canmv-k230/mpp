@@ -27,6 +27,8 @@
 #ifndef __K_VIDEO_COMM_H__
 #define __K_VIDEO_COMM_H__
 
+#include <stdio.h>
+
 #include "k_type.h"
 #include "k_video_comm.h"
 #include "k_module.h"
@@ -76,7 +78,6 @@ typedef enum
     PIXEL_FORMAT_RGB_BAYER_14BPP,
     PIXEL_FORMAT_RGB_BAYER_16BPP,
 
-
     PIXEL_FORMAT_YVU_PLANAR_422,
     PIXEL_FORMAT_YVU_PLANAR_420,
     PIXEL_FORMAT_YVU_PLANAR_444,
@@ -103,7 +104,6 @@ typedef enum
     PIXEL_FORMAT_YUV_400,
     PIXEL_FORMAT_UV_420,
 
-
     /* SVP data format */
     PIXEL_FORMAT_BGR_888_PLANAR,
     PIXEL_FORMAT_RGB_888_PLANAR,
@@ -125,6 +125,8 @@ typedef enum
 
     PIXEL_FORMAT_RGB_565_LE = 300,
     PIXEL_FORMAT_BGR_565_LE,
+
+    PIXEL_FORMAT_RGBA_8888,
 
     PIXEL_FORMAT_BUTT
 } k_pixel_format;
@@ -310,6 +312,125 @@ typedef struct
     k_u32        pool_id;   /**< VB pool ID */
     k_mod_id      mod_id;   /**< Logical unit for generating video frames */
 } k_video_frame_info;
+
+static inline k_u32 k_pixel_format_bpp(k_pixel_format fmt)
+{
+    switch (fmt)
+    {
+        /* ================= RGB / BGR packed ================= */
+        case PIXEL_FORMAT_RGB_444:
+        case PIXEL_FORMAT_BGR_444:
+            return 12;
+
+        case PIXEL_FORMAT_RGB_555:
+        case PIXEL_FORMAT_BGR_555:
+        case PIXEL_FORMAT_ARGB_1555:
+        case PIXEL_FORMAT_ABGR_1555:
+            return 16;
+
+        case PIXEL_FORMAT_RGB_565:
+        case PIXEL_FORMAT_BGR_565:
+        case PIXEL_FORMAT_RGB_565_LE:
+        case PIXEL_FORMAT_BGR_565_LE:
+        case PIXEL_FORMAT_ARGB_4444:
+        case PIXEL_FORMAT_ABGR_4444:
+            return 16;
+
+        case PIXEL_FORMAT_RGB_888:
+        case PIXEL_FORMAT_BGR_888:
+        case PIXEL_FORMAT_RGB_888_PLANAR:
+        case PIXEL_FORMAT_BGR_888_PLANAR:
+            return 24;
+
+        case PIXEL_FORMAT_ARGB_8565:
+        case PIXEL_FORMAT_ABGR_8565:
+            return 24;
+
+        case PIXEL_FORMAT_ARGB_8888:
+        case PIXEL_FORMAT_ABGR_8888:
+        case PIXEL_FORMAT_BGRA_8888:
+        case PIXEL_FORMAT_RGBA_8888:
+            return 32;
+
+        /* ================= Bayer / Mono ================= */
+        case PIXEL_FORMAT_RGB_MONOCHROME_8BPP:
+        case PIXEL_FORMAT_RGB_BAYER_8BPP:
+            return 8;
+
+        case PIXEL_FORMAT_RGB_BAYER_10BPP:
+            return 10;
+
+        case PIXEL_FORMAT_RGB_BAYER_12BPP:
+            return 12;
+
+        case PIXEL_FORMAT_RGB_BAYER_14BPP:
+            return 14;
+
+        case PIXEL_FORMAT_RGB_BAYER_16BPP:
+            return 16;
+
+        /* ================= YUV planar / semi-planar ================= */
+        case PIXEL_FORMAT_YUV_SEMIPLANAR_420:
+        case PIXEL_FORMAT_YVU_SEMIPLANAR_420:
+        case PIXEL_FORMAT_YVU_PLANAR_420:
+        case PIXEL_FORMAT_UV_420:
+            return 12;
+
+        case PIXEL_FORMAT_YUV_SEMIPLANAR_422:
+        case PIXEL_FORMAT_YVU_SEMIPLANAR_422:
+        case PIXEL_FORMAT_YVU_PLANAR_422:
+            return 16;
+
+        case PIXEL_FORMAT_YUV_SEMIPLANAR_444:
+        case PIXEL_FORMAT_YVU_SEMIPLANAR_444:
+        case PIXEL_FORMAT_YVU_PLANAR_444:
+        case PIXEL_FORMAT_YUV_PACKAGE_444:
+            return 24;
+
+        /* ================= YUV packed ================= */
+        case PIXEL_FORMAT_YUYV_PACKAGE_422:
+        case PIXEL_FORMAT_YVYU_PACKAGE_422:
+        case PIXEL_FORMAT_UYVY_PACKAGE_422:
+        case PIXEL_FORMAT_VYUY_PACKAGE_422:
+        case PIXEL_FORMAT_YYUV_PACKAGE_422:
+        case PIXEL_FORMAT_YYVU_PACKAGE_422:
+        case PIXEL_FORMAT_UVYY_PACKAGE_422:
+        case PIXEL_FORMAT_VUYY_PACKAGE_422:
+        case PIXEL_FORMAT_VY1UY0_PACKAGE_422:
+            return 16;
+
+        case PIXEL_FORMAT_YUV_400:
+            return 8;
+
+        /* ================= SVP / tensor formats ================= */
+        case PIXEL_FORMAT_S8C1:
+        case PIXEL_FORMAT_U8C1:
+            return 8;
+
+        case PIXEL_FORMAT_S8C2_PACKAGE:
+        case PIXEL_FORMAT_S8C2_PLANAR:
+            return 16;
+
+        case PIXEL_FORMAT_S8C3_PLANAR:
+            return 24;
+
+        case PIXEL_FORMAT_S16C1:
+        case PIXEL_FORMAT_U16C1:
+            return 16;
+
+        case PIXEL_FORMAT_S32C1:
+        case PIXEL_FORMAT_U32C1:
+            return 32;
+
+        case PIXEL_FORMAT_S64C1:
+        case PIXEL_FORMAT_U64C1:
+            return 64;
+
+        default:
+            printf("%s>unknown pixel format %d\n", __func__, fmt);
+            return 0;
+    }
+}
 
 /** @} */ /** <!-- ==== SYSTEM_CTRL End ==== */
 #ifdef __cplusplus

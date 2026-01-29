@@ -1,11 +1,14 @@
-include $(MPP_SRC_DIR)/middleware/mpp.mk
-include $(MPP_SRC_DIR)/middleware/rt-smart.mk
+# include $(MPP_SRC_DIR)/middleware/mpp.mk
+# include $(MPP_SRC_DIR)/middleware/rt-smart.mk
+
+include ../../mkenv.mk
+include $(SDK_TOOLS_DIR)/toolchain_rtsmart.mk
+
 SRCPATH=.
 prefix=$(MPP_SRC_DIR)/middleware/src/x264/src/lib_x264
-exec_prefix=${prefix}
-bindir=${exec_prefix}/bin
-libdir=${exec_prefix}/lib
-includedir=${prefix}/include
+bindir=$(SDK_RTSMART_BUILD_DIR)/mpp/middleware/bin
+libdir=$(MPP_MIDDLEWARE_LIB_INSTALL_PATH)
+includedir=$(MPP_MIDDLEWARE_INC_INSTALL_PATH)
 SYS_ARCH=RISCV64
 SYS=LINUX
 CC=riscv64-unknown-linux-musl-gcc

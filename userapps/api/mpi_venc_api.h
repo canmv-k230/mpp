@@ -43,6 +43,9 @@ extern "C" {
 /** \addtogroup     VENC */
 /** @{ */ /** <!-- [VENC] */
 
+k_s32 kd_mpi_venc_request_chn(k_u32* chn_num);
+k_s32 kd_mpi_venc_release_chn(k_u32 chn_num);
+
 /**
  * @brief Create encode channel
  *
@@ -612,6 +615,36 @@ k_s32 kd_mpi_venc_attach_2d(k_u32 chn_num);
  * @note kd_mpi_venc_detach_2d should be called before venc destroy if needed.
  */
 k_s32 kd_mpi_venc_detach_2d(k_u32 chn_num);
+
+/**
+ * @brief attach vb pool
+ *
+ * @param [in] chn_num Channel number
+ * @param [in] vb pool id
+ * @return k_s32
+ * @retval 0 success
+ * @retval "not 0" see err code
+ * @see K_ERR_CODE_E
+ * @note It can be set on the fly
+ */
+k_s32 kd_mpi_venc_attach_vb_pool_ex(k_u32 chn_num, k_u32 pool_id, k_s32 buff_num);
+
+static inline k_s32 kd_mpi_venc_attach_vb_pool(k_u32 chn_num, k_u32 pool_id)
+{
+    return kd_mpi_venc_attach_vb_pool_ex(chn_num, pool_id, 0);
+}
+
+/**
+ * @brief detach vb pool
+ *
+ * @param [in] chn_num Channel number
+ * @return k_s32
+ * @retval 0 success
+ * @retval "not 0" see err code
+ * @see K_ERR_CODE_E
+ * @note It can be set on the fly
+ */
+k_s32 kd_mpi_venc_detach_vb_pool(k_u32 chn_num);
 /** @} */ /** <!-- ==== VENC End ==== */
 #ifdef __cplusplus
 }

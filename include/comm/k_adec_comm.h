@@ -72,6 +72,8 @@ typedef enum
 typedef struct {
  k_payload_type type;
  k_adec_mode mode;
+ k_u32 sample_rate;
+ k_u32 channels;
  k_u32 point_num_per_frame;//must be the same as the ao attribute
  k_u32 buf_size; /* buf size[2~K_MAX_AUDIO_FRAME_NUM] */
 } k_adec_chn_attr;
