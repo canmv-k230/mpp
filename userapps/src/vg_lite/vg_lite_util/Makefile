@@ -10,10 +10,13 @@ LIB		:= $(MPP_USERAPPS_LIB_INSTALL_PATH)/lib$(DIR).a
 include $(SDK_RTSMART_SRC_DIR)/libs/mk/libmpp.mk
 
 # Source and Object Handling
-C_SRCS          := \
+C_SRCS_ALL		:= \
 	$(wildcard *.c) \
 	$(wildcard libpng-1.6.1/*.c) \
 	$(wildcard zlib-1.2.7/*.c)\
+
+C_SRCS_EXCLUDE	:= libpng-1.6.1/pngtest.c
+C_SRCS			:= $(filter-out $(C_SRCS_EXCLUDE),$(C_SRCS_ALL))
 
 CXX_SRCS        := $(wildcard *.cpp)
 
