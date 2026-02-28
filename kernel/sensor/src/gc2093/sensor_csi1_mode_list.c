@@ -273,7 +273,7 @@ static const k_sensor_mode sensor_csi1_mode_list[] = {
 
         // now, we just support one gc2093
         .reg_list = gc2093_mipi2lane_1080p_30fps_mclk_24m_linear,
-        .sensor_ae_info = &sensor_csi1_ae_info[4],
+        .sensor_ae_info = &sensor_csi1_ae_info[0],
 #endif
     },
     {
@@ -320,7 +320,7 @@ static const k_sensor_mode sensor_csi1_mode_list[] = {
 
         // now, we just support one gc2093
         .reg_list = gc2093_mipi2lane_1080p_60fps_mclk_24m_linear,
-        .sensor_ae_info = &sensor_csi1_ae_info[5],
+        .sensor_ae_info = &sensor_csi1_ae_info[1],
 #endif
     },
     {
@@ -334,11 +334,7 @@ static const k_sensor_mode sensor_csi1_mode_list[] = {
             .width = 1280,
             .height = 960,
         },
-#if defined(CONFIG_BOARD_K230D_CANMV_ATK_DNK230D)
         .fps = 90000,
-#else
-        .fps = 60000,
-#endif
         .hdr_mode = SENSOR_MODE_LINEAR,
         .bit_width = 10,
         .bayer_pattern = BAYER_PAT_RGGB, //BAYER_PAT_RGGB,
@@ -418,7 +414,7 @@ static const k_sensor_mode sensor_csi1_mode_list[] = {
 
         // now, we just support one gc2093
         .reg_list = gc2093_mipi2lane_720p_90fps_mclk_24m_linear,
-        .sensor_ae_info = &sensor_csi1_ae_info[7],
+        .sensor_ae_info = &sensor_csi1_ae_info[3],
 #endif
     },
 };
