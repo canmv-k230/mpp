@@ -640,6 +640,17 @@ typedef struct {
 } k_sensor_intg_time;
 
 /**
+ * @brief Defines the integration time range of sensor
+ *
+ */
+typedef struct {
+    // float   max_intg_time;    /*< Maximum integration time in seconds */
+    // float   min_intg_time;    /*< Minimum integration time in seconds */
+    float   max_intg_time_us; /**< Maximum integration time in microseconds */
+    float   min_intg_time_us; /**< Minimum integration time in microseconds */
+} k_sensor_exposure_time_range;
+
+/**
  * @brief Defines the exposure param of sensor
  *
  */

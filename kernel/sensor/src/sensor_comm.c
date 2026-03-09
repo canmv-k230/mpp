@@ -153,6 +153,36 @@ k_s32 sensor_reg_list_read(k_sensor_i2c_info *i2c_info, const k_sensor_reg *reg_
 	return ret;
 }
 
+
+/**
+ * @brief Get sensor integration time range
+ * @note This is a common implementation for all sensors
+ *       The integration time range is stored in current_mode->ae_info
+ * @param ctx: sensor device context
+ * @param range: pointer to integration time range structure
+ * @return 0 on success, -1 on failure
+ */
+k_s32 sensor_get_exposure_time_range_common(void *ctx, k_sensor_exposure_time_range *range)
+{
+    k_s32 ret = 0;
+    struct sensor_driver_dev *dev = ctx;
+    k_sensor_mode *current_mode = &dev->current_sensor_mode;
+
+
+    if (!range) {
+        rt_kprintf("%s, range is NULL\n", __func__);
+        return -1;
+    }
+
+    range->max_intg_time_us = current_mode->ae_info.max_integraion_time * 1000000.0f;
+    range->min_intg_time_us = current_mode->ae_info.min_integraion_time * 1000000.0f;
+
+    rt_kprintf("%s, max_intg_time=%f us, min_intg_time=%f us\n",
+            __func__, range->max_intg_time_us, range->min_intg_time_us);
+
+    return ret;
+}
+
 k_s32 sensor_priv_ioctl(struct sensor_driver_dev *dev, k_u32 cmd, void *args)
 {
 	k_s32 ret = -1;
@@ -856,6 +886,26 @@ k_s32 sensor_priv_ioctl(struct sensor_driver_dev *dev, k_u32 cmd, void *args)
             ret = dev->sensor_func.sensor_set_focus_power(dev, on_off);
             if (ret) {
                 rt_kprintf("%s (%s)sensor_set_focus_power err\n", __func__, dev->sensor_name);
+                return -1;
+            }
+
+            break;
+        }
+        case KD_IOC_SENSOR_G_EXPOSURE_TIME_RANGE:
+        {
+            k_sensor_exposure_time_range range;
+
+            if (dev->sensor_func.sensor_get_exposure_time_range == NULL) {
+                rt_kprintf("%s (%s)sensor_get_exposure_time_range is null\n", __func__, dev->sensor_name);
+                return -1;
+            }
+            ret = dev->sensor_func.sensor_get_exposure_time_range(dev, &range);
+            if (ret) {
+                rt_kprintf("%s (%s)sensor_get_exposure_time_range err\n", __func__, dev->sensor_name);
+                return -1;
+            }
+            if (sizeof(k_sensor_exposure_time_range) != lwp_put_to_user(args, &range, sizeof(k_sensor_exposure_time_range))){
+                rt_kprintf("%s:%d lwp_put_to_user err\n", __func__, __LINE__);
                 return -1;
             }
 

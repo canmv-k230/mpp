@@ -76,6 +76,7 @@ typedef struct {
     k_s32 (*sensor_get_focus_pos)(void *ctx, k_sensor_focus_pos *data);
     k_s32 (*sensor_get_foucs_cap)(void *ctx, k_sensor_autofocus_caps *caps);
     k_s32 (*sensor_set_focus_power)(void *ctx, int on_off);
+    k_s32 (*sensor_get_exposure_time_range)(void *ctx, k_sensor_exposure_time_range *range);
 } k_sensor_function;
 
 typedef struct {
@@ -151,6 +152,7 @@ extern k_s32 sensor_xs9950_probe(struct k_sensor_probe_cfg *cfg, struct sensor_d
 extern k_s32 sensor_bf3238_probe(struct k_sensor_probe_cfg *cfg, struct sensor_driver_dev *dev);
 
 extern const k_sensor_af_dev af_dev_dw9714p;
+extern k_s32 sensor_get_exposure_time_range_common(void *ctx, k_sensor_exposure_time_range *range);
 
 k_s32 sensor_autofocus_dev_probe(struct sensor_driver_dev *dev);
 k_s32 sensor_autofocus_dev_set_position(void *ctx, k_sensor_focus_pos* pos);

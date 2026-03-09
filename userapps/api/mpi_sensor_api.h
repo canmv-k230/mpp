@@ -311,6 +311,19 @@ k_s32 kd_mpi_sensor_intg_time_set(k_s32 fd, k_sensor_intg_time time);
 k_s32 kd_mpi_sensor_intg_time_get(k_s32 fd, k_sensor_intg_time *time);
 
 /**
+ * @brief Get the sensor integration time range
+ *
+ * @param [in] fd: sensor file descriptor
+ * @param [out] range: pointer to integration time range structure
+ * @return k_s32
+ * @retval 0 success
+ * @retval "not 0" see err code
+ * @see K_ERR_CODE_E
+ * @note Output unit is microseconds (us)
+ */
+k_s32 kd_mpi_sensor_get_exposure_time_range(k_s32 fd, k_sensor_exposure_time_range *range);
+
+/**
  * @brief Get the sensor fps
  *
  * @param [in] fd

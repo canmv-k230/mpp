@@ -1438,6 +1438,24 @@ k_s32 kd_mpi_sensor_intg_time_get(k_s32 fd, k_sensor_intg_time *time)
     return ret;
 }
 
+k_s32 kd_mpi_sensor_get_exposure_time_range(k_s32 fd, k_sensor_exposure_time_range *range)
+{
+    k_s32 ret;
+
+    if(!range) {
+        pr_err("%s, range is null\n",__func__);
+        return K_ERR_VICAP_NULL_PTR;
+    }
+
+    ret = ioctl(fd, KD_IOC_SENSOR_G_EXPOSURE_TIME_RANGE, range);
+    if (ret != 0) {
+        pr_err("%s, error(%d)\n", __func__, ret);
+        return K_ERR_VICAP_NOT_SUPPORT;
+    }
+
+    return ret;
+}
+
 k_s32 kd_mpi_sensor_fps_get(k_s32 fd, k_u32 *fps)
 {
     k_s32 ret;
