@@ -45,17 +45,22 @@ extern "C" {
 
 #define INVALID_FRAME_INDEX (0xffffffff)
 
-#define USBH_VIDEO_FORMAT_UNCOMPRESSED 0
-#define USBH_VIDEO_FORMAT_MJPEG        1
+#define USBH_VIDEO_FOURCC(a, b, c, d)                                           \
+    ((uint32_t)(uint8_t)(a) | ((uint32_t)(uint8_t)(b) << 8) |                   \
+     ((uint32_t)(uint8_t)(c) << 16) | ((uint32_t)(uint8_t)(d) << 24))
+
+#define USBH_VIDEO_FOURCC_YUY2  USBH_VIDEO_FOURCC('Y', 'U', 'Y', '2')
+#define USBH_VIDEO_FOURCC_UYVY  USBH_VIDEO_FOURCC('U', 'Y', 'V', 'Y')
+#define USBH_VIDEO_FOURCC_NV12  USBH_VIDEO_FOURCC('N', 'V', '1', '2')
+#define USBH_VIDEO_FOURCC_I420  USBH_VIDEO_FOURCC('I', '4', '2', '0')
+#define USBH_VIDEO_FOURCC_MJPEG USBH_VIDEO_FOURCC('M', 'J', 'P', 'G')
 
 ///////////////////////////////////////////////////////////////////////////////
 // UVC Host ///////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 struct uvc_frame {
     unsigned int index;
-    unsigned int reserve_1;
-    unsigned int reserve_2;
-    unsigned int len;
+    unsigned int bytesused;
     char *userptr;
     union {
         k_video_frame_info v_info;
@@ -66,19 +71,19 @@ struct uvc_frame {
 struct uvc_format {
     unsigned int width;
     unsigned int height;
-    unsigned char format_type;
+    unsigned int fourcc;
     unsigned int frameinterval;
 };
 
-int uvc_init(struct uvc_format *fmt);
-int uvc_start_stream(void);
-int uvc_get_frame(struct uvc_frame *frame, unsigned int timeout_ms);
-int uvc_put_frame(struct uvc_frame *frame);
-void uvc_exit();
+int uvc_host_init(struct uvc_format *fmt);
+int uvc_host_start_stream(void);
+int uvc_host_get_frame(struct uvc_frame *frame, unsigned int timeout_ms);
+int uvc_host_put_frame(struct uvc_frame *frame);
+void uvc_host_exit();
 
-int uvc_get_devinfo(char *info, int len);
-int uvc_get_formats(struct uvc_format **fmts);
-void uvc_free_formats(struct uvc_format **fmts);
+int uvc_host_get_devinfo(char *info, int len);
+int uvc_host_get_formats(struct uvc_format **fmts);
+void uvc_host_free_formats(struct uvc_format **fmts);
 
 ///////////////////////////////////////////////////////////////////////////////
 // UVC Device /////////////////////////////////////////////////////////////////

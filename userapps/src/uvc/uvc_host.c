@@ -36,11 +36,28 @@
 #include <sys/ioctl.h>
 #include <sys/select.h>
 
-#include "uvc_api.h"
+#include "uvc_host.h"
 
 static struct uvc_device uvc_dev = {.fd = -1, .is_streamon = false};
 
-int uvc_init(struct uvc_format *fmt)
+static void uvc_ioc_to_public_frame(struct uvc_frame *dst, const struct uvc_ioc_frame *src)
+{
+    memset(dst, 0, sizeof(*dst));
+    dst->index = src->index;
+    dst->bytesused = src->bytesused;
+    memcpy(&dst->v_info, &src->v_info, sizeof(src->v_info));
+}
+
+static void uvc_public_to_ioc_frame(struct uvc_ioc_frame *dst, const struct uvc_frame *src)
+{
+    memset(dst, 0, sizeof(*dst));
+    dst->index = src->index;
+    dst->bytesused = src->bytesused;
+    dst->userptr = src->userptr;
+    memcpy(&dst->v_info, &src->v_info, sizeof(src->v_info));
+}
+
+int uvc_host_init(struct uvc_format *fmt)
 {
     int fd;
     int ret = 0;
@@ -48,13 +65,12 @@ int uvc_init(struct uvc_format *fmt)
     struct uvc_fmtdesc fmt_desc;
     struct uvc_format format;
     struct uvc_requestbuffers requset_buf;
-    struct uvc_frame uvc_frame;
+    struct uvc_ioc_frame ioc_frame;
     struct uvc_framedesc frame_desc;
     struct uvc_fpsdesc fps_desc;
-    char *frame_buf[BUF_CNT];
 
     if(0 <= uvc_dev.fd) {
-        uvc_exit();
+        uvc_host_exit();
     }
 
     uvc_dev.fd = -1;
@@ -75,9 +91,9 @@ int uvc_init(struct uvc_format *fmt)
 
     while (ioctl(fd, VIDIOC_ENUM_FMT, &fmt_desc) == 0) {
 #if UVC_DEBUG
-        printf("fmt type is %d -> (%s)\n", fmt_desc.format_type, fmt_desc.description);
+        printf("fmt fourcc is 0x%08x -> (%s)\n", fmt_desc.fourcc, fmt_desc.description);
 #endif
-        frame_desc.format_type = fmt_desc.format_type;
+        frame_desc.fourcc = fmt_desc.fourcc;
         frame_desc.index = 0;
         while (ioctl(fd, VIDIOC_ENUM_FRAME, &frame_desc) == 0) {
 #if UVC_DEBUG
@@ -85,7 +101,7 @@ int uvc_init(struct uvc_format *fmt)
                    frame_desc.width, frame_desc.height, frame_desc.defaultframeinterval);
 #endif
 
-            fps_desc.format_type = fmt_desc.format_type;
+            fps_desc.fourcc = fmt_desc.fourcc;
             fps_desc.width = frame_desc.width;
             fps_desc.height = frame_desc.height;
             fps_desc.index = 0;
@@ -98,7 +114,7 @@ int uvc_init(struct uvc_format *fmt)
             frame_desc.index ++;
         }
 
-        if (fmt_desc.format_type == format.format_type) {
+        if ((format.fourcc == 0) || (fmt_desc.fourcc == format.fourcc)) {
             found = true;
         }
         fmt_desc.index ++;
@@ -111,7 +127,8 @@ int uvc_init(struct uvc_format *fmt)
     }
 
 #if UVC_DEBUG
-    printf("expect resolution: %d X %d @ %.2f, format = %d\n", format.width, format.height, , 10000000.0f / format.frameinterval, format.format_type);
+    printf("expect resolution: %d X %d @ %.2f, fourcc = 0x%08x\n",
+           format.width, format.height, 10000000.0f / format.frameinterval, format.fourcc);
 #endif
     if ((ret = ioctl(fd, VIDIOC_S_FMT, &format))) {
         printf("VIDIOC_S_FMT fail: %s (errno: %d)\n", strerror(errno), errno);
@@ -120,7 +137,8 @@ int uvc_init(struct uvc_format *fmt)
     memcpy(fmt, &format, sizeof(*fmt));
 
 #if UVC_DEBUG
-    printf("suite resolution: %d X %d @ %.2f, format = %d\n", format.width, format.height, 10000000.0f / format.frameinterval, format.format_type);
+    printf("suite resolution: %d X %d @ %.2f, fourcc = 0x%08x\n",
+           format.width, format.height, 10000000.0f / format.frameinterval, format.fourcc);
 #endif
 
     requset_buf.count = BUF_CNT;
@@ -133,26 +151,27 @@ int uvc_init(struct uvc_format *fmt)
     for (int i = 0; i < requset_buf.count; i ++) {
         struct dfs_mmap2_args mmap;
 
-        uvc_frame.index = i;
-        if ((ret = ioctl(fd, VIDIOC_QUERYBUF, &uvc_frame))) {
+        memset(&ioc_frame, 0, sizeof(ioc_frame));
+        ioc_frame.index = i;
+        if ((ret = ioctl(fd, VIDIOC_QUERYBUF, &ioc_frame))) {
             printf("VIDIOC_QUERYBUF fail: %s (errno: %d)\n", strerror(errno), errno);
             goto err;
         }
 
-        mmap.length = uvc_frame.reserve_1;
-        mmap.pgoffset = uvc_frame.reserve_2;
+        mmap.length = ioc_frame.length;
+        mmap.pgoffset = ioc_frame.offset;
         //mmap.prot = ;
         if ((ret = ioctl(fd, VIDIOC_BUFMMAP, &mmap))) {
             printf("VIDIOC_BUFMMAP fail: %s (errno: %d)\n", strerror(errno), errno);
             goto err;
         }
-        uvc_dev.frame_buf[i] = frame_buf[i] = (char *)mmap.addr;
+        uvc_dev.frame_buf[i] = (char *)mmap.addr;
 #if UVC_DEBUG
         printf("map addr = %p, len = %ld, offset = %d, vaddr = %p\n",
-               mmap.addr, mmap.length, uvc_frame.reserve_2, frame_buf[i]);
+               mmap.addr, mmap.length, ioc_frame.offset, uvc_dev.frame_buf[i]);
 #endif
 
-        if ((ret = ioctl(fd, VIDIOC_QBUF, &uvc_frame))) {
+        if ((ret = ioctl(fd, VIDIOC_QBUF, &ioc_frame))) {
             printf("VIDIOC_QBUF fail: %s (errno: %d)\n", strerror(errno), errno);
             goto err;
         }
@@ -169,7 +188,7 @@ err:
     return ret;
 }
 
-int uvc_start_stream(void)
+int uvc_host_start_stream(void)
 {
     int ret;
     int fd = uvc_dev.fd;
@@ -189,7 +208,7 @@ int uvc_start_stream(void)
     return 0;
 }
 
-void uvc_exit()
+void uvc_host_exit()
 {
     int ret;
     int fd = uvc_dev.fd;
@@ -212,11 +231,12 @@ void uvc_exit()
 
 }
 
-int uvc_get_frame(struct uvc_frame *frame, unsigned int timeout_ms)
+int uvc_host_get_frame(struct uvc_frame *frame, unsigned int timeout_ms)
 {
     int fd = uvc_dev.fd;
     int ret = 0;
     fd_set readset;
+    struct uvc_ioc_frame ioc_frame = {0};
 
     struct timeval tv = {
         .tv_sec = timeout_ms / 1000,
@@ -232,40 +252,43 @@ int uvc_get_frame(struct uvc_frame *frame, unsigned int timeout_ms)
     FD_SET(fd, &readset);
 
     if (select(fd + 1, &readset, NULL, NULL, &tv) == 0) {
-        printf("uvc_get_frame do select fail\n");
+        printf("uvc_host_get_frame do select fail\n");
         ret = -1;
         goto err;
     }
 
-    if ((ret = ioctl(fd, VIDIOC_DQBUF, frame))) {
+    if ((ret = ioctl(fd, VIDIOC_DQBUF, &ioc_frame))) {
         printf("VIDIOC_DQBUF fail: %s (errno: %d)\n", strerror(errno), errno);
         goto err;
     }
 
+    uvc_ioc_to_public_frame(frame, &ioc_frame);
     frame->userptr = uvc_dev.frame_buf[frame->index];
 
 err:
     return ret;
 }
 
-int uvc_put_frame(struct uvc_frame *frame)
+int uvc_host_put_frame(struct uvc_frame *frame)
 {
     int ret = 0;
     int fd = uvc_dev.fd;
+    struct uvc_ioc_frame ioc_frame;
 
     if(0 > fd) {
         printf("uvc not init\n");
         return -1;
     }
 
-    if ((ret = ioctl(fd, VIDIOC_QBUF, frame))) {
+    uvc_public_to_ioc_frame(&ioc_frame, frame);
+    if ((ret = ioctl(fd, VIDIOC_QBUF, &ioc_frame))) {
         printf("VIDIOC_QBUF fail: %s (errno: %d)\n", strerror(errno), errno);
     }
 
     return ret;
 }
 
-int uvc_get_devinfo(char *info, int len)
+int uvc_host_get_devinfo(char *info, int len)
 {
     int ret = 0;
     int fd = uvc_dev.fd;
@@ -318,7 +341,7 @@ out:
     return ret;
 }
 
-int uvc_get_formats(struct uvc_format **fmts)
+int uvc_host_get_formats(struct uvc_format **fmts)
 {
     int fd = uvc_dev.fd;
 
@@ -340,10 +363,10 @@ int uvc_get_formats(struct uvc_format **fmts)
     fmt_desc.index = 0;
     while (ioctl(fd, VIDIOC_ENUM_FMT, &fmt_desc) == 0) {
         frame_desc.index = 0;
-        frame_desc.format_type = fmt_desc.format_type;
+        frame_desc.fourcc = fmt_desc.fourcc;
         while (ioctl(fd, VIDIOC_ENUM_FRAME, &frame_desc) == 0) {
             fps_desc.index = 0;
-            fps_desc.format_type = fmt_desc.format_type;
+            fps_desc.fourcc = fmt_desc.fourcc;
             fps_desc.width = frame_desc.width;
             fps_desc.height = frame_desc.height;
             while (ioctl(fd, VIDIOC_ENUM_INTERVAL, &fps_desc) == 0) {
@@ -373,10 +396,10 @@ int uvc_get_formats(struct uvc_format **fmts)
     fmt_desc.index = 0;
     while (ioctl(fd, VIDIOC_ENUM_FMT, &fmt_desc) == 0) {
         frame_desc.index = 0;
-        frame_desc.format_type = fmt_desc.format_type;
+        frame_desc.fourcc = fmt_desc.fourcc;
         while (ioctl(fd, VIDIOC_ENUM_FRAME, &frame_desc) == 0) {
             fps_desc.index = 0;
-            fps_desc.format_type = fmt_desc.format_type;
+            fps_desc.fourcc = fmt_desc.fourcc;
             fps_desc.width = frame_desc.width;
             fps_desc.height = frame_desc.height;
             while (ioctl(fd, VIDIOC_ENUM_INTERVAL, &fps_desc) == 0) {
@@ -387,7 +410,7 @@ int uvc_get_formats(struct uvc_format **fmts)
     
                 (*fmts)[fmt_index].width = frame_desc.width;
                 (*fmts)[fmt_index].height = frame_desc.height;
-                (*fmts)[fmt_index].format_type = fmt_desc.format_type;
+                (*fmts)[fmt_index].fourcc = fmt_desc.fourcc;
                 (*fmts)[fmt_index].frameinterval = fps_desc.frameinterval;
     
                 fmt_index++;
@@ -406,7 +429,7 @@ _out:
     return (int)fmt_count;
 }
 
-void uvc_free_formats(struct uvc_format **fmts)
+void uvc_host_free_formats(struct uvc_format **fmts)
 {
     if (fmts && *fmts) {
         free(*fmts);

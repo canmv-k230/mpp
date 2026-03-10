@@ -23,8 +23,8 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __UVC_API_H__
-#define __UVC_API_H__
+#ifndef __UVC_HOST_H__
+#define __UVC_HOST_H__
 
 #include "mpi_uvc_api.h"
 
@@ -45,7 +45,7 @@ struct uvc_device {
 
 struct uvc_fmtdesc {
     unsigned int index;
-    unsigned char format_type;
+    unsigned int fourcc;
     unsigned char description[32];
 };
 
@@ -55,7 +55,7 @@ struct uvc_requestbuffers {
 
 struct uvc_framedesc {
     unsigned int index;
-    unsigned char format_type;
+    unsigned int fourcc;
     unsigned int width;
     unsigned int height;
     unsigned int defaultframeinterval;
@@ -63,10 +63,25 @@ struct uvc_framedesc {
 
 struct uvc_fpsdesc {
     unsigned int index;
-    unsigned char format_type;
+    unsigned int fourcc;
     unsigned int width;
     unsigned int height;
     unsigned int frameinterval;
+};
+
+/* Internal ioctl ABI for VIDIOC_QUERYBUF/VIDIOC_(Q|DQ)BUF.
+ * Public `struct uvc_frame` in mpi_uvc_api.h intentionally hides mapping info.
+ */
+struct uvc_ioc_frame {
+    unsigned int index;
+    unsigned int length;
+    unsigned int offset;
+    unsigned int bytesused;
+    char *userptr;
+    union {
+        k_video_frame_info v_info;
+        k_vdec_stream v_stream;
+    };
 };
 
 struct dfs_mmap2_args
@@ -95,9 +110,9 @@ struct usb_index {
 #define VIDIOC_ENUM_FMT         _IOWR('V', 1, struct uvc_fmtdesc)
 #define VIDIOC_S_FMT            _IOWR('V', 2, struct uvc_format)
 #define VIDIOC_REQBUFS          _IOWR('V', 3, struct uvc_requestbuffers)
-#define VIDIOC_QUERYBUF         _IOWR('V',  4, struct uvc_frame)
-#define VIDIOC_QBUF             _IOWR('V', 5, struct uvc_frame)
-#define VIDIOC_DQBUF            _IOWR('V', 6, struct uvc_frame)
+#define VIDIOC_QUERYBUF         _IOWR('V',  4, struct uvc_ioc_frame)
+#define VIDIOC_QBUF             _IOWR('V', 5, struct uvc_ioc_frame)
+#define VIDIOC_DQBUF            _IOWR('V', 6, struct uvc_ioc_frame)
 #define VIDIOC_BUFMMAP          _IOW('V', 7, struct dfs_mmap2_args)
 #define VIDIOC_STREAMON         _IOW('V', 8, int)
 #define VIDIOC_STREAMOFF        _IOW('V', 9, int)
