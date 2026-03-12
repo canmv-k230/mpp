@@ -40,6 +40,8 @@ extern "C" {
 struct uvc_device {
     int fd;
     bool is_streamon;
+    bool format_valid;
+    struct uvc_format format;
     char *frame_buf[BUF_CNT];
 };
 

@@ -79,6 +79,9 @@ int uvc_host_init(struct uvc_format *fmt);
 int uvc_host_start_stream(void);
 int uvc_host_get_frame(struct uvc_frame *frame, unsigned int timeout_ms);
 int uvc_host_put_frame(struct uvc_frame *frame);
+int uvc_host_raw_to_nv12(const struct uvc_frame *frame, void *dst, size_t dst_len);
+int uvc_host_raw_to_rgb565(const struct uvc_frame *frame, void *dst, size_t dst_len);
+int uvc_host_raw_to_yuyv(const struct uvc_frame *frame, void *dst, size_t dst_len);
 void uvc_host_exit();
 
 int uvc_host_get_devinfo(char *info, int len);
