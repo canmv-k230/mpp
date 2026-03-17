@@ -1,0 +1,3 @@
+#ifndef UNIT_TEST_MOCK_MEDIA_H
+#define UNIT_TEST_MOCK_MEDIA_H
+#endif

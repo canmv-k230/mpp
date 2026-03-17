@@ -53,3 +53,6 @@ middleware/src/x264/src/libx264.a
 middleware/src/x264/src/common/oclobj.h
 
 tuning_server.elf
+
+fuzz_test/build
+unit_test/build
