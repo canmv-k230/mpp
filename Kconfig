@@ -289,7 +289,7 @@ menu "MPP Configuration"
 
     endmenu
 
-    menu "Dsiplay Configuration"
+    menu "Display Configuration"
         config MPP_ENABLE_DSI_DEBUGGER
             bool "Enable DSI Debuger"
             default n
