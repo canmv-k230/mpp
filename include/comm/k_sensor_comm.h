@@ -644,11 +644,28 @@ typedef struct {
  *
  */
 typedef struct {
-    // float   max_intg_time;    /*< Maximum integration time in seconds */
-    // float   min_intg_time;    /*< Minimum integration time in seconds */
+    // float   max_intg_time;    //< Maximum integration time in seconds */
+    // float   min_intg_time;    //< Minimum integration time in seconds */
     float   max_intg_time_us; /**< Maximum integration time in microseconds */
     float   min_intg_time_us; /**< Minimum integration time in microseconds */
 } k_sensor_exposure_time_range;
+
+/**
+ * @brief Sensor mode info for list_mode
+ */
+typedef struct {
+    k_u32 width;
+    k_u32 height;
+    k_u32 fps;
+} k_sensor_mode_info;
+
+/**
+ * @brief Sensor mode list
+ */
+typedef struct {
+    k_u32 count;
+    k_sensor_mode_info modes[6];  /* Max 6 modes */
+} k_sensor_mode_list;
 
 /**
  * @brief Defines the exposure param of sensor

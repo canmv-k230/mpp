@@ -177,8 +177,33 @@ k_s32 sensor_get_exposure_time_range_common(void *ctx, k_sensor_exposure_time_ra
     range->max_intg_time_us = current_mode->ae_info.max_integraion_time * 1000000.0f;
     range->min_intg_time_us = current_mode->ae_info.min_integraion_time * 1000000.0f;
 
-    rt_kprintf("%s, max_intg_time=%f us, min_intg_time=%f us\n",
-            __func__, range->max_intg_time_us, range->min_intg_time_us);
+    return ret;
+}
+
+
+/**
+ * @brief Get sensor gain range
+ * @note This is a common implementation for all sensors
+ *       The gain range is stored in current_mode->ae_info.a_gain
+ * @param ctx: sensor device context
+ * @param range: pointer to gain range structure
+ * @return 0 on success, -1 on failure
+ */
+k_s32 sensor_get_gain_range_common(void *ctx, k_sensor_gain_info *range)
+{
+    k_s32 ret = 0;
+    struct sensor_driver_dev *dev = ctx;
+    k_sensor_mode *current_mode = &dev->current_sensor_mode;
+
+    if (!range) {
+        rt_kprintf("%s, range is NULL\n", __func__);
+        return -1;
+    }
+
+    // Get gain range from ae_info.a_gain
+    range->min = current_mode->ae_info.a_gain.min;
+    range->max = current_mode->ae_info.a_gain.max;
+    range->step = current_mode->ae_info.a_gain.step;
 
     return ret;
 }
@@ -905,6 +930,26 @@ k_s32 sensor_priv_ioctl(struct sensor_driver_dev *dev, k_u32 cmd, void *args)
                 return -1;
             }
             if (sizeof(k_sensor_exposure_time_range) != lwp_put_to_user(args, &range, sizeof(k_sensor_exposure_time_range))){
+                rt_kprintf("%s:%d lwp_put_to_user err\n", __func__, __LINE__);
+                return -1;
+            }
+
+            break;
+        }
+        case KD_IOC_SENSOR_G_GAIN_RANGE:
+        {
+            k_sensor_gain_info range;
+
+            if (dev->sensor_func.sensor_get_gain_range == NULL) {
+                rt_kprintf("%s (%s)sensor_get_gain_range is null\n", __func__, dev->sensor_name);
+                return -1;
+            }
+            ret = dev->sensor_func.sensor_get_gain_range(dev, &range);
+            if (ret) {
+                rt_kprintf("%s (%s)sensor_get_gain_range err\n", __func__, dev->sensor_name);
+                return -1;
+            }
+            if (sizeof(k_sensor_gain_info) != lwp_put_to_user(args, &range, sizeof(k_sensor_gain_info))){
                 rt_kprintf("%s:%d lwp_put_to_user err\n", __func__, __LINE__);
                 return -1;
             }

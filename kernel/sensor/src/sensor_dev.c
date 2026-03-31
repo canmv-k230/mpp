@@ -152,6 +152,7 @@ k_s32 sensor_drv_dev_init(struct sensor_driver_dev *pdriver_dev)
 
     // Set common function implementations
     pdriver_dev->sensor_func.sensor_get_exposure_time_range = sensor_get_exposure_time_range_common;
+    pdriver_dev->sensor_func.sensor_get_gain_range = sensor_get_gain_range_common;
 
     return 0;
 }

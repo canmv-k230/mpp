@@ -322,6 +322,8 @@ k_s32 kd_mpi_sensor_intg_time_get(k_s32 fd, k_sensor_intg_time *time);
  * @note Output unit is microseconds (us)
  */
 k_s32 kd_mpi_sensor_get_exposure_time_range(k_s32 fd, k_sensor_exposure_time_range *range);
+k_s32 kd_mpi_sensor_get_gain_range(k_s32 fd, k_sensor_gain_info *range);
+k_s32 kd_mpi_sensor_list_mode(const char *sensor_name, k_sensor_mode_list *list);
 
 /**
  * @brief Get the sensor fps

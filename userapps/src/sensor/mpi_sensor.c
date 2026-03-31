@@ -1456,6 +1456,25 @@ k_s32 kd_mpi_sensor_get_exposure_time_range(k_s32 fd, k_sensor_exposure_time_ran
     return ret;
 }
 
+
+k_s32 kd_mpi_sensor_get_gain_range(k_s32 fd, k_sensor_gain_info *range)
+{
+    k_s32 ret;
+
+    if (!range) {
+        pr_err("%s, range is null\n",__func__);
+        return K_ERR_VICAP_NULL_PTR;
+    }
+
+    ret = ioctl(fd, KD_IOC_SENSOR_G_GAIN_RANGE, range);
+    if (ret != 0) {
+        pr_err("%s, error(%d)\n", __func__, ret);
+        return K_ERR_VICAP_NOT_SUPPORT;
+    }
+
+    return ret;
+}
+
 k_s32 kd_mpi_sensor_fps_get(k_s32 fd, k_u32 *fps)
 {
     k_s32 ret;
@@ -1910,3 +1929,43 @@ _on_success:
 
 #undef MAX_SENSOR_COUNT
 }
+
+/**
+ * @brief Get sensor mode list
+ * @param [in] sensor_type: sensor type
+ * @param [in] csi_num: CSI number
+ * @param [out] list: pointer to mode list structure
+ * @return 0 on success, negative on failure
+ */
+k_s32 kd_mpi_sensor_list_mode(const char *sensor_name, 
+                               k_sensor_mode_list *list)
+{
+    k_s32 i;
+    k_vicap_sensor_type sensor_type = SENSOR_TYPE_MAX;
+    
+    if (!list) {
+        pr_err("%s, list is null\n", __func__);
+        return K_ERR_VICAP_NULL_PTR;
+    }
+    
+    memset(list, 0, sizeof(k_sensor_mode_list));
+    // 遍历 sensor_info_list，收集匹配的模式
+    for (i = 0; i < sizeof(sensor_info_list)/sizeof(k_vicap_sensor_info); i++) {
+        if (sensor_info_list[i].sensor_name && strcmp(sensor_info_list[i].sensor_name, sensor_name) == 0) {
+            if (list->count < 6) {
+                list->modes[list->count].width = sensor_info_list[i].width;
+                list->modes[list->count].height = sensor_info_list[i].height;
+                list->modes[list->count].fps = sensor_info_list[i].fps;
+                list->count++;
+            } else {
+                pr_err("%s, mode list full (max 6)\n", __func__);
+                break;
+            }
+        }
+    }
+    
+    printf("%s, found %u modes (sensor_name=%s)\n", 
+            __func__, list->count, sensor_name);
+    return 0;
+}
+
