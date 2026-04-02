@@ -50,7 +50,7 @@ OBJ_DIRS        := $(sort $(dir $(OBJS)) $(MPP_KERNEL_LIB_INSTALL_PATH))
 
 # Compiler Flags
 C_CXX_FLAGS     := -fopenmp -march=rv64imafdcv -mabi=lp64d -mcmodel=medany -O2
-C_CXX_FLAGS     += -Iinclude -Isrc -I. -I$(SDK_RTSMART_SRC_DIR)/mpp/kernel/vo/include -Wall -Wextra -ffunction-sections -fdata-sections
+C_CXX_FLAGS     += -Iinclude -Isrc -I. -Wall -Wextra -ffunction-sections -fdata-sections
 C_CXX_FLAGS     += -Wno-multichar -Wno-unused-result -Wno-unused-variable -Wno-format
 C_CXX_FLAGS     += $(LIB_CFLAGS) $(MPP_KERNEL_CFLAGS)
 

@@ -38,8 +38,6 @@
 #include "connector_sw_bridge.h"
 #include "pixfmt_convert.h"
 
-/* Access WBC API from VO module */
-#include "drv_vo_wbc.h"
 #include "rthw.h"
 #include "tick.h"
 
@@ -54,6 +52,22 @@
 #define SW_BRIDGE_THREAD_PRIO     27 // lower than userapps
 #define SW_BRIDGE_DUMP_TIMEOUT_MS 100
 #define SW_BRIDGE_WBC_BLK_CNT     3
+
+/* VO WBC: opaque handles + minimal API used by sw_bridge.
+ * The actual struct definitions live inside the VO module;
+ * we only need pointer-level access here. */
+typedef struct wbc_drv wbc_drv_t;
+typedef struct wbc_subscriber wbc_subscriber_t;
+
+extern wbc_drv_t *drv_vo_get_wbc(void);
+extern k_s32 vo_wbc_init(wbc_drv_t *wbc_drv);
+extern k_s32 vo_wbc_deinit(wbc_drv_t *wbc_drv);
+extern k_s32 vo_wbc_set_attr(wbc_drv_t *wbc_drv, k_vo_wbc_attr *attr);
+extern wbc_subscriber_t *vo_wbc_subscribe(wbc_drv_t *wbc_drv);
+extern void vo_wbc_unsubscribe(wbc_drv_t *wbc_drv, wbc_subscriber_t *sub);
+extern k_s32 vo_wbc_dump_frame(wbc_drv_t *wbc_drv, wbc_subscriber_t *sub,
+                               k_video_frame_info *info, k_u32 timeout_ms);
+extern k_s32 vo_wbc_dump_release(wbc_drv_t *wbc_drv, const k_video_frame_info *vf_info);
 
 /* Map k_pixel_format from panel config to bridge_pixel_format */
 static enum bridge_pixel_format panel_pixfmt_to_bridge(k_u32 panel_pixel_format)
