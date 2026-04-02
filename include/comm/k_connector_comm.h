@@ -42,105 +42,135 @@
 extern "C" {
 #endif /* End of #ifdef __cplusplus */
 
-#define CONNECTOR_NUM_MAX                                  128
+/** @brief Connector chip identifier (6 bits, 0-63) */
+typedef enum {
+    K_CHIP_VIRTUAL  = 0,
+    K_CHIP_HX8399   = 1,
+    K_CHIP_ILI9806  = 2,
+    K_CHIP_ILI9881  = 3,
+    K_CHIP_NT35516  = 4,
+    K_CHIP_NT35532  = 5,
+    K_CHIP_GC9503   = 6,
+    K_CHIP_ST7102   = 7,
+    K_CHIP_AML020T  = 8,
+    K_CHIP_ST7701   = 9,
+    K_CHIP_JD9852   = 10,
+    K_CHIP_LT9611   = 11,
+    K_CHIP_ST7789   = 12,
+} k_connector_chip;
 
-#define BACKGROUND_BLACK_COLOR                            (0x808000)
-#define BACKGROUND_PINK_COLOR                             (0xffffff)
+/** @brief Connector bus type (2 bits, 0-3) */
+typedef enum {
+    K_BUS_DSI        = 0,
+    K_BUS_HDMI       = 1,
+    K_BUS_SPI        = 2,
+} k_connector_bus;
+
+/*
+ * k_connector_type encodes chip, bus, version, width and height into a 32-bit
+ * value, similar to the Linux _IOC() ioctl encoding:
+ *
+ *   [31:26] chip    (6 bits)  — k_connector_chip
+ *   [25:24] bus     (2 bits)  — k_connector_bus
+ *   [23:20] version (4 bits)  — variant differentiator
+ *   [19:10] width   (10 bits) — horizontal resolution >> 1
+ *    [9:0]  height  (10 bits) — vertical resolution >> 1
+ */
+
+#define _CONN_CHIP_BITS   6
+#define _CONN_BUS_BITS    2
+#define _CONN_VER_BITS    4
+#define _CONN_W_BITS      10
+#define _CONN_H_BITS      10
+
+#define _CONN_H_SHIFT     0
+#define _CONN_W_SHIFT     10
+#define _CONN_VER_SHIFT   20
+#define _CONN_BUS_SHIFT   24
+#define _CONN_CHIP_SHIFT  26
+
+#define _CONN_MASK(bits)  ((1U << (bits)) - 1)
+
+/** Compose a k_connector_type value from its fields. */
+#define K_CONN_TYPE(chip, bus, w, h, ver)                                       \
+    ((k_u32)                                                                    \
+     ((((k_u32)(chip) & _CONN_MASK(_CONN_CHIP_BITS)) << _CONN_CHIP_SHIFT) |    \
+      (((k_u32)(bus)  & _CONN_MASK(_CONN_BUS_BITS))  << _CONN_BUS_SHIFT)  |    \
+      (((k_u32)(ver)  & _CONN_MASK(_CONN_VER_BITS))  << _CONN_VER_SHIFT)  |    \
+      (((k_u32)((w) >> 1) & _CONN_MASK(_CONN_W_BITS)) << _CONN_W_SHIFT)   |    \
+      (((k_u32)((h) >> 1) & _CONN_MASK(_CONN_H_BITS)) << _CONN_H_SHIFT)))
+
+/** Extract fields from a k_connector_type value. */
+#define K_CONN_CHIP(type)    ((k_connector_chip)(((type) >> _CONN_CHIP_SHIFT) & _CONN_MASK(_CONN_CHIP_BITS)))
+#define K_CONN_BUS(type)     ((k_connector_bus)(((type) >> _CONN_BUS_SHIFT) & _CONN_MASK(_CONN_BUS_BITS)))
+#define K_CONN_VER(type)     (((type) >> _CONN_VER_SHIFT) & _CONN_MASK(_CONN_VER_BITS))
+#define K_CONN_WIDTH(type)   ((((type) >> _CONN_W_SHIFT) & _CONN_MASK(_CONN_W_BITS)) << 1)
+#define K_CONN_HEIGHT(type)  ((((type) >> _CONN_H_SHIFT) & _CONN_MASK(_CONN_H_BITS)) << 1)
+
+typedef k_u32 k_connector_type;
+
+/* DSI panels */
+#define HX8399_1080_1920_DSI_V1     K_CONN_TYPE(K_CHIP_HX8399,  K_BUS_DSI,  1080, 1920, 1)
+#define ILI9806_480_800_DSI_V1      K_CONN_TYPE(K_CHIP_ILI9806,  K_BUS_DSI,  480,  800, 1)
+#define ILI9881_800_1280_DSI_V1     K_CONN_TYPE(K_CHIP_ILI9881,  K_BUS_DSI,  800, 1280, 1)
+#define NT35516_536_960_DSI_V1      K_CONN_TYPE(K_CHIP_NT35516,  K_BUS_DSI,  536,  960, 1)
+#define NT35532_1080_1920_DSI_V1    K_CONN_TYPE(K_CHIP_NT35532,  K_BUS_DSI, 1080, 1920, 1)
+#define GC9503_480_800_DSI_V1       K_CONN_TYPE(K_CHIP_GC9503,   K_BUS_DSI,  480,  800, 1)
+#define ST7102_480_640_DSI_V1       K_CONN_TYPE(K_CHIP_ST7102,   K_BUS_DSI,  480,  640, 1)
+#define AML020T_480_360_DSI_V1      K_CONN_TYPE(K_CHIP_AML020T,  K_BUS_DSI,  480,  360, 1)
+
+/* ST7701 variants */
+#define ST7701_480_800_DSI_V1       K_CONN_TYPE(K_CHIP_ST7701,   K_BUS_DSI,  480,  800, 1)
+#define ST7701_480_854_DSI_V1       K_CONN_TYPE(K_CHIP_ST7701,   K_BUS_DSI,  480,  854, 1)
+#define ST7701_480_640_DSI_V1       K_CONN_TYPE(K_CHIP_ST7701,   K_BUS_DSI,  480,  640, 1)
+#define ST7701_368_544_DSI_V1       K_CONN_TYPE(K_CHIP_ST7701,   K_BUS_DSI,  368,  544, 1)
+
+/* JD9852 */
+#define JD9852_240_320_DSI_V1       K_CONN_TYPE(K_CHIP_JD9852,   K_BUS_DSI,  240,  320, 1)
+
+/* LT9611 HDMI */
+#define LT9611_0_0_HDMI_ADAPT       K_CONN_TYPE(K_CHIP_LT9611,  K_BUS_HDMI,    0,    0, 0)
+#define LT9611_1920_1080_HDMI_V1    K_CONN_TYPE(K_CHIP_LT9611,  K_BUS_HDMI, 1920, 1080, 1) /* 30fps */
+#define LT9611_1920_1080_HDMI_V2    K_CONN_TYPE(K_CHIP_LT9611,  K_BUS_HDMI, 1920, 1080, 2) /* 60fps */
+#define LT9611_1920_1080_HDMI_V3    K_CONN_TYPE(K_CHIP_LT9611,  K_BUS_HDMI, 1920, 1080, 3) /* 50fps */
+#define LT9611_1920_1080_HDMI_V4    K_CONN_TYPE(K_CHIP_LT9611,  K_BUS_HDMI, 1920, 1080, 4) /* 25fps */
+#define LT9611_1920_1080_HDMI_V5    K_CONN_TYPE(K_CHIP_LT9611,  K_BUS_HDMI, 1920, 1080, 5) /* 24fps */
+#define LT9611_1280_720_HDMI_V1     K_CONN_TYPE(K_CHIP_LT9611,  K_BUS_HDMI, 1280,  720, 1) /* 60fps */
+#define LT9611_1280_720_HDMI_V2     K_CONN_TYPE(K_CHIP_LT9611,  K_BUS_HDMI, 1280,  720, 2) /* 50fps */
+#define LT9611_1280_720_HDMI_V3     K_CONN_TYPE(K_CHIP_LT9611,  K_BUS_HDMI, 1280,  720, 3) /* 30fps */
+#define LT9611_640_480_HDMI_V1      K_CONN_TYPE(K_CHIP_LT9611,  K_BUS_HDMI,  640,  480, 1) /* 60fps */
+
+/* SPI panels */
+#define ST7789_320_240_SPI_V1       K_CONN_TYPE(K_CHIP_ST7789,   K_BUS_SPI,  320,  240, 1)
+
+/* Virtual / special */
+#define VIRTUAL_DISPLAY_DEVICE      K_CONN_TYPE(K_CHIP_VIRTUAL,  0,            0,    0, 0)
+#define CONNECTOR_BUTT              ((k_u32)0xFFFFFFFF)
+
+#ifndef K_CONNECTOR_NO_COMPAT
+#include "k_connector_compat.h"
+#endif
 
 typedef enum {
-    HX8377_V2_MIPI_4LAN_1080X1920_30FPS = 0, // real is HX8399, 8377 is a mistake.
-    ILI9806_MIPI_2LAN_480X800_30FPS     = 1,
-    ILI9881_MIPI_4LAN_800X1280_60FPS    = 2,
-    NT35516_MIPI_2LAN_536X960_30FPS     = 5,
-    NT35532_MIPI_2LAN_1080X1920_30FPS   = 6,
-    GC9503_MIPI_2LAN_480X800_60FPS      = 7,
-    ST7102_MIPI_2LAN_480X640_60FPS      = 8,
-    AML020T_MIPI_2LAN_480X360_30FPS     = 9,
-
-    ST7701_V1_MIPI_2LAN_480X800_30FPS = 20,
-    ST7701_V1_MIPI_2LAN_480X854_30FPS = 21,
-    ST7701_V1_MIPI_2LAN_480X640_30FPS = 22,
-    ST7701_V1_MIPI_2LAN_368X544_60FPS = 23,
-    JD9852_MIPI_1LAN_240X320_60FPS = 30,
-
-    LT9611_MIPI_ADAPT_RESOLUTION = 100,
-    LT9611_MIPI_4LAN_1920X1080_30FPS,
-    LT9611_MIPI_4LAN_1920X1080_60FPS,
-    LT9611_MIPI_4LAN_1920X1080_50FPS,
-    LT9611_MIPI_4LAN_1920X1080_25FPS,
-    LT9611_MIPI_4LAN_1920X1080_24FPS,
-    LT9611_MIPI_4LAN_1280X720_60FPS = 110,
-    LT9611_MIPI_4LAN_1280X720_50FPS,
-    LT9611_MIPI_4LAN_1280X720_30FPS,
-    LT9611_MIPI_4LAN_640X480_60FPS = 120,
-
-    VIRTUAL_DISPLAY_DEVICE = 200,
-#if defined (CONFIG_MPP_ENABLE_DSI_DEBUGGER)
-    DSI_DEBUGGER_DEVICE = 201,
-#endif // CONFIG_MPP_ENABLE_DSI_DEBUGGER
-
-    CONNECTOR_BUTT,
-} k_connector_type;
-
-typedef struct
-{
-    k_u32 n;
-    k_u32 m;
-    k_u32 voc;
-    k_u32 hs_freq;
-} k_connectori_phy_attr;
-
+    K_CONNECTOR_BL_MODE_OFF = 0,
+    K_CONNECTOR_BL_MODE_ON = 1,
+    K_CONNECTOR_BL_MODE_PWM = 2,
+} k_connector_backlight_mode;
 
 typedef struct {
-    const char *connector_name;
-    k_u32 screen_test_mode;
-    k_u32 dsi_test_mode;
-    k_u32 bg_color;
-    k_u32 intr_line;
-    k_u32 pixclk_div;
-    k_u32 buff_num;
-    k_dsi_lan_num lan_num;
-    k_dsi_work_mode work_mode;
-    k_vo_dsi_cmd_mode cmd_mode;
-    k_connectori_phy_attr phy_attr;
-    k_vo_display_resolution resolution;
+    k_connector_backlight_mode mode;
+    k_u32 duty;
+} k_connector_backlight_attr;
+
+typedef struct {
+    char connector_name[32];
     k_connector_type type;
+    union {
+        k_vo_timing timing;
+        k_vo_timing resolution; // for compatible
+    };
+    k_u32 bg_color;
 } k_connector_info;
-
-typedef enum
-{
-    K_CONNECTOR_MIRROR_HOR = 1, 
-    K_CONNECTOR_MIRROR_VER,
-    K_CONNECTOR_MIRROR_BOTH,
-}k_connector_mirror;
-
-
-typedef struct
-{
-    k_u32 connection_status;
-    k_u32 negotiated_count;
-    k_connector_type negotiated_types[256];
-} k_connector_negotiated_data;
-
-enum k_connector_cmd_type {
-    // 0x05  Command type: Single byte data (DCS Short Write, no parameters) 
-    // 0x15  Command type: Two byte data (DCS Short Write, 1 parameter)
-    // 0x39  Command type: Multi byte data (DCS Long Write, n parameters n > 2)
-
-    CMD_TYPE_DCS_WRITE_05 = 0x05,
-    CMD_TYPE_DCS_WRITE_15 = 0x15,
-    CMD_TYPE_DCS_WRITE_39 = 0x39,
-
-    // 0x03 Command type: Single byte data  (Generic Short Write, no parameters)
-    // 0x13 Command type: Two byte data (Generic Short Write, 1 parameter)
-    // 0x23 Command type: Three byte data  (Generic Short Write, 2 parameters)
-    // 0x29 Command type: Multi byte data  (Generic Long Write, n parameters n > 2)
-
-    CMD_TYPE_GENERIC_WRITE_03 = 0x03,
-    CMD_TYPE_GENERIC_WRITE_13 = 0x13,
-    CMD_TYPE_GENERIC_WRITE_23 = 0x23,
-    CMD_TYPE_GENERIC_WRITE_29 = 0x29,
-};
 
 typedef struct {
     k_u8 cmd_type;
@@ -150,41 +180,7 @@ typedef struct {
 } k_connector_cmd_slice;
 
 #define CONNECTOR_CMD_SEQUENCE(type, delay, ...)                                                                       \
-    (type), (delay), sizeof((uint8_t[]) { __VA_ARGS__ }) / sizeof(uint8_t), __VA_ARGS__
-
-#if defined (CONFIG_MPP_ENABLE_DSI_DEBUGGER)
-typedef struct {
-    k_u32 seq_size;
-    k_u8 seq[0];
-} k_connector_debugger_init_seq;
-
-typedef struct {
-    k_u32 pclk;
-    k_u32 fps;
-    k_dsi_lan_num lan_num;
-    k_u32 intr_line;
-    k_u32 buff_num;
-
-    k_u32 hdisplay;
-    k_u32 hsync_len;
-    k_u32 hback_porch;
-    k_u32 hfront_porch;
-
-    k_u32 vdisplay;
-    k_u32 vsync_len;
-    k_u32 vback_porch;
-    k_u32 vfront_porch;
-} k_connector_debugger_config;
-
-typedef struct {
-    k_u32 setting_size;
-
-    k_connector_info info;
-
-    // must at last
-    k_connector_debugger_init_seq init;
-} k_connector_debugger_setting;
-#endif // CONFIG_MPP_ENABLE_DSI_DEBUGGER
+    (type), (delay), sizeof((k_u8[]) { __VA_ARGS__ }) / sizeof(k_u8), __VA_ARGS__
 
 #ifdef __cplusplus
 }

@@ -1,4 +1,4 @@
-/* Copyright (c) 2025, Canaan Bright Sight Co., Ltd
+/* Copyright (c) 2026, Canaan Bright Sight Co., Ltd
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -23,16 +23,15 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "connector_dev.h"
-#include "io.h"
-#include "drv_gpio.h"
-#include "k_vo_comm.h"
-#include "k_connector_comm.h"
+#include "connector_panel.h"
 
-static void ili9881c_800x1280_init(k_u8 test_mode_en)
+#include "k_autoconf_comm.h"
+#include "k_type.h"
+
+static int ili9881c_init(const struct panel_desc* desc)
 {
-    const k_u8 init_sequence[] = {
-        // cmd type, delay, data length, data0 ... dataN
+    /* clang-format off */
+    const k_u8 init_cmds[] = {
         0x39, 0, 4, 0xff, 0x98, 0x81, 0x03,
         0x15, 0, 2, 0x01, 0x00,
         0x15, 0, 2, 0x02, 0x00,
@@ -236,183 +235,64 @@ static void ili9881c_800x1280_init(k_u8 test_mode_en)
         0x05,120,1, 0x11,
         0x05, 0, 1, 0x29,
     };
+    /* clang-format on */
 
-    connector_send_cmd(init_sequence, sizeof(init_sequence), K_FALSE);
+    return dsi_send_cmd_sequence(desc, init_cmds, sizeof(init_cmds), K_FALSE);
 }
 
-static void ili9881c_power_reset(k_s32 on)
-{
-    k_u8 rst_gpio;
-    if(0 > (rst_gpio = CONFIG_MPP_DSI_LCD_RESET_PIN)) {
-        return;
-    }
+static const struct panel_ops ili9881c_ops = {
+    .reset        = panel_generic_reset,
+    .init         = ili9881c_init,
+    .power_off    = NULL,
+    .read_chip_id = dsi_read_chip_id,
+};
 
-    kd_pin_mode(rst_gpio, GPIO_DM_OUTPUT);
-    if (on) {
-        kd_pin_write(rst_gpio, GPIO_PV_HIGH);
-    } else {
-        kd_pin_write(rst_gpio, GPIO_PV_LOW);
-    }
-}
+static const struct panel_desc ili9881c_panel_desc = {
+    .name = "ili9881c_800x1280",
+    .connector_type = ILI9881_800_1280_DSI_V1,
+    .bus_type = PANEL_BUS_DSI,
 
-static void ili9881c_set_backlight(k_s32 on)
-{
-    k_u8 backlight_gpio;
-    if(0 > (backlight_gpio = CONFIG_MPP_DSI_LCD_BACKLIGHT_PIN)) {
-        return;
-    }
+    .timing = {
+         .pclk_khz = (800 + 8 + 48 + 52) * (1280 + 8 + 20 + 40) * 60 / 1000,
+         .hactive = 800,
+         .hsync_len = 8,
+         .hback_porch = 48,
+         .hfront_porch = 52,
+         .vactive = 1280,
+         .vsync_len = 8,
+         .vback_porch = 20,
+         .vfront_porch = 40,
+     },
 
-    kd_pin_mode(backlight_gpio, GPIO_DM_OUTPUT);
-    if (on) {
-        kd_pin_write(backlight_gpio, GPIO_PV_HIGH);
-    } else {
-        kd_pin_write(backlight_gpio, GPIO_PV_LOW);
-    }
-}
+    .bg_color = PANEL_BG_COLOR_BLACK,
 
-static k_s32 ili9881c_power_on(void* ctx, k_s32 on)
-{
-    k_s32 ret = 0;
-    struct connector_driver_dev* dev = ctx;
-
-    if (on) {
-        // rst vo;
-        k230_display_rst();
-
-        // rst ili9881C
-        ili9881c_power_reset(0);
-        rt_thread_mdelay(50);
-        ili9881c_power_reset(1);
-        rt_thread_mdelay(10);
-
-        // enable backlight
-        ili9881c_set_backlight(1);
-    } else {
-        ili9881c_set_backlight(0);
-    }
-
-    return ret;
-}
-
-static k_s32 ili9881c_set_phy_freq(k_connectori_phy_attr* phy_attr)
-{
-    k_vo_mipi_phy_attr mipi_phy_attr;
-
-    memset(&mipi_phy_attr, 0, sizeof(k_vo_mipi_phy_attr));
-
-    mipi_phy_attr.m = phy_attr->m;
-    mipi_phy_attr.n = phy_attr->n;
-    mipi_phy_attr.hs_freq = phy_attr->hs_freq;
-    mipi_phy_attr.voc = phy_attr->voc;
-    mipi_phy_attr.phy_lan_num = K_DSI_4LAN;
-    connector_set_phy_freq(&mipi_phy_attr);
-
-    return 0;
-}
-
-static k_s32 ili9881c_dsi_resolution_init(k_connector_info* info)
-{
-    k_vo_dsi_attr attr;
-    k_vo_display_resolution resolution;
-
-    memset(&attr, 0, sizeof(k_vo_dsi_attr));
-    attr.lan_num = info->lan_num;
-    attr.cmd_mode = info->cmd_mode;
-    attr.lp_div = 8;
-    attr.work_mode = info->work_mode;
-    memcpy(&resolution, &info->resolution, sizeof(k_vo_display_resolution));
-    memcpy(&attr.resolution, &resolution, sizeof(k_vo_display_resolution));
-    connector_set_dsi_attr(&attr);
-
-    ili9881c_800x1280_init(info->screen_test_mode);
-
-    connector_set_dsi_enable(1);
-
-    if (info->dsi_test_mode == 1) {
-        connector_set_dsi_test_mode();
-    }
-
-    return 0;
-}
-
-static k_s32 ili9881c_vo_resolution_init(k_vo_display_resolution* resolution, k_u32 bg_color, k_u32 intr_line)
-{
-    k_vo_display_resolution vo_resolution;
-    k_vo_pub_attr attr;
-
-    memset(&attr, 0, sizeof(k_vo_pub_attr));
-    attr.bg_color = bg_color;
-    attr.intf_sync = K_VO_OUT_1080P30;
-    attr.intf_type = K_VO_INTF_MIPI;
-    attr.sync_info = resolution;
-
-    connector_set_vo_init();
-    connector_set_vtth_intr(1, intr_line);
-    connector_set_vo_param(&attr);
-    connector_set_vo_enable();
-
-    return 0;
-}
-
-k_s32 ili9881c_init(void* ctx, k_connector_info* info)
-{
-    k_s32 ret = 0;
-    struct connector_driver_dev* dev = ctx;
-
-    if (info->pixclk_div != 0) {
-        connector_set_pixclk(info->pixclk_div);
-    }
-
-    ret |= ili9881c_set_phy_freq(&info->phy_attr);
-    ret |= ili9881c_dsi_resolution_init(info);
-    ret |= ili9881c_vo_resolution_init(&info->resolution, info->bg_color, info->intr_line);
-
-    return ret;
-}
-
-static k_s32 ili9881c_get_chip_id(void* ctx, k_u32* chip_id)
-{
-    k_s32 ret = 0;
-
-    return ret;
-}
-
-static k_s32 ili9881c_conn_check(void* ctx, k_s32* conn)
-{
-    k_s32 ret = 0;
-
-    *conn = 1;
-
-    return ret;
-}
-
-static k_s32 ili9881c_set_mirror(void* ctx, k_connector_mirror* mirror)
-{
-    k_connector_mirror ili9881c_mirror;
-
-    ili9881c_mirror = *mirror;
-
-    switch (ili9881c_mirror) {
-    case K_CONNECTOR_MIRROR_HOR:
-        break;
-    case K_CONNECTOR_MIRROR_VER:
-        break;
-    case K_CONNECTOR_MIRROR_BOTH:
-        break;
-    default:
-        rt_kprintf("ili9881c_mirror(%d) is not support \n", ili9881c_mirror);
-        break;
-    }
-    return 0;
-}
-
-struct connector_driver_dev ili9881c_connector_drv = {
-    .connector_name = "ili9881c",
-    .connector_func = {
-        .connector_power = ili9881c_power_on,
-        .connector_init = ili9881c_init,
-        .connector_get_chip_id = ili9881c_get_chip_id,
-        .connector_conn_check = ili9881c_conn_check,
-        .connector_set_mirror = ili9881c_set_mirror,
+    .gpio = {
+        .reset_pin = CONFIG_MPP_DSI_LCD_RESET_PIN,
+        .backlight_pin = CONFIG_MPP_DSI_LCD_BACKLIGHT_PIN,
+        .reset_delay_ms = 10,
+        .backlight_delay_ms = 0,
+        .reset_active_low = K_TRUE,
+        .backlight_active_low = K_FALSE,
     },
+
+    .bus.dsi = {
+        .lanes = K_DSI_4LANE,
+        .cmd_mode = K_DSI_CMD_LP_MODE,
+        .video_mode = K_DSI_VIDEO_BURST_MODE,
+        .vc_id = 0,
+    },
+
+    .bus_ops = &dsi_bus_ops,
+    .ops = &ili9881c_ops,
+};
+
+static const struct panel_desc* ili9881c_panel_variants[] = {
+    &ili9881c_panel_desc,
+    NULL,
+};
+
+struct panel_drv mipi_ili9881c_drv = {
+    .connector_name = "ili9881c",
+    .panel_variants = ili9881c_panel_variants,
+    .active_panel   = &ili9881c_panel_desc,
 };

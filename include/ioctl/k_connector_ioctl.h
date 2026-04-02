@@ -34,43 +34,39 @@
 #ifndef __K_CONNECTOR_IOCTL_H__
 #define __K_CONNECTOR_IOCTL_H__
 
-#include "k_connector_comm.h"
-#include "k_ioctl.h"
 #include "k_type.h"
+#include "k_ioctl.h"
+#include "k_connector_comm.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif /* End of #ifdef __cplusplus */
 
-
-/* connector ioctl cmd */
 typedef enum {
-    KD_IOC_NR_CONNECTOR_DEV_POWER,
-    KD_IOC_NR_CONNECTOR_DEV_INIT,
-    KD_IOC_NR_CONNECTOR_DEV_ID,
-    KD_IOC_NR_CONNECTOR_DEV_GET_NEG_DATA,
-    KD_IOC_NR_CONNECTOR_DEV_MIRROR,
-
-#if defined (CONFIG_MPP_ENABLE_DSI_DEBUGGER)
-    KD_IOC_NR_CONNECTOR_DEV_DEBUGGER_APPLY_SETTING = 0x100
-#endif // CONFIG_MPP_ENABLE_DSI_DEBUGGER
+    KD_IOC_NR_CONNECTOR_GET_PANEL_INFO,
+    KD_IOC_NR_CONNECTOR_SET_PANEL_INIT,
+    KD_IOC_NR_CONNECTOR_GET_PAENL_ID,
+    KD_IOC_NR_CONNECTOR_SET_PANEL_POWER_OFF,
+    KD_IOC_NR_CONNECTOR_SET_PANEL_BACKLIGHT,
 } k_ioc_nr_connector;
 
+typedef struct {
+    k_connector_type connector_type;
+    k_u32 bg_color;
+    /* Virtual display only - ignored for physical panels */
+    k_u32 virtual_hdisplay;  /* Horizontal resolution (e.g., 1920). If non-zero, calculate timing. */
+    k_u32 virtual_vdisplay;  /* Vertical resolution (e.g., 1080) */
+    k_u32 virtual_fps;       /* Frame rate (e.g., 60) */
+} k_connector_init_params;
 
-
-#define KD_IOC_CONNECTOR_S_POWER           _IOW(K_IOC_TYPE_SENSOR, KD_IOC_NR_CONNECTOR_DEV_POWER, k_s32)
-#define KD_IOC_CONNECTOR_S_INIT            _IOW(K_IOC_TYPE_SENSOR, KD_IOC_NR_CONNECTOR_DEV_INIT, k_connector_info)
-#define KD_IOC_CONNECTOR_G_ID              _IOW(K_IOC_TYPE_SENSOR, KD_IOC_NR_CONNECTOR_DEV_ID, k_u32)
-#define KD_IOC_CONNECTOR_G_NEG_DATA        _IOW(K_IOC_TYPE_SENSOR, KD_IOC_NR_CONNECTOR_DEV_GET_NEG_DATA, k_connector_negotiated_data)
-#define KD_IOC_CONNECTOR_S_MIRROR           _IOW(K_IOC_TYPE_SENSOR, KD_IOC_NR_CONNECTOR_DEV_MIRROR, k_connector_mirror)
-
-#if defined (CONFIG_MPP_ENABLE_DSI_DEBUGGER)
-#define KD_IOC_CONNECTOR_S_DEBUGGER_SETTING  _IOW(K_IOC_TYPE_SENSOR, KD_IOC_NR_CONNECTOR_DEV_DEBUGGER_APPLY_SETTING, k_connector_debugger_setting)
-#endif // CONFIG_MPP_ENABLE_DSI_DEBUGGER
+#define KD_IOC_CONNECTOR_GET_PANEL_INFO             _IOWR(K_IOC_TYPE_SENSOR, KD_IOC_NR_CONNECTOR_GET_PANEL_INFO, k_connector_info)
+#define KD_IOC_CONNECTOR_SET_PAENL_INIT             _IOW(K_IOC_TYPE_SENSOR, KD_IOC_NR_CONNECTOR_SET_PANEL_INIT, k_connector_init_params)
+#define KD_IOC_CONNECTOR_GET_PAENL_ID               _IOR(K_IOC_TYPE_SENSOR, KD_IOC_NR_CONNECTOR_GET_PAENL_ID, k_u32)
+#define KD_IOC_CONNECTOR_SET_PANEL_POWER_OFF        _IOW(K_IOC_TYPE_SENSOR, KD_IOC_NR_CONNECTOR_SET_PANEL_POWER_OFF, k_s32)
+#define KD_IOC_CONNECTOR_SET_PANEL_BACKLIGHT        _IOW(K_IOC_TYPE_SENSOR, KD_IOC_NR_CONNECTOR_SET_PANEL_BACKLIGHT, k_connector_backlight_attr)
 
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
 
 #endif
-

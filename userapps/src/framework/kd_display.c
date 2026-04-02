@@ -47,16 +47,16 @@ k_s32 kd_display_init_ex(k_connector_type type, k_u32 width, k_u32 height, k_gdm
     if (type == VIRTUAL_DISPLAY_DEVICE) {
         _rotate = 0; // Force no rotate when virtual
 
-        connector_info.resolution.hdisplay = width;
-        connector_info.resolution.vdisplay = height;
-        connector_info.resolution.pclk     = fps;
+        connector_info.resolution.hactive = width;
+        connector_info.resolution.vactive = height;
+        connector_info.resolution.pclk_khz     = fps;
     } else {
         /* Auto Rotation Logic for Physical Devices */
         if (width != 0 && height != 0 && _rotate == 0) {
             k_u32 phys_w, phys_h;
             // Get physical panel resolution from the DB/driver
-            phys_w = connector_info.resolution.hdisplay;
-            phys_h = connector_info.resolution.vdisplay;
+            phys_w = connector_info.resolution.hactive;
+            phys_h = connector_info.resolution.vactive;
 
             // If requested resolution is the transpose of physical resolution, auto-rotate 90
             if (width == phys_h && height == phys_w) {
@@ -72,16 +72,16 @@ k_s32 kd_display_init_ex(k_connector_type type, k_u32 width, k_u32 height, k_gdm
         return K_ERR_VO_NOTREADY;
     }
 
-    ret = kd_mpi_connector_power_set(connector_fd, 1);
+    ret = kd_mpi_connector_init(connector_fd, connector_info);
     if (K_SUCCESS != ret) {
-        printf("[fw_display]:: kd_mpi_connector_power_set failed, ret=%d\n", ret);
+        printf("[fw_display]:: kd_mpi_connector_init failed, ret=%d\n", ret);
         kd_mpi_connector_close(connector_fd);
         return ret;
     }
 
-    ret = kd_mpi_connector_init(connector_fd, connector_info);
+    ret = kd_mpi_connector_power_set(connector_fd, 1);
     if (K_SUCCESS != ret) {
-        printf("[fw_display]:: kd_mpi_connector_init failed, ret=%d\n", ret);
+        printf("[fw_display]:: kd_mpi_connector_power_set failed, ret=%d\n", ret);
         kd_mpi_connector_close(connector_fd);
         return ret;
     }
@@ -110,14 +110,11 @@ k_s32 kd_display_deinit(void)
 
     k_s32 connector_fd;
 
-    for (k_vo_layer_id layer = K_VO_LAYER_VIDEO0; layer < K_MAX_VO_LAYER_NR; layer++) {
-        kd_mpi_vo_disable_layer(layer);
-    }
-
-    kd_mpi_vo_disable_wbc();
-
-    kd_mpi_vo_clr_dev_attr();
-
+    /* Power off the connector first — for SPI panels this stops the
+     * sw_bridge thread (which owns WBC internally) before we try to
+     * disable WBC/layers from the VO side.  Doing it the other way
+     * round would destroy WBC while sw_bridge is still running,
+     * causing the bridge thread to spin and starve the caller. */
     connector_fd = kd_mpi_connector_open(curr_connector_info.connector_name);
     if (0 <= connector_fd) {
         ret = kd_mpi_connector_power_set(connector_fd, 0);
@@ -128,6 +125,14 @@ k_s32 kd_display_deinit(void)
     } else {
         ret = K_FAILED;
     }
+
+    for (k_vo_layer_id layer = K_VO_LAYER_VIDEO0; layer < K_MAX_VO_LAYER_NR; layer++) {
+        kd_mpi_vo_disable_layer(layer);
+    }
+
+    kd_mpi_vo_disable_wbc();
+
+    kd_mpi_vo_clr_dev_attr();
 
     info_valid = 0;
     memset(&curr_connector_info, 0, sizeof(curr_connector_info));

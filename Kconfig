@@ -290,12 +290,11 @@ menu "MPP Configuration"
     endmenu
 
     menu "Display Configuration"
-        config MPP_ENABLE_DSI_DEBUGGER
-            bool "Enable DSI Debuger"
-            default n
-            select APP_ENABLE_DSI_DEBUGGER
-
         comment "Display Hardware Configuration"
+
+        config MPP_DSI_ENABLE_VIRT
+            bool "Enable VIRT Display Driver "
+            default y
 
         menuconfig MPP_ENABLE_DSI_HDMI
             bool "Enable HDMI Display Driver"
@@ -323,11 +322,129 @@ menu "MPP Configuration"
                     default 25
             endif
 
-        config MPP_DSI_ENABLE_VIRT
-            bool "Enable VIRT Display Driver "
-            default y
+        menuconfig MPP_ENABLE_SPI_LCD
+            bool "Enable SPI LCD Display Driver"
 
-        comment "Display Panle Drivers Configuration"
+            if MPP_ENABLE_SPI_LCD
+                choice MPP_SPI_LCD_BUS
+                    prompt "SPI Bus"
+                    default MPP_SPI_LCD_BUS_SPI1
+
+                    config MPP_SPI_LCD_BUS_SPI0
+                        bool "spi0 (OSPI controller)"
+
+                    config MPP_SPI_LCD_BUS_SPI1
+                        bool "spi1 (QSPI0)"
+
+                    config MPP_SPI_LCD_BUS_SPI2
+                        bool "spi2 (QSPI1)"
+                endchoice
+
+                config MPP_SPI_LCD_DC_PIN
+                    int "SPI-LCD Data/Command GPIO"
+                    default 20
+
+                config MPP_SPI_LCD_CS_PIN
+                    int "SPI-LCD Chip Select GPIO (-1 for hardware CS)"
+                    default 19
+
+                config MPP_SPI_LCD_RESET_PIN
+                    int "SPI-LCD Reset GPIO (-1 if not used)"
+                    default 17
+
+                config MPP_SPI_LCD_BACKLIGHT_PIN
+                    int "SPI-LCD Backlight GPIO (-1 if not used)"
+                    default -1
+
+                config MPP_SPI_LCD_CLK_PIN
+                    int "SPI-LCD Clock Pin (FPIOA)"
+                    default 15
+
+                config MPP_SPI_LCD_D0_PIN
+                    int "SPI-LCD Data0/MOSI Pin (FPIOA)"
+                    default 16
+            endif
+
+        menuconfig MPP_ENABLE_QSPI_LCD
+            bool "Enable QSPI LCD Display Driver"
+
+            if MPP_ENABLE_QSPI_LCD
+                choice MPP_QSPI_LCD_BUS
+                    prompt "QSPI Bus"
+                    default MPP_QSPI_LCD_BUS_SPI1
+
+                    config MPP_QSPI_LCD_BUS_SPI0
+                        bool "spi0 (OSPI controller)"
+
+                    config MPP_QSPI_LCD_BUS_SPI1
+                        bool "spi1 (QSPI0)"
+
+                    config MPP_QSPI_LCD_BUS_SPI2
+                        bool "spi2 (QSPI1)"
+                endchoice
+
+                config MPP_QSPI_LCD_DC_PIN
+                    int "QSPI-LCD Data/Command GPIO"
+                    default 20
+
+                config MPP_QSPI_LCD_CS_PIN
+                    int "QSPI-LCD Chip Select GPIO (-1 for hardware CS)"
+                    default 19
+
+                config MPP_QSPI_LCD_RESET_PIN
+                    int "QSPI-LCD Reset GPIO (-1 if not used)"
+                    default 17
+
+                config MPP_QSPI_LCD_BACKLIGHT_PIN
+                    int "QSPI-LCD Backlight GPIO (-1 if not used)"
+                    default -1
+
+                config MPP_QSPI_LCD_CLK_PIN
+                    int "QSPI-LCD Clock Pin (FPIOA)"
+                    default 15
+
+                config MPP_QSPI_LCD_D0_PIN
+                    int "QSPI-LCD Data0 Pin (FPIOA)"
+                    default 16
+
+                config MPP_QSPI_LCD_D1_PIN
+                    int "QSPI-LCD Data1 Pin (FPIOA)"
+                    default 17
+
+                config MPP_QSPI_LCD_D2_PIN
+                    int "QSPI-LCD Data2 Pin (FPIOA)"
+                    default 18
+
+                config MPP_QSPI_LCD_D3_PIN
+                    int "QSPI-LCD Data3 Pin (FPIOA)"
+                    default 19
+            endif
+
+        menuconfig MPP_ENABLE_OSPI_LCD
+            bool "Enable OSPI LCD Display Driver"
+            help
+              OSPI is fixed to spi0. Clock and data pins (D0-D7, DQS)
+              are hardware-fixed and not configurable.
+
+            if MPP_ENABLE_OSPI_LCD
+                config MPP_OSPI_LCD_CS_PIN
+                    int "OSPI-LCD Chip Select GPIO (-1 for hardware CS)"
+                    default 14
+
+                config MPP_OSPI_LCD_DC_PIN
+                    int "OSPI-LCD Data/Command GPIO"
+                    default 20
+
+                config MPP_OSPI_LCD_RESET_PIN
+                    int "OSPI-LCD Reset GPIO (-1 if not used)"
+                    default 17
+
+                config MPP_OSPI_LCD_BACKLIGHT_PIN
+                    int "OSPI-LCD Backlight GPIO (-1 if not used)"
+                    default -1
+            endif
+
+        comment "Display Panel Drivers Configuration"
 
         menuconfig MPP_DSI_ENABLE_HDMI_LT9611
             bool "Enable HDMI Display Panel Driver LT9611"
@@ -341,42 +458,57 @@ menu "MPP Configuration"
 
         config MPP_DSI_ENABLE_LCD_HX8399
             bool "Enable LCD Display Panel Driver HX8399"
+            depends on MPP_ENABLE_DSI_LCD
             default n
 
         config MPP_DSI_ENABLE_LCD_ST7701
             bool "Enable LCD Display Panel Driver ST7701"
+            depends on MPP_ENABLE_DSI_LCD
             default n
 
         config MPP_DSI_ENABLE_LCD_ILI9806
             bool "Enable LCD Display Panel Driver ili9806"
+            depends on MPP_ENABLE_DSI_LCD
             default n
 
         config MPP_DSI_ENABLE_LCD_ILI9881
             bool "Enable LCD Display Panel Driver ili9881"
+            depends on MPP_ENABLE_DSI_LCD
             default n
 
         config MPP_DSI_ENABLE_LCD_NT35516
             bool "Enable LCD Display Panel Driver nt35516"
+            depends on MPP_ENABLE_DSI_LCD
             default n
 
         config MPP_DSI_ENABLE_LCD_NT35532
             bool "Enable LCD Display Panel Driver nt35532"
+            depends on MPP_ENABLE_DSI_LCD
             default n
 
         config MPP_DSI_ENABLE_LCD_GC9503
             bool "Enable LCD Display Panel Driver gc9503"
+            depends on MPP_ENABLE_DSI_LCD
             default n
 
         config MPP_DSI_ENABLE_LCD_ST7102
             bool "Enable LCD Display Panel Driver st7102"
+            depends on MPP_ENABLE_DSI_LCD
             default n
 
         config MPP_DSI_ENABLE_LCD_AML020T
             bool "Enable LCD Display Panel Driver aml020t"
+            depends on MPP_ENABLE_DSI_LCD
             default n
 
         config MPP_DSI_ENABLE_LCD_JD9852
             bool "Enable LCD Display Panel Driver JD9852"
+            depends on MPP_ENABLE_DSI_LCD
+            default n
+
+        config MPP_SPI_ENABLE_LCD_ST7789
+            bool "Enable SPI LCD Panel Driver ST7789"
+            depends on MPP_ENABLE_SPI_LCD
             default n
     endmenu
 

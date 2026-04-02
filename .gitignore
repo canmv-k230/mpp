@@ -54,5 +54,6 @@ middleware/src/x264/src/common/oclobj.h
 
 tuning_server.elf
 
+.sisyphus
 fuzz_test/build
 unit_test/build

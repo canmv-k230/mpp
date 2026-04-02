@@ -36,6 +36,7 @@
 #include "k_type.h"
 #include "k_vo_comm.h"
 #include "k_connector_comm.h"
+#include "k_connector_ioctl.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -44,28 +45,17 @@ extern "C" {
 /** \addtogroup     connector */
 /** @{ */ /** <!-- [connector] */
 
-
-k_s32 kd_mpi_connector_init(k_s32 fd, k_connector_info info);
-
-k_s32 kd_mpi_connector_id_get(k_s32 fd, k_u32 *sensor_id);
-
-k_s32 kd_mpi_connector_power_set(k_s32 fd, k_bool on);
-
-k_s32 kd_mpi_connector_close(k_s32 fd);
+k_s32 kd_mpi_get_connector_info(k_connector_type connector_type, k_connector_info *connector_info);
 
 k_s32 kd_mpi_connector_open(const char *connector_name);
 
-k_s32 kd_mpi_connector_get_negotiated_data(k_s32 fd, k_connector_negotiated_data *negotiated_data);
+k_s32 kd_mpi_connector_close(k_s32 fd);
 
-k_s32 kd_mpi_connector_adapt_resolution(k_connector_type connector_type, k_connector_negotiated_data *negotiated_data);
+k_s32 kd_mpi_connector_init(k_s32 fd, k_connector_info info);
 
-k_s32 kd_mpi_get_connector_info(k_connector_type connector_type, k_connector_info *connector_info);
+k_s32 kd_mpi_connector_power_set(k_s32 fd, k_bool on);
 
-k_s32 kd_mpi_connector_set_mirror(k_s32 fd, k_connector_mirror mirror);
-
-#if defined (CONFIG_MPP_ENABLE_DSI_DEBUGGER)
-void kd_mpi_connector_parse_setting(k_connector_info *info_list);
-#endif // CONFIG_MPP_ENABLE_DSI_DEBUGGER
+k_s32 kd_mpi_connector_id_get(k_s32 fd, k_u32 *id);
 
 /** @} */ /** <!-- ==== connector End ==== */
 

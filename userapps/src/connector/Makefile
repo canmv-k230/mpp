@@ -11,7 +11,6 @@ include $(SDK_RTSMART_SRC_DIR)/libs/mk/libmpp.mk
 
 # Source and Object Handling
 src-y 			:= mpi_connector.c
-src-$(CONFIG_MPP_ENABLE_DSI_DEBUGGER) += debugger.c
 
 C_SRCS          := $(src-y)
 CXX_SRCS        := $(wildcard *.cpp)
