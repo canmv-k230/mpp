@@ -353,7 +353,9 @@ k_s32 connector_device_init(void)
     return 0;
 }
 
-#if !defined(CONFIG_SDK_ENABLE_CANMV)
+///////////////////////////////////////////////////////////////////////////////
+// List Connector Types CLI Command
+///////////////////////////////////////////////////////////////////////////////
 
 #define CONNECTOR_TYPE_NAME(x) { .type = x, .name = #x }
 
@@ -405,5 +407,3 @@ static void list_connector(int argc, char** argv)
 }
 
 MSH_CMD_EXPORT(list_connector, list connector type)
-
-#endif

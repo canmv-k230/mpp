@@ -28,9 +28,8 @@
 #include "drv_gpio.h"
 
 #include "connector_panel.h"
+#include "connector_bus_dsi.h"
 #include "connector_sw_bridge.h"
-
-#define VO_PIXEL_CLOCK_HZ 594000000
 
 extern void kd_vo_reset(void);
 extern void kd_vo_wrap_init(void);
@@ -262,7 +261,11 @@ k_s32 panel_generic_power_on(struct panel_desc* desc)
     }
 
     // correct the pclk, user maybe set invalid one.
-    desc->timing.pclk_khz = panel_correct_pclk(desc->timing.pclk_khz * 1000) / 1000;
+    if (desc->bus_type == PANEL_BUS_DSI) {
+        desc->timing.pclk_khz = dsi_correct_pclk(desc->timing.pclk_khz * 1000, desc->bus.dsi.lanes) / 1000;
+    } else {
+        desc->timing.pclk_khz = panel_correct_pclk(desc->timing.pclk_khz * 1000) / 1000;
+    }
 
     fps = calculate_panel_fps(&desc->timing);
     rt_kprintf("panel %s, pixelclock %u khz, resolution %dx%d@%d\n", desc->name, desc->timing.pclk_khz, desc->timing.hactive,
@@ -311,7 +314,7 @@ k_s32 panel_generic_power_on(struct panel_desc* desc)
 
     /* For non-DSI buses, start the software display bridge.
      * DSI panels use hardware video stream and don't need the bridge. */
-    if (desc->bus_type != PANEL_BUS_DSI) {
+    if ((desc->bus_type != PANEL_BUS_DSI) && (PANEL_BUS_NONE != desc->bus_type)) {
         ret = sw_bridge_start(desc);
         if (ret != 0) {
             rt_kprintf("panel_generic_power_on: sw_bridge_start failed: %d\n", ret);

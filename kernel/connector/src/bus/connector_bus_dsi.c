@@ -201,6 +201,83 @@ int dsi_phy_calc_m_and_n(k_u32 fout, k_u32* m, k_u32* n)
 }
 
 /**
+ * Silently check if a lane_clk value can produce valid PLL M/N dividers.
+ * Does not print any error messages - used for searching nearby valid clocks.
+ * @param lane_clk_hz: candidate MIPI Phy Clock in Hz
+ * @return: 0 if valid PLL config exists, -1 otherwise
+ */
+static int dsi_bus_check_lane_clk(k_u32 lane_clk_hz)
+{
+    k_u32 mut = 1;
+
+    if (lane_clk_hz == 0)
+        return -1;
+
+    if (lane_clk_hz >= 320000000 && lane_clk_hz <= 1250000000)
+        mut = 1;
+    else if (lane_clk_hz >= 160000000 && lane_clk_hz <= 320000000)
+        mut = 2;
+    else if (lane_clk_hz >= 80000000 && lane_clk_hz <= 160000000)
+        mut = 4;
+    else if (lane_clk_hz >= 40000000 && lane_clk_hz <= 80000000)
+        mut = 8;
+    else
+        return -1;
+
+    for (int n = 1; n <= 16; n++) {
+        uint64_t numerator = (uint64_t)lane_clk_hz * mut * (n + 1);
+        if (numerator % DSI_PHY_REF_CLK == 0) {
+            uint32_t mp2 = numerator / DSI_PHY_REF_CLK;
+            if (mp2 >= 42 && mp2 <= 627)
+                return 0;
+        }
+    }
+
+    return -1;
+}
+
+/**
+ * Correct pixel clock for DSI PHY PLL compatibility.
+ * Searches nearby VO-compatible pclk values (594MHz / N) until one also
+ * produces a lane_clk that satisfies the PLL M/N divider constraints.
+ *
+ * @param pclk_hz: desired pixel clock in Hz
+ * @param lanes: number of DSI data lanes
+ * @return: corrected pixel clock in Hz, or 0 on failure
+ */
+k_u32 dsi_correct_pclk(k_u32 pclk_hz, k_vo_dsi_lane_num lanes)
+{
+    k_u32 ratio, candidate_pclk, lane_clk;
+    int delta;
+
+    if (pclk_hz == 0 || lanes == 0)
+        return 0;
+
+    ratio = (VO_PIXEL_CLOCK_HZ + pclk_hz / 2) / pclk_hz;
+    if (ratio == 0)
+        ratio = 1;
+
+    for (delta = 0; delta <= 10; delta++) {
+        /* try ratio + delta */
+        if (ratio + delta > 0) {
+            candidate_pclk = VO_PIXEL_CLOCK_HZ / (ratio + delta);
+            lane_clk = (candidate_pclk / 1000 * 3 * 8 * 1000) / (lanes * 2);
+            if (dsi_bus_check_lane_clk(lane_clk) == 0)
+                return candidate_pclk;
+        }
+        /* try ratio - delta (skip delta == 0 to avoid duplicate) */
+        if (delta > 0 && ratio > (k_u32)delta) {
+            candidate_pclk = VO_PIXEL_CLOCK_HZ / (ratio - delta);
+            lane_clk = (candidate_pclk / 1000 * 3 * 8 * 1000) / (lanes * 2);
+            if (dsi_bus_check_lane_clk(lane_clk) == 0)
+                return candidate_pclk;
+        }
+    }
+
+    return 0;
+}
+
+/**
  * Auto-calculate all PHY attributes from phyclk
  * @param lane_clk_hz: MIPI Phy Clock in Hz (from panel timing)
  * @param m, n, voc, hs_freq: Output PHY primitive parameters

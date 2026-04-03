@@ -51,6 +51,7 @@ enum panel_bus_type {
     PANEL_BUS_SPI, /* Standard SPI */
     PANEL_BUS_I8080_SPI, /* 8080 parallel over SPI */
     PANEL_BUS_QSPI, /* Quad SPI (4-bit parallel) */
+    PANEL_BUS_NONE, /* No bus */
 };
 
 /**
