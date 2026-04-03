@@ -36,7 +36,6 @@
 #include "k_type.h"
 #include "k_vo_comm.h"
 #include "k_connector_comm.h"
-#include "k_connector_ioctl.h"
 
 #ifdef __cplusplus
 extern "C" {
