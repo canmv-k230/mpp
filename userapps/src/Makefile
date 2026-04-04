@@ -1,4 +1,4 @@
-subdirs-y := sensor connector fft cipher pm vg_lite vg_lite/vg_lite_util uvc framework
+subdirs-y := sensor connector cipher pm vg_lite vg_lite/vg_lite_util uvc framework
 
 .PHONY: all clean $(subdirs-y)
 

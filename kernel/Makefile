@@ -1,4 +1,4 @@
-subdirs-y := sensor fft connector mediafreq pm
+subdirs-y := sensor connector mediafreq pm
 
 .PHONY: all clean
 
