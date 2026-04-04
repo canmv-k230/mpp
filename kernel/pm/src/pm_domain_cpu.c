@@ -165,7 +165,7 @@ static int set_clock(int32_t freq)
 
 static int get_stat(void)
 {
-
+    return 0;
 }
 
 static struct pm_domain_ops ops = {
