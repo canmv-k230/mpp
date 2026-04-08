@@ -40,6 +40,8 @@ extern "C" {
 #define PANEL_BG_COLOR_BLACK 0x00000000
 #define PANEL_BG_COLOR_WHITE 0x00FFFFFF
 
+#define CONNECTOR_SW_BRIDGE_FLAG_SWAP_RGB565_BYTE_ORDER (1 << 0)
+
 /* Forward declarations */
 struct panel_desc;
 
@@ -71,26 +73,35 @@ struct panel_dsi_config {
     k_u8                lp_cmd_speed_mhz;
 };
 
+struct panel_sw_bridge_base {
+    k_u32 pixel_format;
+    k_u32 flag; /* see CONNECTOR_SW_BRIDGE_FLAG_* */
+    k_u8  fps; /* Frames per second */
+};
+
 struct panel_spi_config {
-    const char* spi_dev_name;  /* Device name to register, e.g. "lcd_spi" */
+    struct panel_sw_bridge_base base; // must be first for common handling in sw_bridge
+
+    const char* spi_dev_name; /* Device name to register, e.g. "lcd_spi" */
     k_u32       spi_speed_hz;
     k_u8        spi_mode;
-    k_u32       pixel_format;
 };
 
 struct panel_i8080_spi_config {
-    const char* spi_dev_name;  /* Device name to register, e.g. "lcd_i8080" */
+    struct panel_sw_bridge_base base; // must be first for common handling in sw_bridge
+
+    const char* spi_dev_name; /* Device name to register, e.g. "lcd_i8080" */
     k_u32       spi_speed_hz;
     k_u8        spi_mode;
     k_u32       bus_width;
-    k_u32       pixel_format;
 };
 
 struct panel_qspi_config {
-    const char* qspi_dev_name;  /* Device name to register, e.g. "lcd_qspi" */
+    struct panel_sw_bridge_base base; // must be first for common handling in sw_bridge
+
+    const char* qspi_dev_name; /* Device name to register, e.g. "lcd_qspi" */
     k_u32       qspi_speed_hz;
     k_u8        qspi_mode;
-    k_u32       pixel_format;
 };
 
 /**
@@ -138,19 +149,6 @@ struct panel_ops {
      * Returns: 24-bit chip ID on success, 0 if not supported/not readable
      */
     k_u32 (*read_chip_id)(const struct panel_desc* desc);
-
-    /**
-     * begin_frame - Prepare panel for receiving pixel data (OPTIONAL)
-     * @desc: Panel descriptor
-     *
-     * Called before each send_frame() in the software display bridge loop.
-     * Typically sends display window address commands (column/row/memory write).
-     * If NULL, framework uses panel_default_begin_frame() which sends
-     * standard 0x2A (column addr) + 0x2B (row addr) + 0x2C (memory write).
-     *
-     * Returns: 0 on success, negative error code on failure
-     */
-    int (*begin_frame)(const struct panel_desc* desc);
 };
 
 /**
@@ -189,8 +187,6 @@ int panel_generic_backlight(const struct panel_desc* desc, k_u32 mode, k_u32 dut
 k_s32 panel_generic_power_on(struct panel_desc* desc);
 
 k_s32 panel_generic_power_off(const struct panel_desc* desc);
-
-int panel_bridge_begin_frame(const struct panel_desc* desc);
 
 #ifdef __cplusplus
 }

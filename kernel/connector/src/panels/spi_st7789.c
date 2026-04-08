@@ -42,18 +42,23 @@ static inline int spi_cmd(const struct panel_desc* desc, k_u8 cmd, const k_u8* d
 static void panel_send_init_sequence(const struct panel_desc* desc, const uint8_t* data, size_t size)
 {
     const uint8_t* p_data   = data;
-    const uint8_t* data_end = (data + size);
+    const uint8_t* data_end = data + size;
 
     while (p_data < data_end) {
-        if ((data_end - p_data - 2) < p_data[1]) {
-            rt_kprintf("command sequence format error.\n");
+        if ((size_t)(data_end - p_data) < 2) {
+            rt_kprintf("command sequence format error @ %d(0x%02x).\n", (int)(p_data - data), p_data[0]);
             break;
         }
 
-        if (0x00 == p_data[0]) {
+        if (p_data[0] == 0x00) {
             rt_thread_mdelay(p_data[1]);
             p_data += 2;
         } else {
+            if ((size_t)(data_end - p_data - 2) < p_data[1]) {
+                rt_kprintf("command sequence format error @ %d(0x%02x).\n", (int)(p_data - data), p_data[0]);
+                break;
+            }
+
             spi_cmd(desc, p_data[0], &p_data[2], p_data[1]);
             p_data += p_data[1] + 2;
         }
@@ -112,7 +117,6 @@ static const struct panel_ops st7789_ops = {
     .reset       = panel_generic_reset,
     .init        = st7789_init,
     .power_off   = st7789_power_off,
-    .begin_frame = panel_bridge_begin_frame,
 };
 
 static const struct panel_desc st7789_spi_320x240_desc = {
@@ -130,7 +134,7 @@ static const struct panel_desc st7789_spi_320x240_desc = {
         .vsync_len = 20,
         .vback_porch = 40,
         .vfront_porch = 60,
-     },
+    },
 
     .bg_color = PANEL_BG_COLOR_BLACK,
 
@@ -144,10 +148,13 @@ static const struct panel_desc st7789_spi_320x240_desc = {
     },
 
     .bus.spi = {
+        .base = {
+            .pixel_format = PIXEL_FORMAT_RGB_565,
+            .flag = CONNECTOR_SW_BRIDGE_FLAG_SWAP_RGB565_BYTE_ORDER,
+        },
         .spi_dev_name  = "lcd_st7789",
         .spi_mode      = 3,
         .spi_speed_hz  = 50 * 1000 * 1000,
-        .pixel_format  = PIXEL_FORMAT_RGB_565,
     },
 
     .bus_ops = &spi_bus_ops,

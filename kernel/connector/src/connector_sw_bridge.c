@@ -56,47 +56,17 @@
 /* VO WBC: opaque handles + minimal API used by sw_bridge.
  * The actual struct definitions live inside the VO module;
  * we only need pointer-level access here. */
-typedef struct wbc_drv wbc_drv_t;
+typedef struct wbc_drv        wbc_drv_t;
 typedef struct wbc_subscriber wbc_subscriber_t;
 
-extern wbc_drv_t *drv_vo_get_wbc(void);
-extern k_s32 vo_wbc_init(wbc_drv_t *wbc_drv);
-extern k_s32 vo_wbc_deinit(wbc_drv_t *wbc_drv);
-extern k_s32 vo_wbc_set_attr(wbc_drv_t *wbc_drv, k_vo_wbc_attr *attr);
-extern wbc_subscriber_t *vo_wbc_subscribe(wbc_drv_t *wbc_drv);
-extern void vo_wbc_unsubscribe(wbc_drv_t *wbc_drv, wbc_subscriber_t *sub);
-extern k_s32 vo_wbc_dump_frame(wbc_drv_t *wbc_drv, wbc_subscriber_t *sub,
-                               k_video_frame_info *info, k_u32 timeout_ms);
-extern k_s32 vo_wbc_dump_release(wbc_drv_t *wbc_drv, const k_video_frame_info *vf_info);
-
-/* Map k_pixel_format from panel config to bridge_pixel_format */
-static enum bridge_pixel_format panel_pixfmt_to_bridge(k_u32 panel_pixel_format)
-{
-    switch (panel_pixel_format) {
-    case PIXEL_FORMAT_RGB_565:
-        return BRIDGE_PIXFMT_RGB565;
-    case PIXEL_FORMAT_RGB_888:
-        return BRIDGE_PIXFMT_RGB888;
-    default:
-        /* Default to RGB565 for SPI panels */
-        return BRIDGE_PIXFMT_RGB565;
-    }
-}
-
-/* Get the panel pixel format field from the bus config union */
-static k_u32 get_panel_pixel_format(const struct panel_desc* desc)
-{
-    switch (desc->bus_type) {
-    case PANEL_BUS_SPI:
-        return desc->bus.spi.pixel_format;
-    case PANEL_BUS_QSPI:
-        return desc->bus.qspi.pixel_format;
-    case PANEL_BUS_I8080_SPI:
-        return desc->bus.i8080_spi.pixel_format;
-    default:
-        return PIXEL_FORMAT_RGB_565;
-    }
-}
+extern wbc_drv_t*        drv_vo_get_wbc(void);
+extern k_s32             vo_wbc_init(wbc_drv_t* wbc_drv);
+extern k_s32             vo_wbc_deinit(wbc_drv_t* wbc_drv);
+extern k_s32             vo_wbc_set_attr(wbc_drv_t* wbc_drv, k_vo_wbc_attr* attr);
+extern wbc_subscriber_t* vo_wbc_subscribe(wbc_drv_t* wbc_drv);
+extern void              vo_wbc_unsubscribe(wbc_drv_t* wbc_drv, wbc_subscriber_t* sub);
+extern k_s32 vo_wbc_dump_frame(wbc_drv_t* wbc_drv, wbc_subscriber_t* sub, k_video_frame_info* info, k_u32 timeout_ms);
+extern k_s32 vo_wbc_dump_release(wbc_drv_t* wbc_drv, const k_video_frame_info* vf_info);
 
 /* Singleton bridge context */
 static struct {
@@ -122,49 +92,22 @@ static struct {
     k_u32 frame_interval_ms; /* Minimum ms per frame (0 = unlimited) */
 
     /* Persistent thread synchronization */
-    struct rt_semaphore wake_sem;   /* start() releases to wake thread */
-    struct rt_semaphore done_sem;   /* thread releases when session cleanup is done */
+    struct rt_semaphore wake_sem; /* start() releases to wake thread */
+    struct rt_semaphore done_sem; /* thread releases when session cleanup is done */
 } g_bridge;
 
-/**
- * panel_bridge_begin_frame - Send standard display window commands
- * @desc: Panel descriptor
- *
- * Sends the standard sequence for setting the display write window and
- * starting memory write:
- *   0x2A: Column Address Set (xs=0, xe=width-1)
- *   0x2B: Page Address Set   (ys=0, ye=height-1)
- *   0x2C: Memory Write
- */
-int panel_bridge_begin_frame(const struct panel_desc* desc)
+/* Map k_pixel_format from panel config to bridge_pixel_format */
+static enum bridge_pixel_format panel_pixfmt_to_bridge(k_u32 panel_pixel_format)
 {
-    k_u16 xe, ye;
-    k_u8  col_data[4], row_data[4];
-
-    if (!desc || !desc->bus_ops || !desc->bus_ops->send_cmd)
-        return -1;
-
-    xe = desc->timing.hactive - 1;
-    ye = desc->timing.vactive - 1;
-
-    /* Column address set: xs_hi, xs_lo, xe_hi, xe_lo */
-    col_data[0] = 0x00;
-    col_data[1] = 0x00;
-    col_data[2] = (k_u8)(xe >> 8);
-    col_data[3] = (k_u8)(xe & 0xFF);
-    desc->bus_ops->send_cmd(desc, 0x2A, col_data, 4);
-
-    /* Row address set: ys_hi, ys_lo, ye_hi, ye_lo */
-    row_data[0] = 0x00;
-    row_data[1] = 0x00;
-    row_data[2] = (k_u8)(ye >> 8);
-    row_data[3] = (k_u8)(ye & 0xFF);
-    desc->bus_ops->send_cmd(desc, 0x2B, row_data, 4);
-
-    /* Memory write command */
-    desc->bus_ops->send_cmd(desc, 0x2C, NULL, 0);
-
-    return 0;
+    switch (panel_pixel_format) {
+    case PIXEL_FORMAT_RGB_565:
+        return BRIDGE_PIXFMT_RGB565;
+    case PIXEL_FORMAT_RGB_888:
+        return BRIDGE_PIXFMT_RGB888;
+    default:
+        /* Default to RGB565 for SPI panels */
+        return BRIDGE_PIXFMT_RGB565;
+    }
 }
 
 static void sw_bridge_cleanup_session(void)
@@ -197,9 +140,8 @@ static void sw_bridge_thread_entry(void* param)
 
         const struct panel_desc* panel = g_bridge.panel;
 
-        rt_kprintf("sw_bridge: session started, %ux%u, fmt=%d, interval=%ums\n",
-                   g_bridge.width, g_bridge.height, g_bridge.target_fmt,
-                   g_bridge.frame_interval_ms);
+        rt_kprintf("sw_bridge: session started, %ux%u, fmt=%d, interval=%ums\n", g_bridge.width, g_bridge.height,
+                   g_bridge.target_fmt, g_bridge.frame_interval_ms);
 
         while (g_bridge.running) {
             k_s32              ret;
@@ -226,18 +168,17 @@ static void sw_bridge_thread_entry(void* param)
             rt_hw_cpu_dcache_invalidate(y_virt, y_size);
             rt_hw_cpu_dcache_invalidate(uv_virt, uv_size);
 
-            /* 3. Convert YUV420SP -> target RGB format */
-            #if DBG_LVL == DBG_LOG
+/* 3. Convert YUV420SP -> target RGB format */
+#if DBG_LVL == DBG_LOG
             uint64_t conv_start = cpu_ticks_ms();
-            #endif
+#endif
 
             ret = pixfmt_convert_yuv420sp_to_rgb((const k_u8*)y_virt, (const k_u8*)uv_virt, (k_u8*)g_bridge.conv_virt,
-                                                 g_bridge.width, g_bridge.height, g_bridge.target_fmt,
-                                                 g_bridge.byte_swap);
+                                                 g_bridge.width, g_bridge.height, g_bridge.target_fmt, g_bridge.byte_swap);
 
-            #if DBG_LVL == DBG_LOG
+#if DBG_LVL == DBG_LOG
             uint64_t conv_ms = cpu_ticks_ms() - conv_start;
-            #endif
+#endif
 
             vo_wbc_dump_release(g_bridge.wbc, &frame);
 
@@ -246,16 +187,9 @@ static void sw_bridge_thread_entry(void* param)
                 continue;
             }
 
-            #if DBG_LVL == DBG_LOG
-            LOG_D("convert %ux%u took %u ms",
-                  g_bridge.width, g_bridge.height,
-                  (k_u32)conv_ms);
-            #endif
-
-            /* 4. Send begin_frame command to panel */
-            if (panel->ops && panel->ops->begin_frame) {
-                panel->ops->begin_frame(panel);
-            }
+#if DBG_LVL == DBG_LOG
+            LOG_D("convert %ux%u took %u ms", g_bridge.width, g_bridge.height, (k_u32)conv_ms);
+#endif
 
             /* 5. Send converted pixel data to panel */
             if (panel->bus_ops && panel->bus_ops->send_frame) {
@@ -289,8 +223,8 @@ static int sw_bridge_ensure_thread(void)
     rt_sem_init(&g_bridge.wake_sem, "swb_wake", 0, RT_IPC_FLAG_FIFO);
     rt_sem_init(&g_bridge.done_sem, "swb_done", 0, RT_IPC_FLAG_FIFO);
 
-    g_bridge.thread = rt_thread_create(SW_BRIDGE_THREAD_NAME, sw_bridge_thread_entry, NULL,
-                                       SW_BRIDGE_THREAD_STACK, SW_BRIDGE_THREAD_PRIO, 10);
+    g_bridge.thread = rt_thread_create(SW_BRIDGE_THREAD_NAME, sw_bridge_thread_entry, NULL, SW_BRIDGE_THREAD_STACK,
+                                       SW_BRIDGE_THREAD_PRIO, 10);
     if (!g_bridge.thread) {
         rt_kprintf("sw_bridge: create thread failed\n");
         return -1;
@@ -304,8 +238,9 @@ static int sw_bridge_ensure_thread(void)
 
 int sw_bridge_start(const struct panel_desc* desc)
 {
-    k_u32         bpp;
-    k_vo_wbc_attr wbc_attr;
+    k_u32                        bpp;
+    k_vo_wbc_attr                wbc_attr;
+    struct panel_sw_bridge_base* sw_bridge_base;
 
     if (!desc) {
         rt_kprintf("sw_bridge: desc is NULL\n");
@@ -324,22 +259,30 @@ int sw_bridge_start(const struct panel_desc* desc)
         return -1;
     }
 
+    if (desc->bus_type != PANEL_BUS_SPI && desc->bus_type != PANEL_BUS_QSPI && desc->bus_type != PANEL_BUS_I8080_SPI) {
+        rt_kprintf("sw_bridge: unsupported bus type %d\n", desc->bus_type);
+        return -1;
+    }
+
+    sw_bridge_base = (struct panel_sw_bridge_base*)(&desc->bus);
+
     g_bridge.panel      = desc;
     g_bridge.width      = desc->timing.hactive;
     g_bridge.height     = desc->timing.vactive;
-    g_bridge.target_fmt = panel_pixfmt_to_bridge(get_panel_pixel_format(desc));
-    g_bridge.byte_swap  = (desc->bus_type == PANEL_BUS_SPI) ? K_TRUE : K_FALSE;
+    g_bridge.target_fmt = panel_pixfmt_to_bridge(sw_bridge_base->pixel_format);
+    g_bridge.byte_swap  = sw_bridge_base->flag & CONNECTOR_SW_BRIDGE_FLAG_SWAP_RGB565_BYTE_ORDER;
 
     /* Compute target frame interval from panel timing */
-    {
-        k_u32 htotal = desc->timing.hactive + desc->timing.hsync_len +
-                       desc->timing.hback_porch + desc->timing.hfront_porch;
-        k_u32 vtotal = desc->timing.vactive + desc->timing.vsync_len +
-                       desc->timing.vback_porch + desc->timing.vfront_porch;
-        k_u32 fps = 0;
-        if (htotal && vtotal && desc->timing.pclk_khz)
+    if (0x00 == sw_bridge_base->fps) {
+        k_u32 htotal = desc->timing.hactive + desc->timing.hsync_len + desc->timing.hback_porch + desc->timing.hfront_porch;
+        k_u32 vtotal = desc->timing.vactive + desc->timing.vsync_len + desc->timing.vback_porch + desc->timing.vfront_porch;
+        k_u32 fps    = 0;
+        if (htotal && vtotal && desc->timing.pclk_khz) {
             fps = (desc->timing.pclk_khz * 1000) / (htotal * vtotal);
+        }
         g_bridge.frame_interval_ms = fps ? (1000 / fps) : 0;
+    } else {
+        g_bridge.frame_interval_ms = sw_bridge_base->fps ? (1000 / sw_bridge_base->fps) : 0;
     }
 
     bpp                = bridge_pixfmt_bpp(g_bridge.target_fmt);

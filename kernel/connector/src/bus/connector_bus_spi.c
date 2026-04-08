@@ -37,17 +37,17 @@
 
 /* Derive bus name and FPIOA functions from Kconfig bus choice */
 #if defined(CONFIG_MPP_SPI_LCD_BUS_SPI0)
-#define SPI_LCD_BUS_NAME  "spi0"
-#define SPI_LCD_CLK_FUNC  OSPI_CLK
-#define SPI_LCD_D0_FUNC   OSPI_D0
+#define SPI_LCD_BUS_NAME "spi0"
+#define SPI_LCD_CLK_FUNC OSPI_CLK
+#define SPI_LCD_D0_FUNC  OSPI_D0
 #elif defined(CONFIG_MPP_SPI_LCD_BUS_SPI2)
-#define SPI_LCD_BUS_NAME  "spi2"
-#define SPI_LCD_CLK_FUNC  QSPI1_CLK
-#define SPI_LCD_D0_FUNC   QSPI1_D0
+#define SPI_LCD_BUS_NAME "spi2"
+#define SPI_LCD_CLK_FUNC QSPI1_CLK
+#define SPI_LCD_D0_FUNC  QSPI1_D0
 #else /* default: spi1 */
-#define SPI_LCD_BUS_NAME  "spi1"
-#define SPI_LCD_CLK_FUNC  QSPI0_CLK
-#define SPI_LCD_D0_FUNC   QSPI0_D0
+#define SPI_LCD_BUS_NAME "spi1"
+#define SPI_LCD_CLK_FUNC QSPI0_CLK
+#define SPI_LCD_D0_FUNC  QSPI0_D0
 #endif
 
 /* SPI transfer chunk size (64KB) — K230 single-line DMA max is 0x10000 */
@@ -252,6 +252,39 @@ static int spi_bus_send_cmd(const struct panel_desc* desc, k_u8 cmd, const k_u8*
     return 0;
 }
 
+static int spi_panel_set_draw_area(const struct panel_desc* desc, k_u32 x, k_u32 y, k_u32 w, k_u32 h)
+{
+    k_u16 xs, ys, xe, ye;
+    k_u8  col_data[4], row_data[4];
+
+    if (!desc)
+        return -1;
+
+    xs = x;
+    ys = y;
+    xe = x + w - 1;
+    ye = y + h - 1;
+
+    /* Column address set: xs_hi, xs_lo, xe_hi, xe_lo */
+    col_data[0] = (k_u8)(xs >> 8);
+    col_data[1] = (k_u8)(xs & 0xFF);
+    col_data[2] = (k_u8)(xe >> 8);
+    col_data[3] = (k_u8)(xe & 0xFF);
+    spi_bus_send_cmd(desc, 0x2A, col_data, 4);
+
+    /* Row address set: ys_hi, ys_lo, ye_hi, ye_lo */
+    row_data[0] = (k_u8)(ys >> 8);
+    row_data[1] = (k_u8)(ys & 0xFF);
+    row_data[2] = (k_u8)(ye >> 8);
+    row_data[3] = (k_u8)(ye & 0xFF);
+    spi_bus_send_cmd(desc, 0x2B, row_data, 4);
+
+    /* Memory write command */
+    spi_bus_send_cmd(desc, 0x2C, NULL, 0);
+
+    return 0;
+}
+
 static int spi_bus_send_frame(const struct panel_desc* desc, void* data, k_u32 size)
 {
     const k_u8* p;
@@ -263,6 +296,9 @@ static int spi_bus_send_frame(const struct panel_desc* desc, void* data, k_u32 s
         return -1;
     if (!data || size == 0)
         return -1;
+
+    /* Prepare panel for receiving pixel data */
+    spi_panel_set_draw_area(desc, 0, 0, desc->timing.hactive, desc->timing.vactive);
 
     /* DC=HIGH for pixel data; driver handles CS via soft_cs per chunk */
     spi_dc_data();

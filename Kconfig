@@ -340,28 +340,28 @@ menu "MPP Configuration"
                         bool "spi2 (QSPI1)"
                 endchoice
 
-                config MPP_SPI_LCD_DC_PIN
-                    int "SPI-LCD Data/Command GPIO"
-                    default 20
-
-                config MPP_SPI_LCD_CS_PIN
-                    int "SPI-LCD Chip Select GPIO (-1 for hardware CS)"
-                    default 19
-
                 config MPP_SPI_LCD_RESET_PIN
                     int "SPI-LCD Reset GPIO (-1 if not used)"
-                    default 17
+                    default 18
 
                 config MPP_SPI_LCD_BACKLIGHT_PIN
                     int "SPI-LCD Backlight GPIO (-1 if not used)"
                     default -1
 
+                config MPP_SPI_LCD_DC_PIN
+                    int "SPI-LCD Data/Command GPIO"
+                    default 17
+
+                config MPP_SPI_LCD_CS_PIN
+                    int "SPI-LCD Chip Select GPIO"
+                    default 14
+
                 config MPP_SPI_LCD_CLK_PIN
-                    int "SPI-LCD Clock Pin (FPIOA)"
+                    int "SPI-LCD Clock GPIO"
                     default 15
 
                 config MPP_SPI_LCD_D0_PIN
-                    int "SPI-LCD Data0/MOSI Pin (FPIOA)"
+                    int "SPI-LCD Data0/MOSI GPIO"
                     default 16
             endif
 
@@ -383,40 +383,36 @@ menu "MPP Configuration"
                         bool "spi2 (QSPI1)"
                 endchoice
 
-                config MPP_QSPI_LCD_DC_PIN
-                    int "QSPI-LCD Data/Command GPIO"
-                    default 20
-
-                config MPP_QSPI_LCD_CS_PIN
-                    int "QSPI-LCD Chip Select GPIO (-1 for hardware CS)"
-                    default 19
-
                 config MPP_QSPI_LCD_RESET_PIN
                     int "QSPI-LCD Reset GPIO (-1 if not used)"
-                    default 17
+                    default 20
 
                 config MPP_QSPI_LCD_BACKLIGHT_PIN
                     int "QSPI-LCD Backlight GPIO (-1 if not used)"
                     default -1
 
+                config MPP_QSPI_LCD_CS_PIN
+                    int "QSPI-LCD Chip Select GPIO"
+                    default 14
+
                 config MPP_QSPI_LCD_CLK_PIN
-                    int "QSPI-LCD Clock Pin (FPIOA)"
+                    int "QSPI-LCD Clock GPIO"
                     default 15
 
                 config MPP_QSPI_LCD_D0_PIN
-                    int "QSPI-LCD Data0 Pin (FPIOA)"
+                    int "QSPI-LCD Data0 GPIO"
                     default 16
 
                 config MPP_QSPI_LCD_D1_PIN
-                    int "QSPI-LCD Data1 Pin (FPIOA)"
+                    int "QSPI-LCD Data1 GPIO"
                     default 17
 
                 config MPP_QSPI_LCD_D2_PIN
-                    int "QSPI-LCD Data2 Pin (FPIOA)"
+                    int "QSPI-LCD Data2 GPIO"
                     default 18
 
                 config MPP_QSPI_LCD_D3_PIN
-                    int "QSPI-LCD Data3 Pin (FPIOA)"
+                    int "QSPI-LCD Data3 GPIO"
                     default 19
             endif
 
@@ -509,6 +505,11 @@ menu "MPP Configuration"
         config MPP_SPI_ENABLE_LCD_ST7789
             bool "Enable SPI LCD Panel Driver ST7789"
             depends on MPP_ENABLE_SPI_LCD
+            default n
+
+        config MPP_QSPI_ENABLE_LCD_NV3030B
+            bool "Enable QSPI LCD Panel Driver NV3030B"
+            depends on MPP_ENABLE_QSPI_LCD
             default n
     endmenu
 

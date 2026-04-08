@@ -27,8 +27,8 @@
 
 #include "drv_gpio.h"
 
-#include "connector_panel.h"
 #include "connector_bus_dsi.h"
+#include "connector_panel.h"
 #include "connector_sw_bridge.h"
 
 extern void kd_vo_reset(void);
@@ -118,7 +118,7 @@ int panel_generic_reset(const struct panel_desc* desc)
 
     reset_pin = desc->gpio.reset_pin;
     if (reset_pin < 0) {
-        return -1; /* Reset not used */
+        return 0; /* Reset not used */
     }
 
     reset_delay_ms   = desc->gpio.reset_delay_ms;
@@ -261,9 +261,12 @@ k_s32 panel_generic_power_on(struct panel_desc* desc)
     }
 
     // correct the pclk, user maybe set invalid one.
+#if defined(CONFIG_MPP_ENABLE_DSI_LCD) && CONFIG_MPP_ENABLE_DSI_LCD
     if (desc->bus_type == PANEL_BUS_DSI) {
         desc->timing.pclk_khz = dsi_correct_pclk(desc->timing.pclk_khz * 1000, desc->bus.dsi.lanes) / 1000;
-    } else {
+    } else
+#endif
+    {
         desc->timing.pclk_khz = panel_correct_pclk(desc->timing.pclk_khz * 1000) / 1000;
     }
 

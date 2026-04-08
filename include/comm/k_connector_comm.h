@@ -57,6 +57,7 @@ typedef enum {
     K_CHIP_JD9852   = 10,
     K_CHIP_LT9611   = 11,
     K_CHIP_ST7789   = 12,
+    K_CHIP_NV3030B  = 13,
 } k_connector_chip;
 
 /** @brief Connector bus type (2 bits, 0-3) */
@@ -142,6 +143,7 @@ typedef k_u32 k_connector_type;
 
 /* SPI panels */
 #define ST7789_320_240_SPI_V1       K_CONN_TYPE(K_CHIP_ST7789,   K_BUS_SPI,  320,  240, 1)
+#define NV3030B_240_240_QSPI_V1     K_CONN_TYPE(K_CHIP_NV3030B,  K_BUS_SPI,  240,  240, 1)
 
 /* Virtual / special */
 #define VIRTUAL_DISPLAY_DEVICE      K_CONN_TYPE(K_CHIP_VIRTUAL,  0,            0,    0, 0)
