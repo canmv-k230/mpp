@@ -112,7 +112,11 @@ static int _sensor_power_state_set(struct sensor_driver_dev *dev, k_s32 on, k_u3
 
     if(-1 != pwd_gpio) {
         kd_pin_mode(pwd_gpio, GPIO_DM_OUTPUT);
+#if defined (CONFIG_BOARD_K230_CANMV_MRT)
+        kd_pin_write(pwd_gpio, GPIO_PV_HIGH);
+#else
         kd_pin_write(pwd_gpio, GPIO_PV_LOW);
+#endif
     }
 
     kd_pin_mode(reset_gpio, GPIO_DM_OUTPUT);
