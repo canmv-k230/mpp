@@ -396,12 +396,8 @@ static const struct connector_type_name cth_table[] = {
 #endif
 
 #ifdef CONFIG_MPP_DSI_ENABLE_HDMI_LT9611
-    CONNECTOR_TYPE_NAME(LT9611_0_0_HDMI_ADAPT),
     CONNECTOR_TYPE_NAME(LT9611_1920_1080_HDMI_V1),
     CONNECTOR_TYPE_NAME(LT9611_1920_1080_HDMI_V2),
-    CONNECTOR_TYPE_NAME(LT9611_1920_1080_HDMI_V3),
-    CONNECTOR_TYPE_NAME(LT9611_1920_1080_HDMI_V4),
-    CONNECTOR_TYPE_NAME(LT9611_1920_1080_HDMI_V5),
     CONNECTOR_TYPE_NAME(LT9611_1280_720_HDMI_V1),
     CONNECTOR_TYPE_NAME(LT9611_1280_720_HDMI_V2),
     CONNECTOR_TYPE_NAME(LT9611_1280_720_HDMI_V3),
@@ -419,20 +415,30 @@ static const struct connector_type_name cth_table[] = {
 #ifdef CONFIG_MPP_QSPI_ENABLE_LCD_NV3030B
     CONNECTOR_TYPE_NAME(NV3030B_240_240_QSPI_V1),
 #endif
-
-    /* last type set to U32 MAX */
-    { __UINT32_MAX__, "UNKNOWN" },
 };
 
 static void list_connector(int argc, char** argv)
 {
+    const struct panel_desc* panel;
+    int                      fps;
+
     (void)argc;
     (void)argv;
 
     rt_kprintf("Connector Type List:\n");
+    rt_kprintf("%12s  %-32s  %-12s  %-7s\n", "TYPE", "NAME", "RESOLUTION", "FPS");
+    rt_kprintf("%12s  %-32s  %-12s  %-7s\n", "------------", "--------------------------------", "------------", "-------");
 
     for (size_t i = 0; i < sizeof(cth_table) / sizeof(cth_table[0]); i++) {
-        rt_kprintf("%17d -> %s\n", cth_table[i].type, cth_table[i].name);
+        panel = find_panel_by_type(cth_table[i].type, NULL);
+        if (!panel) {
+            rt_kprintf("%12d  %-32s  %-12s  %-7s\n", cth_table[i].type, cth_table[i].name, "N/A", "N/A");
+            continue;
+        }
+
+        fps = panel_calculate_fps(&panel->timing);
+        rt_kprintf("%12d  %-32s  %4ux%-4u      %3d fps\n", cth_table[i].type, cth_table[i].name, panel->timing.hactive,
+                   panel->timing.vactive, fps);
     }
 
     return;

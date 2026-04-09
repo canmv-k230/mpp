@@ -180,6 +180,8 @@ struct panel_desc {
 
 k_u32 panel_correct_pclk(k_u32 pclk);
 
+int panel_calculate_fps(const k_vo_timing* timing);
+
 int panel_generic_reset(const struct panel_desc* desc);
 
 int panel_generic_backlight(const struct panel_desc* desc, k_u32 mode, k_u32 duty);

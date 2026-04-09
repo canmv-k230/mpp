@@ -86,14 +86,21 @@ k_u32 panel_correct_pclk(k_u32 pclk_hz)
     return VO_PIXEL_CLOCK_HZ / ratio;
 }
 
-static int calculate_panel_fps(k_vo_timing* timing)
+int panel_calculate_fps(const k_vo_timing* timing)
 {
+    k_u32 htotal;
+    k_u32 vtotal;
+
     if (!timing) {
         return 0;
     }
 
-    k_u32 htotal = timing->hactive + timing->hsync_len + timing->hback_porch + timing->hfront_porch;
-    k_u32 vtotal = timing->vactive + timing->vsync_len + timing->vback_porch + timing->vfront_porch;
+    htotal = timing->hactive + timing->hsync_len + timing->hback_porch + timing->hfront_porch;
+    vtotal = timing->vactive + timing->vsync_len + timing->vback_porch + timing->vfront_porch;
+
+    if ((htotal == 0) || (vtotal == 0)) {
+        return 0;
+    }
 
     return (timing->pclk_khz * 1000) / htotal / vtotal;
 }
@@ -270,7 +277,7 @@ k_s32 panel_generic_power_on(struct panel_desc* desc)
         desc->timing.pclk_khz = panel_correct_pclk(desc->timing.pclk_khz * 1000) / 1000;
     }
 
-    fps = calculate_panel_fps(&desc->timing);
+    fps = panel_calculate_fps(&desc->timing);
     rt_kprintf("panel %s, pixelclock %u khz, resolution %dx%d@%d\n", desc->name, desc->timing.pclk_khz, desc->timing.hactive,
                desc->timing.vactive, fps);
 

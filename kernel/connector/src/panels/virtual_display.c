@@ -147,6 +147,23 @@ k_s32 virtdev_calculate_timings(k_u32 hdisplay, k_u32 vdisplay, k_u32 fps, struc
     runtime_desc->timing.vback_porch  = (vblank * 3) / 8;
     runtime_desc->timing.vfront_porch = vblank - (runtime_desc->timing.vsync_len + runtime_desc->timing.vback_porch);
 
+#if 0
+    {
+        k_vo_timing *timing = &runtime_desc->timing;
+
+        rt_kprintf("[VIRT Timing Config]: %d fps\n", fps);
+        rt_kprintf("  Pixel Clk  : %u kHz\n", timing->pclk_khz);
+        rt_kprintf("  H-Active   : %u\n", timing->hactive);
+        rt_kprintf("  H-Sync Len : %u\n", timing->hsync_len);
+        rt_kprintf("  H-Back P.  : %u\n", timing->hback_porch);
+        rt_kprintf("  H-Front P. : %u\n", timing->hfront_porch);
+        rt_kprintf("  V-Active   : %u\n", timing->vactive);
+        rt_kprintf("  V-Sync Len : %u\n", timing->vsync_len);
+        rt_kprintf("  V-Back P.  : %u\n", timing->vback_porch);
+        rt_kprintf("  V-Front P. : %u\n", timing->vfront_porch);
+    }
+#endif
+
     return 0;
 }
 
