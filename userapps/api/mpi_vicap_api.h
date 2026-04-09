@@ -353,6 +353,56 @@ k_s32 kd_mpi_vicap_sensor_disable_mclk(k_sensor_mclk sensor_mclk);
 
 int kd_mpi_export_vicap_config_to_bin(char *path, char *config_name);
 
+
+/**
+ * @brief 注册场景配置
+ * @param scene_name 场景名称（如"day", "night", "indoor"等）
+ * @param path 配置文件所在目录路径（必须以/结尾，如"/etc/vicap/"）
+ * @return k_s32 0 成功，-1 失败（场景名重复、路径无效、超出最大场景数）
+ * @note 在系统初始化后、使用场景前调用，用于注册场景。系统会自动注册"default_scene"（路径：/bin/）
+ * @example
+ * // 注册白天场景
+ * kd_mpi_vicap_register_scene("day", "/etc/vicap/day/");
+ * 
+ * // 注册黑夜场景
+ * kd_mpi_vicap_register_scene("night", "/etc/vicap/night/");
+ */
+k_s32 kd_mpi_vicap_register_scene(const char *scene_name, const char *path);
+
+/**
+ * @brief 加载指定场景配置
+ * @param scene_name 场景名称（必须先通过 register_scene 注册）
+ * @return k_s32 0 成功，-1 失败（场景不存在、配置文件加载失败）
+ * @note 必须在关闭摄像头后、启动摄像头前调用
+ * @example
+ * // 切换到白天场景
+ * kd_mpi_vicap_deinit(dev);
+ * kd_mpi_vicap_load_scene("day");
+ * kd_mpi_vicap_set_dev_attr(dev, day_attr);
+ * kd_mpi_vicap_init(dev);
+ * 
+ * // 切换到默认场景
+ * kd_mpi_vicap_deinit(dev);
+ * kd_mpi_vicap_load_scene("default_scene");
+ * kd_mpi_vicap_init(dev);
+ */
+k_s32 kd_mpi_vicap_load_scene(const char *scene_name);
+
+/**
+ * @brief 获取当前加载的场景名称
+ * @return const char* 当前场景名称，未设置返回 NULL
+ * @note 返回的字符串由内部维护，不需要释放
+ * @example
+ * const char* current = kd_mpi_vicap_get_scene();
+ * if (current) {
+ *     printf("Current scene: %s\n", current);
+ * } else {
+ *     printf("No scene loaded\n");
+ * }
+ */
+const char* kd_mpi_vicap_get_scene(void);
+
+
 k_s32 kd_mpi_vicap_again_set(k_vicap_dev dev_num, k_sensor_gain gain);
 
 k_s32 kd_mpi_vicap_intg_time_set(k_vicap_dev dev_num, k_sensor_intg_time time);
