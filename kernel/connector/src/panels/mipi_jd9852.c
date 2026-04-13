@@ -72,7 +72,7 @@ static const struct panel_desc jd9852_panel_desc = {
     .bus_type = PANEL_BUS_DSI,
 
     .timing = {
-        .pclk_khz = (240 + 4 + 20 + 40) * (320 + 8 + 24 + 32) * 60 / 1000,
+        .pclk_khz = 5500,
         .hactive = 240,
         .hsync_len = 4,
         .hback_porch = 20,
