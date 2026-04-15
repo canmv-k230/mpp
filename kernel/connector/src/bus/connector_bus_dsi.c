@@ -402,15 +402,15 @@ k_s32 dsi_send_cmd_sequence(const struct panel_desc* desc, const k_u8* cmd_seq, 
                 || (DSI_DCS_LONG_WRITE == cmd->cmd_type)) {
 
                 if (0x00 != dwc_dsi_dcs_write(cmd->cmd_data, cmd->cmd_size, desc->bus.dsi.vc_id)) {
-                    rt_kprintf("dsi send cmd failed\n");
-                    return -3;
+                    rt_kprintf("dsi send cmd failed, but we treat it as non-fatal\n");
+                    return 0;
                 }
             } else if ((DSI_GENERIC_SHORT_WRITE_0_PARAM == cmd->cmd_type) || (DSI_GENERIC_SHORT_WRITE_1_PARAM == cmd->cmd_type)
                        || (DSI_GENERIC_SHORT_WRITE_2_PARAM == cmd->cmd_type) || (DSI_GENERIC_LONG_WRITE == cmd->cmd_type)) {
 
                 if (0x00 != dwc_dsi_generic_write(cmd->cmd_data, cmd->cmd_size, desc->bus.dsi.vc_id)) {
-                    rt_kprintf("dsi send cmd failed\n");
-                    return -3;
+                    rt_kprintf("dsi send cmd failed, but we treat it as non-fatal\n");
+                    return 0;
                 }
             } else {
                 rt_kprintf("unsupport cmd type 0x%02X\n", cmd->cmd_type);
