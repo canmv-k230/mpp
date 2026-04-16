@@ -34,6 +34,8 @@ static int af_dummpy_probe(void* ctx)
 {
     (void)ctx;
 
+    rt_kprintf("Probe dummy af driver\n");
+
     return 0;
 }
 
@@ -42,7 +44,7 @@ static int af_dummpy_set_position(void* ctx, k_sensor_focus_pos* pos)
     (void)ctx;
     (void)pos;
 
-    rt_kprintf("%s->%d SHOULD NOT REACH.\n", __FUNCTION__, __LINE__);
+    // rt_kprintf("%s->%d SHOULD NOT REACH.\n", __FUNCTION__, __LINE__);
 
     return -1;
 }
@@ -52,7 +54,7 @@ static int af_dummpy_get_position(void* ctx, k_sensor_focus_pos* pos)
     (void)ctx;
     (void)pos;
 
-    rt_kprintf("%s->%d SHOULD NOT REACH.\n", __FUNCTION__, __LINE__);
+    // rt_kprintf("%s->%d SHOULD NOT REACH.\n", __FUNCTION__, __LINE__);
 
     return -1;
 }
