@@ -70,7 +70,7 @@
 /* Analog gain control */
 #define IMX335_REG_AGAIN_L 0x30e8
 #define IMX335_REG_AGAIN_H 0x30e9
-#define IMX335_AGAIN_STEP (1.0f/256.0f)
+#define IMX335_AGAIN_STEP (0.03514f)
 
 /* Group hold register */
 #define IMX335_REG_HOLD 0x3001
@@ -388,45 +388,50 @@ static k_s32 sensor_get_again_impl(void *ctx, k_sensor_gain *gain)
     return ret;
 }
 
-static k_s32 sensor_set_again_impl(void *ctx, k_sensor_gain gain)
+static k_s32 sensor_set_again_impl(void* ctx, k_sensor_gain gain)
 {
-    k_s32 ret = 0;
-    k_u32 again, dgain, total;
-    k_u8 i;
+    k_s32 ret   = 0;
+    k_u32 again = 0;
+    k_u8  i;
     float SensorGain;
+    float current_again = 0;
 
-    struct sensor_driver_dev *dev = ctx;
-    k_sensor_mode *current_mode = &dev->current_sensor_mode;
+    struct sensor_driver_dev* dev          = ctx;
+    k_sensor_mode*            current_mode = &dev->current_sensor_mode;
 
     pr_info("%s enter, %s\n", __func__, dev->sensor_name);
 
+    current_again = current_mode->ae_info.cur_again;
+
     if (current_mode->hdr_mode == SENSOR_MODE_LINEAR) {
-        again = (k_u16)(log10f(gain.gain[SENSOR_LINEAR_PARAS])*200.0f/3.0f + 0.5f);     //20*log(gain)*10/3
-        if(current_mode->sensor_again !=again) {
-            ret = sensor_reg_write(&dev->i2c_info, IMX335_REG_AGAIN_L,(again & 0xff));
-            ret |= sensor_reg_write(&dev->i2c_info, IMX335_REG_AGAIN_H,(again & 0x0700)>>8);
-            current_mode->sensor_again = again;
+        if (current_mode->ae_info.cur_again != gain.gain[SENSOR_LINEAR_PARAS]) {
+            again = (k_u16)(log10f(gain.gain[SENSOR_LINEAR_PARAS]) * 200.0f / 3.0f + 0.5f);
+
+            ret = sensor_reg_write(&dev->i2c_info, IMX335_REG_AGAIN_L, (again & 0xff));
+            ret |= sensor_reg_write(&dev->i2c_info, IMX335_REG_AGAIN_H, (again & 0x0700) >> 8);
+
+            current_mode->sensor_again      = again;
+            current_mode->ae_info.cur_again = gain.gain[SENSOR_LINEAR_PARAS];
         }
-        SensorGain = (float)(current_mode->sensor_again) * 0.015f;    //db value/20,(RegVal * 3/10)/20
-        current_mode->ae_info.cur_again = powf(10, SensorGain);
     } else if (current_mode->hdr_mode == SENSOR_MODE_HDR_STITCH) {
-        again = (k_u16)(log10f(gain.gain[SENSOR_DUAL_EXP_L_PARAS])*200.0f/3.0f + 0.5f);     //20*log(gain)*10/3
-        ret = sensor_reg_write(&dev->i2c_info, IMX335_REG_AGAIN_L,(again & 0xff));
-        ret |= sensor_reg_write(&dev->i2c_info, IMX335_REG_AGAIN_H,(again & 0x0700)>>8);
+        if (current_mode->ae_info.cur_again != gain.gain[SENSOR_DUAL_EXP_L_PARAS]) {
+            again = (k_u16)(log10f(gain.gain[SENSOR_DUAL_EXP_L_PARAS]) * 200.0f / 3.0f + 0.5f);
 
-        SensorGain = (float)(again) * 0.015f;    //db value/20,(RegVal * 3/10)/20
-        current_mode->ae_info.cur_long_again = powf(10, SensorGain);
+            ret = sensor_reg_write(&dev->i2c_info, IMX335_REG_AGAIN_L, (again & 0xff));
+            ret |= sensor_reg_write(&dev->i2c_info, IMX335_REG_AGAIN_H, (again & 0x0700) >> 8);
 
-        //again = (k_u32)(gain.gain[SENSOR_DUAL_EXP_S_PARAS] * 16);
-        // TODO
-        //current_mode->ae_info.cur_vs_again = again / 16.0f;
-        current_mode->ae_info.cur_again = current_mode->ae_info.cur_long_again;
-        current_mode->ae_info.cur_vs_again = current_mode->ae_info.cur_long_again;
+            current_mode->ae_info.cur_again    = gain.gain[SENSOR_DUAL_EXP_L_PARAS];
+            current_mode->ae_info.cur_vs_again = gain.gain[SENSOR_DUAL_EXP_L_PARAS];
+        }
     } else {
         pr_err("%s, unsupport hdr_mode.\n", __func__);
         return -1;
     }
-    pr_debug("%s, hdr_mode(%d), cur_again(%u)\n", __func__, current_mode->hdr_mode, (k_u32)(current_mode->ae_info.cur_again * 1000));
+
+    if (current_again != current_mode->ae_info.cur_again) {
+        pr_debug("set_again hdr_mode(%d), again:0x%x cur_gain: %u, again: %u\n", current_mode->hdr_mode, again,
+                 (k_u32)(current_mode->ae_info.cur_again * 1000), (k_u32)(gain.gain[SENSOR_LINEAR_PARAS] * 1000));
+    }
 
     return ret;
 }
@@ -461,6 +466,7 @@ static k_s32 sensor_set_dgain_impl(void *ctx, k_sensor_gain gain)
 
     pr_info("%s enter, hdr_mode(%d) %s\n", __func__, current_mode->hdr_mode, dev->sensor_name);
 
+#if 0
     if (current_mode->hdr_mode == SENSOR_MODE_LINEAR) {
         dgain = (k_u32)(gain.gain[SENSOR_LINEAR_PARAS] * 1024);
         current_mode->ae_info.cur_dgain = dgain / 1024.0f;
@@ -479,8 +485,9 @@ static k_s32 sensor_set_dgain_impl(void *ctx, k_sensor_gain gain)
     current_mode->ae_info.cur_gain = current_mode->ae_info.cur_again * current_mode->ae_info.cur_dgain;
     current_mode->ae_info.cur_long_gain = current_mode->ae_info.cur_gain;
     current_mode->ae_info.cur_vs_gain = current_mode->ae_info.cur_gain;
+#endif
 
-    pr_debug("%s,cur_gain(%d)\n", __func__, (k_u32)(current_mode->ae_info.cur_gain * 10000));
+    // pr_debug("%s,cur_gain(%d)\n", __func__, (k_u32)(current_mode->ae_info.cur_gain * 10000));
 
     return ret;
 }
@@ -506,30 +513,32 @@ static k_s32 sensor_get_intg_time_impl(void *ctx, k_sensor_intg_time *time)
     return ret;
 }
 
-static k_s32 sensor_set_intg_time_impl(void *ctx, k_sensor_intg_time time)
+static k_s32 sensor_set_intg_time_impl(void* ctx, k_sensor_intg_time time)
 {
-    k_s32 ret = 0;
-    k_u16 exp_line = 0;
-    float integraion_time = 0;
-    struct sensor_driver_dev *dev = ctx;
-    k_sensor_mode *current_mode = &dev->current_sensor_mode;
-
-    k_u16 exp_reg = 0;
-    k_u16 exp_reg_l = 0;
+    k_s32                     ret              = 0;
+    k_u16                     exp_line         = 0;
+    float                     integraion_time  = 0;
+    struct sensor_driver_dev* dev              = ctx;
+    k_sensor_mode*            current_mode     = &dev->current_sensor_mode;
+    k_u16                     current_exp_line = 0;
 
     pr_info("%s enter, %s\n", __func__, dev->sensor_name);
 
+    current_exp_line = current_mode->et_line;
+
     if (current_mode->hdr_mode == SENSOR_MODE_LINEAR) {
         integraion_time = time.intg_time[SENSOR_LINEAR_PARAS];
-        exp_line = integraion_time / current_mode->ae_info.one_line_exp_time;
+        exp_line        = integraion_time / current_mode->ae_info.one_line_exp_time;
         exp_line = MIN(current_mode->ae_info.max_integraion_line, MAX(current_mode->ae_info.min_integraion_line, exp_line));
         if (current_mode->et_line != exp_line) {
             k_u16 SHR0 = IMX335_VMAX_LINEAR - exp_line;
+
             ret = sensor_reg_write(&dev->i2c_info, IMX335_REG_SHR0_L, SHR0 & 0xff);
             ret |= sensor_reg_write(&dev->i2c_info, IMX335_REG_SHR0_M, (SHR0 >> 8) & 0xff);
-            current_mode->et_line = exp_line;
+
+            current_mode->et_line                      = exp_line;
+            current_mode->ae_info.cur_integration_time = (float)current_mode->et_line * current_mode->ae_info.one_line_exp_time;
         }
-        current_mode->ae_info.cur_integration_time = (float)current_mode->et_line * current_mode->ae_info.one_line_exp_time;
     } else if (current_mode->hdr_mode == SENSOR_MODE_HDR_STITCH) {
         pr_err("%s, unsupport hdr_mode.\n", __func__);
         return -1;
@@ -537,8 +546,11 @@ static k_s32 sensor_set_intg_time_impl(void *ctx, k_sensor_intg_time time)
         pr_err("%s, unsupport hdr_mode.\n", __func__);
         return -1;
     }
-    pr_debug("%s hdr_mode(%d), exp_line(%d), integraion_time(%u)\n",\
-        __func__, current_mode->hdr_mode, exp_line, (k_u32)(integraion_time * 1000000000));
+
+    if (current_exp_line != exp_line) {
+        pr_debug("set_intg_time hdr_mode(%d), exp_line: %d, integraion_time: %u us\n", current_mode->hdr_mode, exp_line,
+                 (k_u32)(current_mode->ae_info.cur_integration_time * 1000000));
+    }
 
     return ret;
 }
