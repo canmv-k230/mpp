@@ -443,9 +443,220 @@ static const struct panel_ops lt9611_ops = {
     .read_chip_id = NULL,
 };
 
+/* K230 Custom Timings */
 static const struct panel_desc lt9611_panel_desc_res_1080p60 = {
     .name = "lt9611_1080p60",
     .connector_type = LT9611_1920_1080_HDMI_V2,
+    .bus_type = PANEL_BUS_DSI,
+    .timing = {
+        .pclk_khz = 148500,
+        .hactive = 1920,
+        .hsync_len = 25,
+        .hback_porch = 50,
+        .hfront_porch = 25,
+        .vactive = 1080,
+        .vsync_len = 36,
+        .vback_porch = 54,
+        .vfront_porch = 55,
+    },
+    .bg_color = PANEL_BG_COLOR_BLACK,
+    .bus.dsi = {
+        .lanes = K_DSI_4LANE,
+        .cmd_mode = K_DSI_CMD_LP_MODE,
+        .video_mode = K_DSI_VIDEO_BURST_MODE,
+        .vc_id = 0,
+    },
+    .gpio = {
+        .reset_pin = CONFIG_MPP_DSI_HDMI_RESET_PIN,
+        .backlight_pin = -1,
+        .reset_delay_ms = 100,
+        .backlight_delay_ms = 0,
+        .reset_active_low = K_TRUE,
+        .backlight_active_low = K_FALSE,
+    },
+    .bus_ops = &dsi_bus_ops,
+    .ops = &lt9611_ops,
+};
+
+static const struct panel_desc lt9611_panel_desc_res_1080p30 = {
+    .name = "lt9611_1080p30",
+    .connector_type = LT9611_1920_1080_HDMI_V1,
+    .bus_type = PANEL_BUS_DSI,
+    .timing = {
+        .pclk_khz = 74250,
+        .hactive = 1920,
+        .hsync_len = 25,
+        .hback_porch = 50,
+        .hfront_porch = 25,
+        .vactive = 1080,
+        .vsync_len = 36,
+        .vback_porch = 54,
+        .vfront_porch = 54,
+    },
+    .bg_color = PANEL_BG_COLOR_BLACK,
+    .bus.dsi = {
+        .lanes = K_DSI_4LANE,
+        .cmd_mode = K_DSI_CMD_LP_MODE,
+        .video_mode = K_DSI_VIDEO_BURST_MODE,
+        .vc_id = 0,
+    },
+    .gpio = {
+        .reset_pin = CONFIG_MPP_DSI_HDMI_RESET_PIN,
+        .backlight_pin = -1,
+        .reset_delay_ms = 100,
+        .backlight_delay_ms = 0,
+        .reset_active_low = K_TRUE,
+        .backlight_active_low = K_FALSE,
+    },
+    .bus_ops = &dsi_bus_ops,
+    .ops = &lt9611_ops,
+};
+
+static const struct panel_desc lt9611_panel_desc_res_720p60 = {
+    .name = "lt9611_720p60",
+    .connector_type = LT9611_1280_720_HDMI_V1,
+    .bus_type = PANEL_BUS_DSI,
+    .timing = {
+        .pclk_khz = 66000,
+        .hactive = 1280,
+        .hsync_len = 25,
+        .hback_porch = 50,
+        .hfront_porch = 25,
+        .vactive = 720,
+        .vsync_len = 19,
+        .vback_porch = 28,
+        .vfront_porch = 30,
+    },
+    .bg_color = PANEL_BG_COLOR_BLACK,
+    .bus.dsi = {
+        .lanes = K_DSI_4LANE,
+        .cmd_mode = K_DSI_CMD_LP_MODE,
+        .video_mode = K_DSI_VIDEO_BURST_MODE,
+        .vc_id = 0,
+    },
+    .gpio = {
+        .reset_pin = CONFIG_MPP_DSI_HDMI_RESET_PIN,
+        .backlight_pin = -1,
+        .reset_delay_ms = 100,
+        .backlight_delay_ms = 0,
+        .reset_active_low = K_TRUE,
+        .backlight_active_low = K_FALSE,
+    },
+    .bus_ops = &dsi_bus_ops,
+    .ops = &lt9611_ops,
+};
+
+static const struct panel_desc lt9611_panel_desc_res_720p50 = {
+    .name = "lt9611_720p50",
+    .connector_type = LT9611_1280_720_HDMI_V2,
+    .bus_type = PANEL_BUS_DSI,
+    .timing = {
+        .pclk_khz = 54000,
+        .hactive = 1280,
+        .hsync_len = 25,
+        .hback_porch = 50,
+        .hfront_porch = 25,
+        .vactive = 720,
+        .vsync_len = 15,
+        .vback_porch = 23,
+        .vfront_porch = 24,
+    },
+    .bg_color = PANEL_BG_COLOR_BLACK,
+    .bus.dsi = {
+        .lanes = K_DSI_4LANE,
+        .cmd_mode = K_DSI_CMD_LP_MODE,
+        .video_mode = K_DSI_VIDEO_BURST_MODE,
+        .vc_id = 0,
+    },
+    .gpio = {
+        .reset_pin = CONFIG_MPP_DSI_HDMI_RESET_PIN,
+        .backlight_pin = -1,
+        .reset_delay_ms = 100,
+        .backlight_delay_ms = 0,
+        .reset_active_low = K_TRUE,
+        .backlight_active_low = K_FALSE,
+    },
+    .bus_ops = &dsi_bus_ops,
+    .ops = &lt9611_ops,
+};
+
+static const struct panel_desc lt9611_panel_desc_res_720p30 = {
+    .name = "lt9611_720p30",
+    .connector_type = LT9611_1280_720_HDMI_V3,
+    .bus_type = PANEL_BUS_DSI,
+    .timing = {
+        .pclk_khz = 33000,
+        .hactive = 1280,
+        .hsync_len = 25,
+        .hback_porch = 50,
+        .hfront_porch = 25,
+        .vactive = 720,
+        .vsync_len = 19,
+        .vback_porch = 28,
+        .vfront_porch = 30,
+    },
+    .bg_color = PANEL_BG_COLOR_BLACK,
+    .bus.dsi = {
+        .lanes = K_DSI_4LANE,
+        .cmd_mode = K_DSI_CMD_LP_MODE,
+        .video_mode = K_DSI_VIDEO_BURST_MODE,
+        .vc_id = 0,
+    },
+    .gpio = {
+        .reset_pin = CONFIG_MPP_DSI_HDMI_RESET_PIN,
+        .backlight_pin = -1,
+        .reset_delay_ms = 100,
+        .backlight_delay_ms = 0,
+        .reset_active_low = K_TRUE,
+        .backlight_active_low = K_FALSE,
+    },
+    .bus_ops = &dsi_bus_ops,
+    .ops = &lt9611_ops,
+};
+
+static const struct panel_desc lt9611_panel_desc_res_480p60 = {
+    .name = "lt9611_480p60",
+    .connector_type = LT9611_640_480_HDMI_V1,
+    .bus_type = PANEL_BUS_DSI,
+
+    .timing = {
+        .pclk_khz = 23760,
+        .hactive = 640,
+        .hsync_len = 25,
+        .hback_porch = 50,
+        .hfront_porch = 25,
+        .vactive = 480,
+        .vsync_len = 13,
+        .vback_porch = 20,
+        .vfront_porch = 22,
+    },
+
+    .bg_color = PANEL_BG_COLOR_BLACK,
+
+    .bus.dsi = {
+        .lanes = K_DSI_4LANE,
+        .cmd_mode = K_DSI_CMD_LP_MODE,
+        .video_mode = K_DSI_VIDEO_BURST_MODE,
+        .vc_id = 0,
+    },
+
+    .gpio = {
+        .reset_pin = CONFIG_MPP_DSI_HDMI_RESET_PIN,
+        .backlight_pin = -1,
+        .reset_delay_ms = 100,
+        .backlight_delay_ms = 0,
+        .reset_active_low = K_TRUE,
+        .backlight_active_low = K_FALSE,
+    },
+
+    .bus_ops = &dsi_bus_ops,
+    .ops = &lt9611_ops,
+};
+
+/* VESA Timings */
+static const struct panel_desc lt9611_panel_desc_res_1080p60_vesa = {
+    .name = "lt9611_1080p60_vesa",
+    .connector_type = LT9611_1920_1080_HDMI_V3,
     .bus_type = PANEL_BUS_DSI,
     .timing = {
         .pclk_khz = 148500,
@@ -477,9 +688,9 @@ static const struct panel_desc lt9611_panel_desc_res_1080p60 = {
     .ops = &lt9611_ops,
 };
 
-static const struct panel_desc lt9611_panel_desc_res_1080p30 = {
-    .name = "lt9611_1080p30",
-    .connector_type = LT9611_1920_1080_HDMI_V1,
+static const struct panel_desc lt9611_panel_desc_res_1080p30_vesa = {
+    .name = "lt9611_1080p30_vesa",
+    .connector_type = LT9611_1920_1080_HDMI_V4,
     .bus_type = PANEL_BUS_DSI,
     .timing = {
         .pclk_khz = 74250,
@@ -511,9 +722,9 @@ static const struct panel_desc lt9611_panel_desc_res_1080p30 = {
     .ops = &lt9611_ops,
 };
 
-static const struct panel_desc lt9611_panel_desc_res_720p60 = {
-    .name = "lt9611_720p60",
-    .connector_type = LT9611_1280_720_HDMI_V1,
+static const struct panel_desc lt9611_panel_desc_res_720p60_vesa = {
+    .name = "lt9611_720p60_vesa",
+    .connector_type = LT9611_1280_720_HDMI_V4,
     .bus_type = PANEL_BUS_DSI,
     .timing = {
         .pclk_khz = 74250,
@@ -545,9 +756,9 @@ static const struct panel_desc lt9611_panel_desc_res_720p60 = {
     .ops = &lt9611_ops,
 };
 
-static const struct panel_desc lt9611_panel_desc_res_720p50 = {
-    .name = "lt9611_720p50",
-    .connector_type = LT9611_1280_720_HDMI_V2,
+static const struct panel_desc lt9611_panel_desc_res_720p50_vesa = {
+    .name = "lt9611_720p50_vesa",
+    .connector_type = LT9611_1280_720_HDMI_V5,
     .bus_type = PANEL_BUS_DSI,
     .timing = {
         .pclk_khz = 74250,
@@ -579,9 +790,9 @@ static const struct panel_desc lt9611_panel_desc_res_720p50 = {
     .ops = &lt9611_ops,
 };
 
-static const struct panel_desc lt9611_panel_desc_res_720p30 = {
-    .name = "lt9611_720p30",
-    .connector_type = LT9611_1280_720_HDMI_V3,
+static const struct panel_desc lt9611_panel_desc_res_720p30_vesa = {
+    .name = "lt9611_720p30_vesa",
+    .connector_type = LT9611_1280_720_HDMI_V6,
     .bus_type = PANEL_BUS_DSI,
     .timing = {
         .pclk_khz = 74250,
@@ -613,9 +824,9 @@ static const struct panel_desc lt9611_panel_desc_res_720p30 = {
     .ops = &lt9611_ops,
 };
 
-static const struct panel_desc lt9611_panel_desc_res_480p60 = {
-    .name = "lt9611_480p60",
-    .connector_type = LT9611_640_480_HDMI_V1,
+static const struct panel_desc lt9611_panel_desc_res_480p60_vesa = {
+    .name = "lt9611_480p60_vesa",
+    .connector_type = LT9611_640_480_HDMI_V2,
     .bus_type = PANEL_BUS_DSI,
 
     .timing = {
@@ -653,12 +864,20 @@ static const struct panel_desc lt9611_panel_desc_res_480p60 = {
 };
 
 static const struct panel_desc* lt9611_panel_variants[] = {
+    /* K230 Custom Timings */
     &lt9611_panel_desc_res_1080p60,
     &lt9611_panel_desc_res_1080p30,
     &lt9611_panel_desc_res_720p60,
     &lt9611_panel_desc_res_720p50,
     &lt9611_panel_desc_res_720p30,
     &lt9611_panel_desc_res_480p60,
+    /* VESA Timings */
+    &lt9611_panel_desc_res_1080p60_vesa,
+    &lt9611_panel_desc_res_1080p30_vesa,
+    &lt9611_panel_desc_res_720p60_vesa,
+    &lt9611_panel_desc_res_720p50_vesa,
+    &lt9611_panel_desc_res_720p30_vesa,
+    &lt9611_panel_desc_res_480p60_vesa,
     NULL,
 };
 

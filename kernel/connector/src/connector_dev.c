@@ -356,89 +356,41 @@ k_s32 connector_device_init(void)
     return 0;
 }
 
-///////////////////////////////////////////////////////////////////////////////
-// List Connector Types CLI Command
-///////////////////////////////////////////////////////////////////////////////
-
-#define CONNECTOR_TYPE_NAME(x) { .type = x, .name = #x }
-
-struct connector_type_name {
-    k_connector_type type;
-    const char*      name;
-};
-
-static const struct connector_type_name cth_table[] = {
-#ifdef CONFIG_MPP_DSI_ENABLE_VIRT
-    CONNECTOR_TYPE_NAME(VIRTUAL_DISPLAY_DEVICE),
-#endif // CONFIG_MPP_DSI_ENABLE_VIRT
-
-#ifdef CONFIG_MPP_DSI_ENABLE_LCD_HX8399
-    CONNECTOR_TYPE_NAME(HX8399_1080_1920_DSI_V1),
-#endif
-
-#ifdef CONFIG_MPP_DSI_ENABLE_LCD_ILI9806
-    CONNECTOR_TYPE_NAME(ILI9806_480_800_DSI_V1),
-#endif
-
-#ifdef CONFIG_MPP_DSI_ENABLE_LCD_ILI9881
-    CONNECTOR_TYPE_NAME(ILI9881_800_1280_DSI_V1),
-#endif
-
-#ifdef CONFIG_MPP_DSI_ENABLE_LCD_ST7701
-    CONNECTOR_TYPE_NAME(ST7701_480_800_DSI_V1),
-    CONNECTOR_TYPE_NAME(ST7701_480_854_DSI_V1),
-    CONNECTOR_TYPE_NAME(ST7701_480_640_DSI_V1),
-    CONNECTOR_TYPE_NAME(ST7701_368_544_DSI_V1),
-#endif
-
-#ifdef CONFIG_MPP_DSI_ENABLE_LCD_AML020T
-    CONNECTOR_TYPE_NAME(AML020T_480_360_DSI_V1),
-#endif
-
-#ifdef CONFIG_MPP_DSI_ENABLE_HDMI_LT9611
-    CONNECTOR_TYPE_NAME(LT9611_1920_1080_HDMI_V1),
-    CONNECTOR_TYPE_NAME(LT9611_1920_1080_HDMI_V2),
-    CONNECTOR_TYPE_NAME(LT9611_1280_720_HDMI_V1),
-    CONNECTOR_TYPE_NAME(LT9611_1280_720_HDMI_V2),
-    CONNECTOR_TYPE_NAME(LT9611_1280_720_HDMI_V3),
-    CONNECTOR_TYPE_NAME(LT9611_640_480_HDMI_V1),
-#endif
-
-#ifdef CONFIG_MPP_DSI_ENABLE_LCD_JD9852
-    CONNECTOR_TYPE_NAME(JD9852_240_320_DSI_V1),
-#endif
-
-#ifdef CONFIG_MPP_SPI_ENABLE_LCD_ST7789
-    CONNECTOR_TYPE_NAME(ST7789_320_240_SPI_V1),
-#endif
-
-#ifdef CONFIG_MPP_QSPI_ENABLE_LCD_NV3030B
-    CONNECTOR_TYPE_NAME(NV3030B_240_240_QSPI_V1),
-#endif
-};
-
 static void list_connector(int argc, char** argv)
 {
-    const struct panel_desc* panel;
-    int                      fps;
+    int shown = 0;
 
     (void)argc;
     (void)argv;
 
     rt_kprintf("Connector Type List:\n");
-    rt_kprintf("%12s  %-32s  %-12s  %-7s\n", "TYPE", "NAME", "RESOLUTION", "FPS");
-    rt_kprintf("%12s  %-32s  %-12s  %-7s\n", "------------", "--------------------------------", "------------", "-------");
+    rt_kprintf("%12s  %-20s  %-12s  %-7s\n", "TYPE", "CONNECTOR", "RESOLUTION", "FPS");
+    rt_kprintf("%12s  %-20s  %-12s  %-7s\n", "------------", "--------------------", "------------", "-------");
 
-    for (size_t i = 0; i < sizeof(cth_table) / sizeof(cth_table[0]); i++) {
-        panel = find_panel_by_type(cth_table[i].type, NULL);
-        if (!panel) {
-            rt_kprintf("%12d  %-32s  %-12s  %-7s\n", cth_table[i].type, cth_table[i].name, "N/A", "N/A");
-            continue;
+    for (k_u32 drv_idx = 0; connector_drv_list[drv_idx] != NULL; drv_idx++) {
+        struct panel_drv* drv = connector_drv_list[drv_idx];
+
+        if (drv->panel_variants) {
+            for (k_u32 var_idx = 0; drv->panel_variants[var_idx] != NULL; var_idx++) {
+                const struct panel_desc* panel = drv->panel_variants[var_idx];
+                int                      fps   = panel_calculate_fps(&panel->timing);
+
+                rt_kprintf("%12d  %-20s  %4ux%-4u      %3d fps\n", panel->connector_type, panel->name,
+                           panel->timing.hactive, panel->timing.vactive, fps);
+                shown++;
+            }
+        } else if (drv->active_panel) {
+            const struct panel_desc* panel = drv->active_panel;
+            int                      fps   = panel_calculate_fps(&panel->timing);
+
+            rt_kprintf("%12d  %-20s  %4ux%-4u      %3d fps\n", panel->connector_type, drv->connector_name,
+                       panel->timing.hactive, panel->timing.vactive, fps);
+            shown++;
         }
+    }
 
-        fps = panel_calculate_fps(&panel->timing);
-        rt_kprintf("%12d  %-32s  %4ux%-4u      %3d fps\n", cth_table[i].type, cth_table[i].name, panel->timing.hactive,
-                   panel->timing.vactive, fps);
+    if (shown == 0) {
+        rt_kprintf("No connector panels registered.\n");
     }
 
     return;
