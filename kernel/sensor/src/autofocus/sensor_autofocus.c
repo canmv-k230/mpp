@@ -102,18 +102,20 @@ k_s32 sensor_autofocus_dev_probe(struct sensor_driver_dev* dev)
 {
     k_sensor_af_dev* af_dev = NULL;
 
-    for (int i = 0; i < sizeof(af_devs) / sizeof(af_devs[0]); i++) {
+    for (size_t i = 0; i < sizeof(af_devs) / sizeof(af_devs[0]); i++) {
         af_dev = (k_sensor_af_dev*)af_devs[i];
 
         if (af_dev && af_dev->probe) {
-            if (0x00 == af_dev->probe(dev)) {
-                dev->af_dev = af_dev;
+            dev->af_dev = af_dev;
 
+            if (0x00 == af_dev->probe(dev)) {
                 if (af_dev->drv_name) {
                     rt_kprintf("find af driver %s\n", af_dev->drv_name);
                 }
                 return 0;
             }
+
+            dev->af_dev = NULL;
         }
     }
 

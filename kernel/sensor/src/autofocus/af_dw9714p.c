@@ -58,7 +58,7 @@ static int af_dw9714p_i2c_transfer(struct rt_i2c_bus_device* bus, struct rt_i2c_
         return -1;
     }
     int ret = rt_i2c_transfer(bus, msgs, msg_cnt);
-    return (ret == msg_cnt) ? 0 : -1;
+    return (ret == (int)msg_cnt) ? 0 : -1;
 }
 
 /* Helper to write a 2-byte command */
@@ -173,6 +173,8 @@ update_state:
 /* Report capabilities */
 static int af_dw9714p_get_capability(void* ctx, k_sensor_autofocus_caps* caps)
 {
+    (void)ctx;
+
     if (!caps) {
         return -1;
     }
