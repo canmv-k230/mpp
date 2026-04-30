@@ -435,83 +435,74 @@ static k_u32 gainLevelTable[26] = {
 	0xffffffff,
 };
 
-static k_s32 sensor_set_again_impl(void* ctx, k_sensor_gain gain)
+static k_s32 sensor_set_again_impl(void *ctx, k_sensor_gain gain)
 {
     k_s32 ret = 0;
-    k_u32 i, again = 0, dgain = 0, total = 0, current_again = 0;
+    k_u32 again, dgain, total;
+    k_u8 i;
 
-    struct sensor_driver_dev* dev          = ctx;
-    k_sensor_mode*            current_mode = &dev->current_sensor_mode;
+    struct sensor_driver_dev *dev = ctx;
+    k_sensor_mode *current_mode = &dev->current_sensor_mode;
 
     pr_info("%s enter, %s\n", __func__, dev->sensor_name);
 
-    current_again = current_mode->sensor_again;
-
     if (current_mode->hdr_mode == SENSOR_MODE_LINEAR) {
-        again = (k_u16)(gain.gain[SENSOR_LINEAR_PARAS] * 64 + 0.5);
+		again = (k_u16)(gain.gain[SENSOR_LINEAR_PARAS] * 64 + 0.5);
+		if(current_mode->sensor_again !=again)
+        {
+        	total = sizeof(gainLevelTable) / sizeof(k_u32);
+			for (i = 0; i < total; i++)
+			{
+				if ((gainLevelTable[i] <= again) && (again < gainLevelTable[i + 1]))
+				break;
+			}
+			dgain = (again <<6) / gainLevelTable[i];
+			ret = sensor_reg_write(&dev->i2c_info, 0x00b3,regValTable[i][0]);
+			ret |= sensor_reg_write(&dev->i2c_info, 0x00b8,regValTable[i][1]);
+			ret |= sensor_reg_write(&dev->i2c_info, 0x00b9,regValTable[i][2]);
+			ret |= sensor_reg_write(&dev->i2c_info, 0x0155,regValTable[i][3]);
+			ret |= sensor_reg_write(&dev->i2c_info, 0x031d,0x2d);
+			ret |= sensor_reg_write(&dev->i2c_info, 0x00c2,regValTable[i][4]);
+			ret |= sensor_reg_write(&dev->i2c_info, 0x00cf,regValTable[i][5]);
+			ret |= sensor_reg_write(&dev->i2c_info, 0x00d9,regValTable[i][6]);
+			ret |= sensor_reg_write(&dev->i2c_info, 0x031d,0x28);
 
-        if (current_mode->sensor_again != again) {
-            total = sizeof(gainLevelTable) / sizeof(k_u32);
-            for (i = 0; i < total; i++) {
-                if ((gainLevelTable[i] <= again) && (again < gainLevelTable[i + 1])) {
-                    break;
-                }
-            }
-            dgain = (again << 6) / gainLevelTable[i];
-
-            ret = sensor_reg_write(&dev->i2c_info, 0x00b3, regValTable[i][0]);
-            ret |= sensor_reg_write(&dev->i2c_info, 0x00b8, regValTable[i][1]);
-            ret |= sensor_reg_write(&dev->i2c_info, 0x00b9, regValTable[i][2]);
-            ret |= sensor_reg_write(&dev->i2c_info, 0x0155, regValTable[i][3]);
-            ret |= sensor_reg_write(&dev->i2c_info, 0x031d, 0x2d);
-            ret |= sensor_reg_write(&dev->i2c_info, 0x00c2, regValTable[i][4]);
-            ret |= sensor_reg_write(&dev->i2c_info, 0x00cf, regValTable[i][5]);
-            ret |= sensor_reg_write(&dev->i2c_info, 0x00d9, regValTable[i][6]);
-            ret |= sensor_reg_write(&dev->i2c_info, 0x031d, 0x28);
-
-            ret |= sensor_reg_write(&dev->i2c_info, 0x00b1, (dgain >> 6));
-            ret |= sensor_reg_write(&dev->i2c_info, 0x00b2, ((dgain & 0x3f) << 2));
-
-            current_mode->sensor_again      = again;
-            current_mode->ae_info.cur_again = (float)current_mode->sensor_again / 64.0f;
-        }
+			ret |= sensor_reg_write(&dev->i2c_info, 0x00b1,(dgain>>6));
+			ret |= sensor_reg_write(&dev->i2c_info, 0x00b2,((dgain&0x3f)<<2));
+			current_mode->sensor_again = again;
+		}
+		current_mode->ae_info.cur_again = (float)current_mode->sensor_again/64.0f;
     } else if (current_mode->hdr_mode == SENSOR_MODE_HDR_STITCH) {
         again = (k_u16)(gain.gain[SENSOR_LINEAR_PARAS] * 64 + 0.5);
+		if(current_mode->sensor_again !=again)
+        {
+        	total = sizeof(gainLevelTable) / sizeof(k_u32);
+			for (i = 0; i < total; i++)
+			{
+				if ((gainLevelTable[i] <= again) && (again < gainLevelTable[i + 1]))
+				break;
+			}
+			dgain = (again <<6) / gainLevelTable[i];
+			ret = sensor_reg_write(&dev->i2c_info, 0x00b3,regValTable[i][0]);
+			ret |= sensor_reg_write(&dev->i2c_info, 0x00b8,regValTable[i][1]);
+			ret |= sensor_reg_write(&dev->i2c_info, 0x00b9,regValTable[i][2]);
+			ret |= sensor_reg_write(&dev->i2c_info, 0x0155,regValTable[i][3]);
+			ret |= sensor_reg_write(&dev->i2c_info, 0x031d,0x2d);
+			ret |= sensor_reg_write(&dev->i2c_info, 0x00c2,regValTable[i][4]);
+			ret |= sensor_reg_write(&dev->i2c_info, 0x00cf,regValTable[i][5]);
+			ret |= sensor_reg_write(&dev->i2c_info, 0x00d9,regValTable[i][6]);
+			ret |= sensor_reg_write(&dev->i2c_info, 0x031d,0x28);
 
-        if (current_mode->sensor_again != again) {
-            total = sizeof(gainLevelTable) / sizeof(k_u32);
-            for (i = 0; i < total; i++) {
-                if ((gainLevelTable[i] <= again) && (again < gainLevelTable[i + 1])) {
-                    break;
-                }
-            }
-            dgain = (again << 6) / gainLevelTable[i];
-
-            ret = sensor_reg_write(&dev->i2c_info, 0x00b3, regValTable[i][0]);
-            ret |= sensor_reg_write(&dev->i2c_info, 0x00b8, regValTable[i][1]);
-            ret |= sensor_reg_write(&dev->i2c_info, 0x00b9, regValTable[i][2]);
-            ret |= sensor_reg_write(&dev->i2c_info, 0x0155, regValTable[i][3]);
-            ret |= sensor_reg_write(&dev->i2c_info, 0x031d, 0x2d);
-            ret |= sensor_reg_write(&dev->i2c_info, 0x00c2, regValTable[i][4]);
-            ret |= sensor_reg_write(&dev->i2c_info, 0x00cf, regValTable[i][5]);
-            ret |= sensor_reg_write(&dev->i2c_info, 0x00d9, regValTable[i][6]);
-            ret |= sensor_reg_write(&dev->i2c_info, 0x031d, 0x28);
-
-            ret |= sensor_reg_write(&dev->i2c_info, 0x00b1, (dgain >> 6));
-            ret |= sensor_reg_write(&dev->i2c_info, 0x00b2, ((dgain & 0x3f) << 2));
-
-            current_mode->sensor_again      = again;
-            current_mode->ae_info.cur_again = (float)current_mode->sensor_again / 64.0f;
-        }
+			ret |= sensor_reg_write(&dev->i2c_info, 0x00b1,(dgain>>6));
+			ret |= sensor_reg_write(&dev->i2c_info, 0x00b2,((dgain&0x3f)<<2));
+			current_mode->sensor_again = again;
+		}
+		current_mode->ae_info.cur_again = (float)current_mode->sensor_again/64.0f;
     } else {
         pr_err("%s, unsupport exposure frame.\n", __func__);
         return -1;
     }
-
-    if (current_again != again) {
-        pr_debug("%s, hdr_mode(%d), cur_again(%u)\n", __func__, current_mode->hdr_mode,
-                 (k_u32)(current_mode->ae_info.cur_again * 1000));
-    }
+    pr_debug("%s, hdr_mode(%d), cur_again(%u)\n", __func__, current_mode->hdr_mode, (k_u32)(current_mode->ae_info.cur_again*1000) );
 
     return ret;
 }
