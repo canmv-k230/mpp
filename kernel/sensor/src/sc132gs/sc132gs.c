@@ -44,6 +44,12 @@
 
 #define SC132GS_MIN_GAIN_STEP    (1.0f/16.0f)
 
+/* Mirror/flip: reg 0x3221 — bit[2:1] mirror (00 off, 11 on), bit[6:5] flip (00 off, 11 on) */
+#define SC132GS_REG_MIRROR_FLIP     (0x3221)
+#define SC132GS_MIRROR_FIELD_MASK   ((k_u16)(0x3u << 1)) /* bits [2:1] */
+#define SC132GS_FLIP_FIELD_MASK     ((k_u16)(0x3u << 5)) /* bits [6:5] */
+#define SC132GS_MIRROR_FLIP_MASK    (k_u16)(SC132GS_MIRROR_FIELD_MASK | SC132GS_FLIP_FIELD_MASK)
+
 /* include sensor register configure */
 #include "sensor_reg_table.c"
 
@@ -168,35 +174,45 @@ static k_s32 sensor_init_impl(void *ctx, k_sensor_mode mode)
         return -1;
     }
 
-    // set mirror
-    // k_sensor_reg sensor_mirror_reg_list[] = {
-    //     {0x0017, 0x00}, 
-    //     {REG_NULL, 0x00},
-    // };
-    // switch(dev->mirror_setting.mirror) {
-    //     case VICAP_MIRROR_NONE: {
-    //         sensor_mirror_reg_list[0].val = 0x00;
-    //         current_mode->bayer_pattern = BAYER_PAT_RGGB;
-    //     } break;
-    //     case VICAP_MIRROR_HOR: {
-    //         sensor_mirror_reg_list[0].val = 0x01;
-    //         current_mode->bayer_pattern = BAYER_PAT_GRBG;
-    //     } break;
-    //     case VICAP_MIRROR_VER: {
-    //         sensor_mirror_reg_list[0].val = 0x02;
-    //         current_mode->bayer_pattern = BAYER_PAT_GBRG;
-    //     } break;
-    //     case VICAP_MIRROR_BOTH: {
-    //         sensor_mirror_reg_list[0].val = 0x03;
-    //         current_mode->bayer_pattern = BAYER_PAT_BGGR;
-    //     } break;
-    //     default: {
-    //         pr_err("%s, not support mirror setting %d\n", __func__, dev->mirror_setting.mirror);
-    //     } break;
-    // }
     // write sensor reg 
     ret = sensor_reg_list_write(&dev->i2c_info, current_mode->reg_list);
-    // ret |= sensor_reg_list_write(&dev->i2c_info, sensor_mirror_reg_list);
+
+    {
+        k_u16 r3221 = 0;
+        k_u16 mf = 0;
+        k_s32 r_mf = sensor_reg_read(&dev->i2c_info, SC132GS_REG_MIRROR_FLIP, &r3221);
+
+        if (r_mf != 0) {
+            r3221 = 0; /* modes without 0x3221 in table: assume mirror/flip fields off */
+        }
+        ret |= r_mf;
+        r3221 = (k_u16)(r3221 & ~SC132GS_MIRROR_FLIP_MASK);
+        switch (dev->mirror_setting.mirror) {
+        case VICAP_MIRROR_NONE:
+            mf = 0;
+            current_mode->bayer_pattern = BAYER_PAT_BGGR;
+            break;
+       case VICAP_MIRROR_HOR:
+           mf = SC132GS_MIRROR_FIELD_MASK;
+           current_mode->bayer_pattern = BAYER_PAT_BGGR;
+           break;
+       case VICAP_MIRROR_VER:
+           mf = SC132GS_FLIP_FIELD_MASK;
+           current_mode->bayer_pattern = BAYER_PAT_BGGR;
+           break;
+       case VICAP_MIRROR_BOTH:
+           mf = (k_u16)(SC132GS_MIRROR_FIELD_MASK | SC132GS_FLIP_FIELD_MASK);
+           current_mode->bayer_pattern = BAYER_PAT_BGGR;
+           break;
+        default:
+            pr_err("%s, not support mirror setting %d\n", __func__, dev->mirror_setting.mirror);
+            mf = 0;
+            current_mode->bayer_pattern = BAYER_PAT_BGGR;
+            break;
+        }
+        r3221 = (k_u16)(r3221 | mf);
+        ret |= sensor_reg_write(&dev->i2c_info, SC132GS_REG_MIRROR_FLIP, r3221);
+    }
 
     current_mode->sensor_again = 0;
     current_mode->et_line = 0;

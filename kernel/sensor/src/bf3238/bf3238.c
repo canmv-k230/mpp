@@ -38,7 +38,11 @@
 /* Chip ID */
 #define BF3238_CHIP_ID              (0x3238)
 #define BF3238_CHIP_ID_REG          (0xFC)
-
+/* Reg 0x00: bit[3]=mirror, bit[2]=flip (other bits from init table, e.g. 0x41) */
+#define BF3238_REG_MODE             (0x00)
+#define BF3238_MIRROR_MASK          ((k_u16)(1u << 3))
+#define BF3238_FLIP_MASK            ((k_u16)(1u << 2))
+#define BF3238_MIRROR_FLIP_MASK     (BF3238_MIRROR_MASK | BF3238_FLIP_MASK)
 /* Exposure control */
 
 /* Analog gain control */
@@ -169,32 +173,44 @@ static k_s32 sensor_init_impl(void *ctx, k_sensor_mode mode)
         return -1;
     }
 
-    // set mirror
-    // k_sensor_reg sensor_mirror_reg_list[] = {
-    //     {0x0017, 0x00}, 
-    //     {REG_NULL, 0x00},
-    // };
-    // switch(dev->mirror_setting.mirror) {
-    //     case VICAP_MIRROR_NONE: {
-    //         sensor_mirror_reg_list[0].val = 0x00;
-    //         current_mode->bayer_pattern = BAYER_PAT_RGGB;
-    //     } break;
-    //     case VICAP_MIRROR_HOR: {
-    //         sensor_mirror_reg_list[0].val = 0x01;
-    //         current_mode->bayer_pattern = BAYER_PAT_GRBG;
-    //     } break;
-    //     case VICAP_MIRROR_VER: {
-    //         sensor_mirror_reg_list[0].val = 0x02;
-    //         current_mode->bayer_pattern = BAYER_PAT_GBRG;
-    //     } break;
-    //     case VICAP_MIRROR_BOTH: {
-    //         sensor_mirror_reg_list[0].val = 0x03;
-    //         current_mode->bayer_pattern = BAYER_PAT_BGGR;
-    //     } break;
-    //     default: {
-    //         pr_err("%s, not support mirror setting %d\n", __func__, dev->mirror_setting.mirror);
-    //     } break;
-    // }
+ /* Mirror/flip on reg 0x00 bit[3]/bit[2]; preserve other bits from init table */
+    {
+        k_u16 r00 = 0;
+        k_u16 mf = 0;
+        k_s32 r_mf = sensor_reg_read(&dev->i2c_info, BF3238_REG_MODE, &r00);
+
+        if (r_mf != 0) {
+            r00 = 0x41; /* init table default for reg 0x00 if read fails */
+        }
+        ret |= r_mf;
+        r00 = (k_u16)(r00 & ~BF3238_MIRROR_FLIP_MASK);
+        switch (dev->mirror_setting.mirror) {
+        case VICAP_MIRROR_NONE:
+            mf = 0;
+            current_mode->bayer_pattern = BAYER_PAT_BGGR;
+            break;
+    case VICAP_MIRROR_HOR:
+        mf = BF3238_MIRROR_MASK;
+        current_mode->bayer_pattern = BAYER_PAT_GBRG;
+        break;
+    case VICAP_MIRROR_VER:
+        mf = BF3238_FLIP_MASK;
+        current_mode->bayer_pattern = BAYER_PAT_GRBG;
+        break;
+        case VICAP_MIRROR_BOTH:
+            mf = BF3238_MIRROR_FLIP_MASK;
+            current_mode->bayer_pattern = BAYER_PAT_RGGB;
+            break;
+        default:
+            pr_err("%s, not support mirror setting %d\n", __func__, dev->mirror_setting.mirror);
+            mf = 0;
+            current_mode->bayer_pattern = BAYER_PAT_BGGR;
+            break;
+        }
+        r00 = (k_u16)(r00 | mf);
+        ret |= sensor_reg_write(&dev->i2c_info, BF3238_REG_MODE, r00);
+    }
+
     // write sensor reg 
     ret = sensor_reg_list_write(&dev->i2c_info, current_mode->reg_list);
     // ret |= sensor_reg_list_write(&dev->i2c_info, sensor_mirror_reg_list);

@@ -7,7 +7,7 @@ static k_sensor_ae_info sensor_csi0_ae_info[] = {
         .gain_accuracy = 1024,
 
         .min_gain = 1.0,
-        .max_gain = 50.0,
+        .max_gain = 4.0,
 
         .int_time_delay_frame = 1,
         .gain_delay_frame = 1,
@@ -52,11 +52,11 @@ static k_sensor_ae_info sensor_csi0_ae_info[] = {
         .a_long_gain.step = (1.0f / 256.0f),
 
         .a_gain.min = 1.0,
-        .a_gain.max = 100.0,
+        .a_gain.max = 4.0,
         .a_gain.step = (1.0f / 256.0f),
 
         .a_vs_gain.min = 1.0,
-        .a_vs_gain.max = 100.0,
+        .a_vs_gain.max = 4.0,
         .a_vs_gain.step = (1.0f / 256.0f),
 
         .d_long_gain.max = 1.0,
