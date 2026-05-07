@@ -769,7 +769,7 @@ static const struct panel_desc st7701_480x640_yahboom_panel_desc = {
         .reset_delay_ms = 10,
         .backlight_delay_ms = 0,
         .reset_active_low = K_TRUE,
-        .backlight_active_low = K_FALSE,
+        .backlight_active_low = K_TRUE,
     },
 
     .bus.dsi = {
