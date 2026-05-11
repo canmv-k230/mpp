@@ -138,7 +138,7 @@ static int st7701_480x640_init(const struct panel_desc* desc)
     return dsi_send_cmd_sequence(desc, init_sequence, sizeof(init_sequence), 0);
 }
 
-#if defined(CONFIG_BOARD_K230_CANMV_LCKFB)
+#if defined(CONFIG_BOARD_K230_CANMV_LCKFB) || defined (CONFIG_BOARD_K230D_CANMV_LUSHANPI_LITE)
 static int st7701_480x800_lckfb_init(const struct panel_desc* desc)
 {
     /* clang-format off */
@@ -485,7 +485,7 @@ static const struct panel_ops st7701_480x800_ops = {
     .read_chip_id = dsi_read_chip_id,
 };
 
-#if defined(CONFIG_BOARD_K230_CANMV_LCKFB)
+#if defined(CONFIG_BOARD_K230_CANMV_LCKFB) || defined (CONFIG_BOARD_K230D_CANMV_LUSHANPI_LITE)
 static const struct panel_ops st7701_480x800_lckfb_ops = {
     .reset        = panel_generic_reset,
     .init         = st7701_480x800_lckfb_init,
@@ -622,7 +622,7 @@ static const struct panel_desc st7701_480x800_panel_desc = {
     .ops = &st7701_480x800_ops,
 };
 
-#if defined(CONFIG_BOARD_K230_CANMV_LCKFB)
+#if defined(CONFIG_BOARD_K230_CANMV_LCKFB) || defined (CONFIG_BOARD_K230D_CANMV_LUSHANPI_LITE)
 static const struct panel_desc st7701_480x800_lckfb_panel_desc = {
     .name = "st7701_480x800_lckfb",
     .connector_type = ST7701_480_800_DSI_V1,
@@ -870,7 +870,7 @@ static const struct panel_desc* st7701_panel_variants[] = {
     &st7701_480x854_panel_desc,
 
 /* 480x800 panel */
-#if defined(CONFIG_BOARD_K230_CANMV_LCKFB)
+#if defined(CONFIG_BOARD_K230_CANMV_LCKFB) || defined (CONFIG_BOARD_K230D_CANMV_LUSHANPI_LITE)
     &st7701_480x800_lckfb_panel_desc,
 #else
     &st7701_480x800_panel_desc,
