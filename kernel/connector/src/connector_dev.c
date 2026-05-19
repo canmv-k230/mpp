@@ -229,6 +229,7 @@ static k_s32 connector_dev_ioctl(struct dfs_fd* file, k_s32 cmd, void* args)
             return -1;
         }
 
+#if defined(CONFIG_MPP_DSI_ENABLE_VIRT) && CONFIG_MPP_DSI_ENABLE_VIRT
         extern struct panel_desc virtdev_runtime_desc;
         extern k_s32 virtdev_calculate_timings(k_u32 hdisplay, k_u32 vdisplay, k_u32 fps, struct panel_desc * runtime_desc);
 
@@ -242,7 +243,12 @@ static k_s32 connector_dev_ioctl(struct dfs_fd* file, k_s32 cmd, void* args)
 
             panel = &virtdev_runtime_desc;
         }
-
+#else
+        if (params.connector_type == VIRTUAL_DISPLAY_DEVICE) {
+            rt_kprintf("%s: virtual display requires valid resolution and fps parameters\n", __func__);
+            return -1;
+        }
+#endif
         g_connector_dev.selected_panel = panel;
 
         ret = panel_generic_power_on(panel);
