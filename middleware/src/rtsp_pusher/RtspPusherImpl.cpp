@@ -2,6 +2,8 @@
 #include "RtspPusherImpl.h"
 #include <iostream>
 #include <unistd.h>
+#include <string.h>
+#include <sys/time.h>
 
 extern "C" {
 #include <libavformat/avformat.h>
@@ -39,21 +41,53 @@ RTSPPusherImpl::RTSPPusherImpl()
 	m_lATimeStamp = 0;
 	m_nPushFrameFailCnt = 0;
 
+	m_sTransport[0] = '\0';
 	m_nVideoWidth = 0;
 	m_nVideoHeight = 0;
-	m_nfps = 25;
-	m_start_reconnect = false;
-}
-int RTSPPusherImpl::init(const char* rtspurl, int video_width, int video_height)
+		m_nfps = 25;
+		m_start_reconnect = false;
+		m_hConnectThread = 0;
+		outputContext = NULL;
+		videoCodecContext = NULL;
+		m_semInited = false;
+		m_mutexInited = false;
+	}
+int RTSPPusherImpl::init(const char* rtspurl, int video_width, int video_height, int fps, const char* transport)
 {
-	strcpy(m_sUrl, rtspurl);
-	m_nVideoWidth = video_width;
-	m_nVideoHeight = video_height;
+		if (rtspurl == NULL || strlen(rtspurl) >= sizeof(m_sUrl))
+		{
+			printf("rtsp url invalid or too long\n");
+			return -1;
+		}
+	strncpy(m_sUrl, rtspurl, sizeof(m_sUrl) - 1);
+	m_sUrl[sizeof(m_sUrl) - 1] = '\0';
+	m_nfps = (fps > 0 && fps <= 120) ? fps : 25;
+	if (transport != NULL && strcmp(transport, "udp") == 0)
+	{
+		strncpy(m_sTransport, "udp", sizeof(m_sTransport) - 1);
+	}
+	else
+	{
+		strncpy(m_sTransport, "tcp", sizeof(m_sTransport) - 1);
+	}
+	m_sTransport[sizeof(m_sTransport) - 1] = '\0';
+		m_nVideoWidth = video_width;
+		m_nVideoHeight = video_height;
 
-	printf("zlmedia url: %s, w: %d, h: %d\n", m_sUrl, m_nVideoWidth, m_nVideoHeight);
+		printf("zlmedia url: %s, w: %d, h: %d, fps: %d, transport: %s\n", m_sUrl, m_nVideoWidth, m_nVideoHeight, m_nfps, m_sTransport);
 
-	sem_init(&m_sConnect, NULL, NULL);
-	pthread_mutex_init(&m_Lock, NULL);
+		if (!m_semInited && sem_init(&m_sConnect, 0, 0) != 0)
+		{
+			printf("sem_init failed\n");
+			return -1;
+		}
+		m_semInited = true;
+		if (!m_mutexInited && pthread_mutex_init(&m_Lock, NULL) != 0)
+		{
+			printf("pthread_mutex_init failed\n");
+			return -1;
+		}
+		m_mutexInited = true;
 	m_start_reconnect = true;
 	pthread_create(&m_hConnectThread, NULL, ReconnectThread, this);
 
@@ -71,15 +105,17 @@ int RTSPPusherImpl::open()
 	{
 		//assert(false);
 		printf("open video output failed\n");
+		close();
 		return -1;
 	}
-	nRet = _OpenRtspStreams();
-	if (0 != nRet)
-	{
-		printf("open rtsp streams failed\n");
-		//assert(false);
-		return -1;
-	}
+		nRet = _OpenRtspStreams();
+		if (0 != nRet)
+		{
+			printf("open rtsp streams failed\n");
+			//assert(false);
+			close();
+			return -1;
+		}
 	printf("rtsp pusher init success, url: %s\n", m_sUrl);
 	m_bInited = true;
 	return 0;
@@ -91,12 +127,11 @@ int RTSPPusherImpl::_openVideoOutput()
 	if (!outputContext)
 		return -1;
 
-	// Set RTSP transport to TCP if needed
-	av_dict_set(&outputContext->metadata, "rtsp_transport", "tcp", 0);
+	av_dict_set(&outputContext->metadata, "rtsp_transport", m_sTransport, 0);
 	av_dict_set(&outputContext->metadata, "buffer_size", "4096000", 0);
 	av_dict_set(&outputContext->metadata, "stimeout", "5000000", 0);
 
-	av_opt_set(outputContext->priv_data, "rtsp_transport", "tcp", 0);
+	av_opt_set(outputContext->priv_data, "rtsp_transport", m_sTransport, 0);
 
 	// Video encoder setup
 	AVCodec* videoCodec = avcodec_find_encoder(AV_CODEC_ID_H264);
@@ -181,7 +216,8 @@ int RTSPPusherImpl::_OpenRtspStreams()
 				return -1;
 			}
 			videoStream->codec->codec_tag = 0;
-			//videoStream->time_base = { 1, m_nfps };
+			videoStream->time_base = videoCodecContext->time_base;
+			videoStream->avg_frame_rate = videoCodecContext->framerate;
 
 			if (outputContext->oformat->flags & AVFMT_GLOBALHEADER)
 				videoStream->codec->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
@@ -222,7 +258,14 @@ int RTSPPusherImpl::_ConnectRtspServer()
 
 	//return 0;
 
-	return avformat_write_header(outputContext, nullptr);
+	AVDictionary* opts = nullptr;
+	av_dict_set(&opts, "rtsp_transport", m_sTransport, 0);
+	av_dict_set(&opts, "buffer_size", "4194304", 0);
+	av_dict_set(&opts, "stimeout", "5000000", 0);
+	av_dict_set(&opts, "muxdelay", "0", 0);
+	int ret = avformat_write_header(outputContext, &opts);
+	av_dict_free(&opts);
+	return ret;
 }
 
 void RTSPPusherImpl::_CloseRtspStreams()
@@ -234,9 +277,14 @@ void RTSPPusherImpl::_CloseRtspStreams()
 	}
 }
 
-void RTSPPusherImpl::setSPSPPS(char* pSPSBuf, int nSPSLen, char* pPPSBuf, int nPPSLen)
-{
-	m_nSPSPPSLen = nSPSLen + nPPSLen;
+	void RTSPPusherImpl::setSPSPPS(char* pSPSBuf, int nSPSLen, char* pPPSBuf, int nPPSLen)
+	{
+		if (nSPSLen < 0 || nPPSLen < 0 || nSPSLen + nPPSLen > (int)sizeof(m_pSPSPPS))
+		{
+			printf("setSPSPPS invalid size, sps:%d pps:%d max:%d\n", nSPSLen, nPPSLen, (int)sizeof(m_pSPSPPS));
+			return;
+		}
+		m_nSPSPPSLen = nSPSLen + nPPSLen;
 	memcpy(m_pSPSPPS, pSPSBuf, nSPSLen);
 	memcpy(m_pSPSPPS + nSPSLen, pPPSBuf, nPPSLen);
 
@@ -245,9 +293,14 @@ void RTSPPusherImpl::setSPSPPS(char* pSPSBuf, int nSPSLen, char* pPPSBuf, int nP
 	return;
 }
 
-void RTSPPusherImpl::setSPSPPS_EX(char* pSPSPPSBuf,int nLen)
-{
-	m_nSPSPPSLen = nLen;
+	void RTSPPusherImpl::setSPSPPS_EX(char* pSPSPPSBuf,int nLen)
+	{
+		if (nLen < 0 || nLen > (int)sizeof(m_pSPSPPS))
+		{
+			printf("setSPSPPS_EX invalid size:%d max:%d\n", nLen, (int)sizeof(m_pSPSPPS));
+			return;
+		}
+		m_nSPSPPSLen = nLen;
 	memcpy(m_pSPSPPS, pSPSPPSBuf, nLen);
 
 	//sem_post(&m_sConnect);
@@ -255,11 +308,21 @@ void RTSPPusherImpl::setSPSPPS_EX(char* pSPSPPSBuf,int nLen)
 
 int RTSPPusherImpl::pushVideo(char* pBuf, int nLen, bool bKey, unsigned long long nTimeStamp)
 {
-	if (!m_bInited)
+	if (!m_mutexInited || pBuf == NULL || nLen <= 0)
 		return -1;
 
+	pthread_mutex_lock(&m_Lock);
+	if (!m_bInited || outputContext == NULL || videoStream == NULL)
+	{
+		pthread_mutex_unlock(&m_Lock);
+		return -1;
+	}
+
 	if (m_bNeedIframe && !bKey)
+	{
+		pthread_mutex_unlock(&m_Lock);
 		return 0;
+	}
 	else
 		m_bNeedIframe = false;
 
@@ -278,18 +341,28 @@ int RTSPPusherImpl::pushVideo(char* pBuf, int nLen, bool bKey, unsigned long lon
 	packet.stream_index = videoStream->id;
 	packet.data = reinterpret_cast<uint8_t*>(pBuf);
 	packet.size = nLen;
-	packet.flags = bKey;
+	packet.flags = bKey ? AV_PKT_FLAG_KEY : 0;
 
-	AVRational srcTimeBase = { 1, AV_TIME_BASE/*1000*/ };
+	AVRational srcTimeBase = { 1, 1000000 };
 	packet.pts = av_rescale_q(nRealTimeStamp, srcTimeBase, videoStream->time_base);
 	packet.dts = packet.pts;
-	packet.duration = 0;
+	AVRational frameTimeBase = { 1, m_nfps };
+	packet.duration = av_rescale_q(1, frameTimeBase, videoStream->time_base);
 	//printf("key: %d, video pts1: %lld, nRealTimeStamp: %lld, num: %d, den: %d\n", bKey, packet.pts, nRealTimeStamp, videoStream->time_base.num, videoStream->time_base.den);
 
-	// Write the packet to the video stream
-	pthread_mutex_lock(&m_Lock);
+	struct timeval write_start;
+	struct timeval write_end;
+	gettimeofday(&write_start, NULL);
 	int nRet = av_interleaved_write_frame(outputContext, &packet);
+	gettimeofday(&write_end, NULL);
 	pthread_mutex_unlock(&m_Lock);
+	long long write_ms = (write_end.tv_sec - write_start.tv_sec) * 1000LL +
+		(write_end.tv_usec - write_start.tv_usec) / 1000LL;
+	if (write_ms > 20)
+	{
+		printf("rtsp pusher slow write: %lld ms, fps:%d, url:%s, datalen:%d, key:%d\n",
+			write_ms, m_nfps, m_sUrl, nLen, bKey);
+	}
 
 	av_packet_unref(&packet);
 	if (nRet < 0)
@@ -322,6 +395,13 @@ void RTSPPusherImpl::close()
 {
 	m_bInited = false;
 
+	if (!m_mutexInited)
+	{
+		outputContext = NULL;
+		videoCodecContext = NULL;
+		return;
+	}
+
 	pthread_mutex_lock(&m_Lock);
 	if (NULL != outputContext)
 	{
@@ -343,12 +423,12 @@ void RTSPPusherImpl::close()
 
 int  RTSPPusherImpl::deinit()
 {
-	if (m_hConnectThread != NULL)
+	if (m_hConnectThread != 0)
 	{
 		m_start_reconnect = false;
 		sem_post(&m_sConnect);
 		pthread_join(m_hConnectThread, NULL);
-		m_hConnectThread = NULL;
+		m_hConnectThread = 0;
 	}
 
 	return 0;
@@ -359,8 +439,16 @@ RTSPPusherImpl::~RTSPPusherImpl()
 	close();
 	deinit();
 
-	sem_destroy(&m_sConnect);
-	pthread_mutex_destroy(&m_Lock);
+	if (m_semInited)
+	{
+		sem_destroy(&m_sConnect);
+		m_semInited = false;
+	}
+	if (m_mutexInited)
+	{
+		pthread_mutex_destroy(&m_Lock);
+		m_mutexInited = false;
+	}
 }
 
 void RTSPPusherImpl::_CloseRtspPusher()
@@ -383,6 +471,7 @@ void* RTSPPusherImpl::ReconnectThread(void* pParam)
 {
 	RTSPPusherImpl* pThis = (RTSPPusherImpl*)pParam;
 	pThis->_DoReconnect();
+	return NULL;
 }
 void RTSPPusherImpl::_DoReconnect()
 {

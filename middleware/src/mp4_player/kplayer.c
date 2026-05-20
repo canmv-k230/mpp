@@ -79,7 +79,12 @@ static k_s32 _init_mp4_demuxer(const k_char *filePath)
     k_mp4_config_s mp4_config;
     memset(&mp4_config, 0, sizeof(mp4_config));
     mp4_config.config_type = K_MP4_CONFIG_DEMUXER;
-    strcpy(mp4_config.demuxer_config.file_name, filePath);
+    if (filePath == NULL || strlen(filePath) >= sizeof(mp4_config.demuxer_config.file_name))
+    {
+        printf("mp4 file path invalid or too long.\n");
+        return -1;
+    }
+    snprintf(mp4_config.demuxer_config.file_name, sizeof(mp4_config.demuxer_config.file_name), "%s", filePath);
     mp4_config.muxer_config.fmp4_flag = 0;
 
     k_s32 ret = kd_mp4_create(&g_mp4_demuxer_handle, &mp4_config);
@@ -170,7 +175,12 @@ k_s32 kd_player_setdatasource(const k_char *filePath)
     k_bool avsync = K_FALSE;
 
     memset(g_mp4_filename, 0, sizeof(g_mp4_filename));
-    memcpy(g_mp4_filename, filePath, strlen(filePath) + 1);
+    if (filePath == NULL || strlen(filePath) >= sizeof(g_mp4_filename))
+    {
+        printf("mp4 file path invalid or too long.\n");
+        return K_FAILED;
+    }
+    snprintf(g_mp4_filename, sizeof(g_mp4_filename), "%s", filePath);
 
     ret = _init_mp4_demuxer(g_mp4_filename);
     if (ret != K_SUCCESS)
@@ -185,6 +195,8 @@ k_s32 kd_player_setdatasource(const k_char *filePath)
         if (ret != K_SUCCESS)
         {
             printf("disp_open failed\n");
+            kd_mp4_destroy(g_mp4_demuxer_handle);
+            g_mp4_demuxer_handle = NULL;
             return K_FAILED;
         }
         //avsync = K_TRUE;
@@ -196,6 +208,12 @@ k_s32 kd_player_setdatasource(const k_char *filePath)
         if (ret != K_SUCCESS)
         {
             printf("ao_open failed\n");
+            if (g_video_track != INVALID_STREAM_TRACK)
+            {
+                disp_close();
+            }
+            kd_mp4_destroy(g_mp4_demuxer_handle);
+            g_mp4_demuxer_handle = NULL;
             return K_FAILED;
         }
     }

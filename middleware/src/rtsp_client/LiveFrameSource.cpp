@@ -17,6 +17,13 @@ LiveFrameSource::LiveFrameSource(UsageEnvironment &env, size_t queue_size) : Fra
 }
 
 void LiveFrameSource::pushData(const uint8_t *data, size_t data_size, uint64_t timestamp) {
+    if (data == nullptr || data_size == 0) {
+        return;
+    }
+    if (data_size > maxFrameSize()) {
+        std::cout << "LiveFrameSource::pushData() -- drop oversized frame " << data_size << std::endl;
+        return;
+    }
     std::shared_ptr<uint8_t> buf = make_shared_array<uint8_t>(data_size);
     memcpy(buf.get(), data, data_size);
     RawData raw_data;
@@ -25,12 +32,23 @@ void LiveFrameSource::pushData(const uint8_t *data, size_t data_size, uint64_t t
     raw_data.timestamp_ = timestamp;
 
     std::unique_lock<std::mutex> lck(fMutexRaw);
+    while (fRawDataQueue.size() >= fQueueSize) {
+        fRawDataQueue.pop_front();
+    }
     fRawDataQueue.push_back(raw_data);
+    lck.unlock();
+    fCondRaw.notify_one();
 }
 
 int LiveFrameSource::getFrame() {
     RawData raw_data;
     std::unique_lock<std::mutex> lck(fMutexRaw);
+    fCondRaw.wait(lck, [this]() {
+        return !fNeedReadFrame || !fRawDataQueue.empty();
+    });
+    if (!fNeedReadFrame && fRawDataQueue.empty()) {
+        return 0;
+    }
     if (!fRawDataQueue.empty()) {
         raw_data = fRawDataQueue.front();
         fRawDataQueue.pop_front();
@@ -39,9 +57,13 @@ int LiveFrameSource::getFrame() {
 
     int frameSize = 0;
     if (raw_data.buffer_ && raw_data.size_) {
-        // use system-time when getFrame() called as PresentationTime
         struct timeval ref;
-        gettimeofday(&ref, NULL);
+        if (raw_data.timestamp_) {
+            ref.tv_sec = raw_data.timestamp_ / 1000;
+            ref.tv_usec = (raw_data.timestamp_ % 1000) * 1000;
+        } else {
+            gettimeofday(&ref, NULL);
+        }
         frameSize = raw_data.size_;
         processFrame(raw_data.buffer_, frameSize, ref);
     }
@@ -79,6 +101,7 @@ void LiveFrameSource::doStopGettingFrames() {
 
 LiveFrameSource::~LiveFrameSource() {
     fNeedReadFrame.store(false);
+    fCondRaw.notify_all();
     if(fThread.joinable()) {
         fThread.join();
     }

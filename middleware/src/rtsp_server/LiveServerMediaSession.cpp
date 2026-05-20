@@ -35,10 +35,10 @@ char const *LiveServerMediaSession::getAuxSDPLine(RTPSink *rtpSink, FramedSource
 FramedSource *LiveServerMediaSession::createNewStreamSource(unsigned clientSessionId, unsigned &estBitrate) {
     EncodeType type = ((LiveFrameSource *)fReplicator->inputSource())->GetEncodeType();
     if (type == EncodeType::H264) {
-        estBitrate = 2048;
+        estBitrate = 20000;
         return H264VideoStreamDiscreteFramer::createNew(envir(), fReplicator->createStreamReplica());
     } else if (type == EncodeType::H265) {
-        estBitrate = 2048;
+        estBitrate = 20000;
         return H265VideoStreamDiscreteFramer::createNew(envir(), fReplicator->createStreamReplica());
     } else if (type == EncodeType::G711U) {
         estBitrate = 64;
@@ -52,10 +52,10 @@ FramedSource *LiveServerMediaSession::createNewStreamSource(unsigned clientSessi
 RTPSink *LiveServerMediaSession::createNewRTPSink(Groupsock *rtpGroupsock, unsigned char rtpPayloadTypeIfDynamic, FramedSource* inputSource) {
     EncodeType type = ((LiveFrameSource *)fReplicator->inputSource())->GetEncodeType();
     if (type == EncodeType::H264) {
-        OutPacketBuffer::maxSize = 1024 * 1024;
+        OutPacketBuffer::increaseMaxSizeTo(2 * 1024 * 1024);
         return H264VideoRTPSink::createNew(envir(), rtpGroupsock, rtpPayloadTypeIfDynamic);
     } else if (type == EncodeType::H265) {
-        OutPacketBuffer::maxSize = 1024 * 1024;
+        OutPacketBuffer::increaseMaxSizeTo(2 * 1024 * 1024);
         return H265VideoRTPSink::createNew(envir(), rtpGroupsock, rtpPayloadTypeIfDynamic);
     } else if (type == EncodeType::G711U) {
         return SimpleRTPSink::createNew(envir(), rtpGroupsock, 0, 8000, "audio", "PCMU", 1, False /*allowMultipleFramesPerPacket*/);

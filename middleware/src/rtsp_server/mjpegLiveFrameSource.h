@@ -4,6 +4,7 @@
 #include <list>
 #include <thread>
 #include <mutex>
+#include <condition_variable>
 #include <atomic>
 #include <memory>
 #include "JPEGVideoSource.hh"
@@ -27,7 +28,7 @@ class MjpegLiveVideoSource : public JPEGVideoSource {
       std::shared_ptr<uint8_t> buffer_{nullptr};
       size_t offset_{0};
       size_t size_{0};
-      struct timeval timestamp_{0};
+      struct timeval timestamp_{0, 0};
     };
 
     struct RawData {
@@ -39,6 +40,7 @@ class MjpegLiveVideoSource : public JPEGVideoSource {
     int getFrame();
     void processFrame(std::shared_ptr<uint8_t> data, size_t size, const struct timeval &ref);
     void queueFramePacket(FramePacket &packet);
+    struct timeval presentationTimeFor(uint64_t timestamp);
 
   protected:
     std::list<FramePacket> fFramePacketQueue;
@@ -47,11 +49,25 @@ class MjpegLiveVideoSource : public JPEGVideoSource {
     std::thread fThread;
     std::mutex fMutex;
     std::mutex fMutexRaw;
+    std::condition_variable fCondRaw;
     std::atomic<bool> fNeedReadFrame{true};
+    std::atomic<unsigned long long> fRawDropCount{0};
+    std::atomic<unsigned long long> fPacketDropCount{0};
+    std::atomic<unsigned long long> fDeliverCount{0};
+    std::atomic<size_t> fMaxRawDepth{0};
+    std::atomic<size_t> fMaxPacketDepth{0};
+    bool fHaveTimestampBase{false};
+    uint64_t fTimestampBaseInput{0};
+    uint64_t fLastInputTimestamp{0};
+    uint32_t fTimestampScaleToUs{0};
+    struct timeval fTimestampBaseTime{0, 0};
 
   protected:
     virtual void doGetNextFrame();
     virtual void doStopGettingFrames();
+    virtual unsigned maxFrameSize() const {
+        return 2 * 1024 * 1024;
+    }
     static void deliverFrame0(void *clientData);
     void deliverFrame();
 

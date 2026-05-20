@@ -30,6 +30,7 @@ class OnBackChannel: public IOnData {
 };
 
 struct SessionInfo {
+    ServerMediaSession *sms = nullptr;
     // video,  FIXME
     LiveFrameSource *h26x_source = nullptr;
     StreamReplicator *h26x_replicator = nullptr;
@@ -46,6 +47,8 @@ static std::mutex session_info_map_mutex_;
 static std::map<std::string, SessionInfo> session_info_map_;
 typedef std::map<std::string, std::string> SessionUrlMap;
 static SessionUrlMap session_url_map_;
+static constexpr size_t kRtspVideoQueueSize = 16;
+static constexpr size_t kRtspAudioQueueSize = 64;
 
 void OnBackChannel::OnData(unsigned char const* data, unsigned size, struct timeval presentationTime) {
     if (back_channel_) {
@@ -103,6 +106,7 @@ int KdRtspServer::Impl::Init(Port port, IOnBackChannel *back_channel) {
 }
 
 void KdRtspServer::Impl::DeInit() {
+    Stop();
     if (rtspServer_) {
       Medium::close(rtspServer_);
       env_->reclaim();
@@ -132,15 +136,15 @@ int KdRtspServer::Impl::CreateSession(const std::string &session_name, const Ses
     SessionInfo info;
     if(session_attr.with_video) {
         if (session_attr.video_type == VideoType::kVideoTypeH264) {
-            info.h26x_source = H264LiveFrameSource::createNew(*env_, 8);
+            info.h26x_source = H264LiveFrameSource::createNew(*env_, kRtspVideoQueueSize);
             info.h26x_replicator = StreamReplicator::createNew(*env_, info.h26x_source, false);
             if (!info.h26x_replicator) goto err_exit;
         } else if (session_attr.video_type == VideoType::kVideoTypeH265) {
-            info.h26x_source = H265LiveFrameSource::createNew(*env_, 8);
+            info.h26x_source = H265LiveFrameSource::createNew(*env_, kRtspVideoQueueSize);
             info.h26x_replicator = StreamReplicator::createNew(*env_, info.h26x_source, false);
             if (!info.h26x_replicator) goto err_exit;
         } else if (session_attr.video_type == VideoType::kVideoTypeMjpeg) {
-            info.jpeg_source = MjpegLiveVideoSource::createNew(*env_, 8);
+            info.jpeg_source = MjpegLiveVideoSource::createNew(*env_, kRtspVideoQueueSize);
             info.jpeg_replicator = JpegStreamReplicator::createNew(*env_, info.jpeg_source, false);
             if (!info.jpeg_replicator) goto err_exit;
         } else {
@@ -152,7 +156,7 @@ int KdRtspServer::Impl::CreateSession(const std::string &session_name, const Ses
 
     if (session_attr.with_audio) {
         std::cout << "with_audio" << std::endl;
-        info.g711_source = G711LiveFrameSource::createNew(*env_, 8);
+        info.g711_source = G711LiveFrameSource::createNew(*env_, kRtspAudioQueueSize);
         info.g711_replicator = StreamReplicator::createNew(*env_, info.g711_source, false);
     }
 
@@ -163,6 +167,7 @@ int KdRtspServer::Impl::CreateSession(const std::string &session_name, const Ses
 
     // create SMS and subsessions
     sms = ServerMediaSession::createNew(*env_, session_name.c_str(), session_name.c_str(), descriptionString);
+    if (!sms) goto err_exit;
     if (info.h26x_replicator) {
         LiveServerMediaSession *h26xliveSubSession = LiveServerMediaSession::createNew(*env_, info.h26x_replicator);
         sms->addSubsession(h26xliveSubSession);
@@ -187,12 +192,14 @@ int KdRtspServer::Impl::CreateSession(const std::string &session_name, const Ses
 
     rtspServer_->addServerMediaSession(sms);
     announceStream(sms, session_name.c_str());
+    info.sms = sms;
 
     lck.lock();
     session_info_map_[session_name] = info;
     return 0;
 
 err_exit:
+    if (sms) Medium::close(sms);
     if (info.h26x_replicator) Medium::close(info.h26x_replicator);
     if (info.jpeg_replicator) Medium::close(info.jpeg_replicator);
     if (info.g711_replicator) Medium::close(info.g711_replicator);
@@ -204,17 +211,24 @@ err_exit:
 int KdRtspServer::Impl::DestroySession(const std::string &session_name) {
     std::unique_lock<std::mutex> lck(session_info_map_mutex_);
     auto iter = session_info_map_.find(session_name);
-    if (iter != session_info_map_.end()) {
+    if (iter == session_info_map_.end()) {
+        return -1;
+    }
+    if (rtspServer_ && iter->second.sms) {
+        rtspServer_->removeServerMediaSession(iter->second.sms);
+    } else {
         if (iter->second.h26x_replicator) Medium::close(iter->second.h26x_replicator);
         if (iter->second.jpeg_replicator) Medium::close(iter->second.jpeg_replicator);
         if (iter->second.g711_replicator) Medium::close(iter->second.g711_replicator);
-        if (iter->second.back_channel) iter->second.back_channel.reset();
     }
+    if (iter->second.back_channel) iter->second.back_channel.reset();
     session_info_map_.erase(iter);
+    session_url_map_.erase(session_name);
     return 0;
 }
 
 char* KdRtspServer::Impl::GetRtspUrl(const std::string &session_name) {
+    std::unique_lock<std::mutex> lck(session_info_map_mutex_);
     if (session_url_map_.find(session_name) != session_url_map_.end()) {
         return strdup(session_url_map_[session_name].c_str());
     }
@@ -222,6 +236,9 @@ char* KdRtspServer::Impl::GetRtspUrl(const std::string &session_name) {
 }
 
 void KdRtspServer::Impl::Start() {
+    if (server_loop_.joinable()) {
+        return;
+    }
 #if 0
     if (rtspServer_->setUpTunnelingOverHTTP(80) || rtspServer_->setUpTunnelingOverHTTP(8000) || rtspServer_->setUpTunnelingOverHTTP(8080)) {
         *env_ << "\n(We use port " << rtspServer_->httpServerPortNum() << " for optional RTSP-over-HTTP tunneling.)\n";
@@ -237,26 +254,33 @@ void KdRtspServer::Impl::Start() {
 }
 
 void KdRtspServer::Impl::Stop() {
-    std::unique_lock<std::mutex> lck(session_info_map_mutex_);
-    for(auto &it: session_info_map_) {
-        if (it.second.h26x_replicator) Medium::close(it.second.h26x_replicator);
-        if (it.second.jpeg_replicator) Medium::close(it.second.jpeg_replicator);
-        if (it.second.g711_replicator) Medium::close(it.second.g711_replicator);
-        if (it.second.back_channel) it.second.back_channel.reset();
-    }
-    session_info_map_.clear();
-    lck.unlock();
-
     if(server_loop_.joinable()) {
       watchVariable_ = 1;
       server_loop_.join();
     }
+
+    std::unique_lock<std::mutex> lck(session_info_map_mutex_);
+    for(auto &it: session_info_map_) {
+        if (rtspServer_ && it.second.sms) {
+            rtspServer_->removeServerMediaSession(it.second.sms);
+        } else {
+            if (it.second.h26x_replicator) Medium::close(it.second.h26x_replicator);
+            if (it.second.jpeg_replicator) Medium::close(it.second.jpeg_replicator);
+            if (it.second.g711_replicator) Medium::close(it.second.g711_replicator);
+        }
+        if (it.second.back_channel) it.second.back_channel.reset();
+    }
+    session_info_map_.clear();
+    session_url_map_.clear();
+    lck.unlock();
 }
 
 
 void KdRtspServer::Impl::announceStream(ServerMediaSession* sms, char const* streamName) {
     char* url = rtspServer_->rtspURL(sms);
+    std::unique_lock<std::mutex> lck(session_info_map_mutex_);
     session_url_map_[streamName] = url;
+    lck.unlock();
     UsageEnvironment& env = rtspServer_->envir();
     env << "\n\"" << streamName << "\" stream " << "\n";
     env << "Play this stream using the URL \"" << url << "\"\n";
@@ -310,7 +334,6 @@ int KdRtspServer::CreateSession(const std::string &session_name, const SessionAt
 }
 
 int KdRtspServer::DestroySession(const std::string &session_name) {
-    session_url_map_.erase(session_name);
     return impl_->DestroySession(session_name);
 }
 

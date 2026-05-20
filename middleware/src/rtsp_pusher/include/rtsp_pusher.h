@@ -2,6 +2,8 @@
 #define _KD_RTSP_PUSHER_H
 
 #include <unistd.h>
+#include <cstddef>
+#include <cstdint>
 #include <memory>
 
 class IRtspPusherEvent {
@@ -14,6 +16,8 @@ struct RtspPusherInitParam {
     int video_width;
     int video_height;
     char sRtspUrl[256];
+    int video_fps{25};
+    char rtsp_transport[8]{"tcp"};
     IRtspPusherEvent *on_event{nullptr};
 };
 

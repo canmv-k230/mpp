@@ -1,6 +1,7 @@
 #pragma once
 #include <pthread.h>
 #include <semaphore.h>
+#include <atomic>
 //
 class AVStream;
 class AVFormatContext;
@@ -11,7 +12,7 @@ public:
 
 	~RTSPPusherImpl();
 
-	int  init(const char* url, int video_width, int video_height);
+		int  init(const char* url, int video_width, int video_height, int fps, const char* transport);
 	int  pushVideo(char* pBuf, int nLen, bool bKey, unsigned long long nTimeStamp);
 	int  open();
 	void close();
@@ -32,8 +33,9 @@ private:
 	void _CloseRtspPusher();
 
 private:
-	char m_sUrl[256];
-	int m_nVideoWidth;
+		char m_sUrl[256];
+		char m_sTransport[8];
+		int m_nVideoWidth;
 	int m_nVideoHeight;
 	AVFormatContext* outputContext;
 	AVCodecContext * videoCodecContext;
@@ -45,15 +47,17 @@ private:
 
 	char m_pSPSPPS[1024];
 	int m_nSPSPPSLen;
-	bool m_bInited;
-	bool m_bNeedIframe;
+		std::atomic<bool> m_bInited;
+		std::atomic<bool> m_bNeedIframe;
 	int m_nfps;
 
 	int m_nPushFrameFailCnt;
 
-	sem_t m_sConnect;
-	pthread_mutex_t m_Lock;
-	pthread_t m_hConnectThread;
-	static bool  m_bFfmpegInit;
-	bool m_start_reconnect;
-};
+		sem_t m_sConnect;
+		pthread_mutex_t m_Lock;
+		pthread_t m_hConnectThread;
+		static bool  m_bFfmpegInit;
+		std::atomic<bool> m_start_reconnect;
+		bool m_semInited;
+		bool m_mutexInited;
+	};

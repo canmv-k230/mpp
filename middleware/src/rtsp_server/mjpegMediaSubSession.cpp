@@ -17,7 +17,7 @@ MjpegMediaSubsession::~MjpegMediaSubsession() {
 FramedSource* MjpegMediaSubsession::createNewStreamSource(unsigned clientSessionId, unsigned& estBitrate) {
     if (fReplicator) {
         // std::cout << "MjpegMediaSubsession::createNewStreamSource replicator called" << std::endl;
-        estBitrate = 9000;
+        estBitrate = 30000;
         MjpegLiveVideoSource *frameSource = fReplicator->createStreamReplica();
         return frameSource;
     }
@@ -26,6 +26,6 @@ FramedSource* MjpegMediaSubsession::createNewStreamSource(unsigned clientSession
 
 RTPSink* MjpegMediaSubsession::createNewRTPSink(Groupsock* rtpGroupsock, unsigned char rtpPayloadTypeIfDynamic, FramedSource* inputSource){
     // std::cout << "MjpegMediaSubsession::createNewRTPSink called"<< std::endl;
-    OutPacketBuffer::maxSize = 2 * 1024 * 1024;
+    OutPacketBuffer::increaseMaxSizeTo(2 * 1024 * 1024);
     return JPEGVideoRTPSink::createNew(envir(), rtpGroupsock);
 }

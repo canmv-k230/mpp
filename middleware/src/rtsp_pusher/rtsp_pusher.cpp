@@ -7,12 +7,14 @@
 #include <atomic>
 #include <thread>
 #include <mutex>
+#include <condition_variable>
+#include <new>
 #include "rtsp_pusher.h"
 #include "RtspPusherImpl.h"
 #include "media.h"
 
-#define MAX_LIVE_FRAME_CNT   25
-#define MAX_LIVE_FRAME_SIZE  1000000
+#define MAX_LIVE_FRAME_CNT   32
+#define MAX_LIVE_FRAME_SIZE  (2 * 1024 * 1024)
 struct LiveFramePacket
 {
     char *sData;
@@ -26,7 +28,7 @@ typedef std::list<LiveFramePacket*>   LIVE_FRAME_PACKET_LIST;
 class KdRtspPusher::Impl {
   public:
     Impl() {}
-    ~Impl() { }
+    ~Impl() { DeInit(); }
 
     int  Init(const RtspPusherInitParam &param);
     void DeInit();
@@ -43,6 +45,7 @@ class KdRtspPusher::Impl {
     void _deinit_frame_free_queue();
     LiveFramePacket* _get_frame_from_free_queue();
     int  _put_frame_to_free_queue(LiveFramePacket* frame_packet);
+    bool _drop_one_queued_frame_locked();
     static void* push_data_thread(void* pParam);
     int  _do_push_frame_data();
 
@@ -52,8 +55,12 @@ class KdRtspPusher::Impl {
     LIVE_FRAME_PACKET_LIST fLiveFrameQueue_;
     std::mutex   fMutexFrame_;
     std::mutex   fMutexFreeFrame_;
+    std::condition_variable fCondFrame_;
     pthread_t    hpushFrameThread_;
-    bool         bStartPushFrame_ = false;
+    std::atomic<bool> bStartPushFrame_{false};
+    std::atomic<unsigned long long> dropped_frame_count_{0};
+    std::atomic<unsigned long long> pushed_frame_count_{0};
+    std::atomic<size_t> max_queue_depth_{0};
     RtspPusherInitParam PusherInitParam_;
     char         video_header_[1024];
     int          video_header_len_ = {0};
@@ -64,20 +71,29 @@ int KdRtspPusher::Impl::Init(const RtspPusherInitParam &param) {
   printf("rtsp_pusher url:%s\n",param.sRtspUrl);
   PusherInitParam_ = param;
   _init_frame_free_queue();
-  rtsp_pusher_.init(param.sRtspUrl,param.video_width,param.video_height);
+  rtsp_pusher_.init(param.sRtspUrl,param.video_width,param.video_height,param.video_fps,param.rtsp_transport);
   return 0;
 }
 
 void KdRtspPusher::Impl::DeInit() {
+    Close();
     _deinit_frame_free_queue();
     rtsp_pusher_.deinit();
     return ;
 }
 
 int KdRtspPusher::Impl::Open() {
-  rtsp_pusher_.open();
+  if (rtsp_pusher_.open() != 0)
+  {
+      return -1;
+  }
   bStartPushFrame_ = true;
-  pthread_create(&hpushFrameThread_, NULL, push_data_thread, this);
+  if (pthread_create(&hpushFrameThread_, NULL, push_data_thread, this) != 0)
+  {
+      bStartPushFrame_ = false;
+      rtsp_pusher_.close();
+      return -1;
+  }
 
   return 0;
 }
@@ -88,6 +104,7 @@ void KdRtspPusher::Impl::Close() {
       return;
   }
   bStartPushFrame_ = false;
+  fCondFrame_.notify_all();
   pthread_join(hpushFrameThread_,nullptr);
   rtsp_pusher_.close();
 }
@@ -112,15 +129,13 @@ int KdRtspPusher::Impl::PushVideoData(const uint8_t *data, size_t size, bool key
     }
 
   std::unique_lock<std::mutex> lck(fMutexFrame_);
-  if (fLiveFrameQueue_.size() >= MAX_LIVE_FRAME_CNT)
+  while (fLiveFrameQueue_.size() >= MAX_LIVE_FRAME_CNT)
   {
-      for (LIVE_FRAME_PACKET_LIST::iterator itr = fLiveFrameQueue_.begin();itr != fLiveFrameQueue_.end();itr ++)
+      if (!_drop_one_queued_frame_locked())
       {
-          fLiveFrameFreeQueue_.push_back(*itr);
+          printf("%s fLiveFrameQueue_ is full and cannot drop\n",PusherInitParam_.sRtspUrl);
+          return -1;
       }
-      fLiveFrameQueue_.clear();
-      printf("%s fLiveFrameQueue_ is full\n",PusherInitParam_.sRtspUrl);
-      return 0;
   }
   if (size > MAX_LIVE_FRAME_SIZE)
   {
@@ -131,14 +146,15 @@ int KdRtspPusher::Impl::PushVideoData(const uint8_t *data, size_t size, bool key
   LiveFramePacket *livePacket = _get_frame_from_free_queue();
   if (livePacket == nullptr)
   {
-      printf("%s _get_frame_from_free_queue failed:fLiveFrameQueue_ size:%d\n",PusherInitParam_.sRtspUrl,fLiveFrameQueue_.size());
-      for (LIVE_FRAME_PACKET_LIST::iterator itr = fLiveFrameQueue_.begin();itr != fLiveFrameQueue_.end();itr ++)
+      if (_drop_one_queued_frame_locked())
       {
-          fLiveFrameFreeQueue_.push_back(*itr);
+          livePacket = _get_frame_from_free_queue();
       }
-      fLiveFrameQueue_.clear();
-      printf("%s fLiveFrameQueue_ is full2\n",PusherInitParam_.sRtspUrl);
-      return -1;
+      if (livePacket == nullptr)
+      {
+          printf("%s _get_frame_from_free_queue failed:fLiveFrameQueue_ size:%d\n",PusherInitParam_.sRtspUrl,(int)fLiveFrameQueue_.size());
+          return -1;
+      }
   }
 
   livePacket->timestamp = timestamp;
@@ -146,6 +162,12 @@ int KdRtspPusher::Impl::PushVideoData(const uint8_t *data, size_t size, bool key
   livePacket->key_frame = key_frame;
   if (video_header_len_ > 0)
   {
+      if (size + video_header_len_ > MAX_LIVE_FRAME_SIZE)
+      {
+          printf("%s push_venc_data size:%d + header:%d(max size:%d)\n",PusherInitParam_.sRtspUrl,size,video_header_len_,MAX_LIVE_FRAME_SIZE);
+          _put_frame_to_free_queue(livePacket);
+          return -1;
+      }
       memcpy(livePacket->sData,video_header_,video_header_len_);
       memcpy(livePacket->sData + video_header_len_,data,size);
       livePacket->dataLen += video_header_len_;
@@ -156,6 +178,22 @@ int KdRtspPusher::Impl::PushVideoData(const uint8_t *data, size_t size, bool key
   }
 
   fLiveFrameQueue_.push_back(livePacket);
+  if (fLiveFrameQueue_.size() > max_queue_depth_.load())
+  {
+      max_queue_depth_.store(fLiveFrameQueue_.size());
+  }
+  if ((dropped_frame_count_ > 0 && dropped_frame_count_ % 30 == 0) ||
+      fLiveFrameQueue_.size() >= MAX_LIVE_FRAME_CNT / 2)
+  {
+      printf("%s rtsp pusher queue depth:%d/%d, dropped:%llu, max_depth:%d\n",
+             PusherInitParam_.sRtspUrl,
+             (int)fLiveFrameQueue_.size(),
+             MAX_LIVE_FRAME_CNT,
+             dropped_frame_count_.load(),
+             (int)max_queue_depth_.load());
+  }
+  lck.unlock();
+  fCondFrame_.notify_one();
   return 0;
 }
 
@@ -164,13 +202,19 @@ void KdRtspPusher::Impl::_init_frame_free_queue()
     std::unique_lock<std::mutex> lck(fMutexFreeFrame_);
     for (int i =0;i < MAX_LIVE_FRAME_CNT;i ++)
     {
-        LiveFramePacket *frame_packet = new LiveFramePacket();
+        LiveFramePacket *frame_packet = new (std::nothrow) LiveFramePacket();
+        if (frame_packet == nullptr)
+        {
+            printf("new frame packet failed\n");
+            continue;
+        }
         frame_packet->dataLen = 0;
         frame_packet->timestamp = 0;
-        frame_packet->sData = new char[MAX_LIVE_FRAME_SIZE];
+        frame_packet->sData = new (std::nothrow) char[MAX_LIVE_FRAME_SIZE];
         if (frame_packet->sData == nullptr)
         {
             printf("new frame packet failed\n");
+            delete frame_packet;
             continue;
         }
         fLiveFrameFreeQueue_.push_back(frame_packet);
@@ -179,6 +223,7 @@ void KdRtspPusher::Impl::_init_frame_free_queue()
 
 void KdRtspPusher::Impl::_deinit_frame_free_queue()
 {
+    std::unique_lock<std::mutex> lck_frame(fMutexFrame_);
     std::unique_lock<std::mutex> lck(fMutexFreeFrame_);
     for (LIVE_FRAME_PACKET_LIST::iterator itr = fLiveFrameQueue_.begin();itr != fLiveFrameQueue_.end();itr ++)
     {
@@ -190,6 +235,7 @@ void KdRtspPusher::Impl::_deinit_frame_free_queue()
     {
         delete[] (*itr)->sData;
         (*itr)->sData = nullptr;
+        delete *itr;
     }
     fLiveFrameFreeQueue_.clear();
 }
@@ -218,6 +264,30 @@ int  KdRtspPusher::Impl::_put_frame_to_free_queue(LiveFramePacket* frame_packet)
     return 0;
 }
 
+bool KdRtspPusher::Impl::_drop_one_queued_frame_locked()
+{
+    if (fLiveFrameQueue_.empty())
+    {
+        return false;
+    }
+
+    LIVE_FRAME_PACKET_LIST::iterator drop_itr = fLiveFrameQueue_.begin();
+    for (LIVE_FRAME_PACKET_LIST::iterator itr = fLiveFrameQueue_.begin(); itr != fLiveFrameQueue_.end(); ++itr)
+    {
+        if (!(*itr)->key_frame)
+        {
+            drop_itr = itr;
+            break;
+        }
+    }
+
+    LiveFramePacket* dropped = *drop_itr;
+    fLiveFrameQueue_.erase(drop_itr);
+    dropped_frame_count_++;
+    _put_frame_to_free_queue(dropped);
+    return true;
+}
+
 int  KdRtspPusher::Impl::_do_push_frame_data()
 {
     bool key_frame = false;
@@ -225,6 +295,13 @@ int  KdRtspPusher::Impl::_do_push_frame_data()
     while(bStartPushFrame_)
     {
         std::unique_lock<std::mutex> lck(fMutexFrame_);
+        fCondFrame_.wait(lck, [this]() {
+            return !bStartPushFrame_ || !fLiveFrameQueue_.empty();
+        });
+        if (!bStartPushFrame_ && fLiveFrameQueue_.empty())
+        {
+            break;
+        }
         if (fLiveFrameQueue_.size() > 0)
         {
             if (++ ncount  % 1000 == 0)
@@ -238,13 +315,25 @@ int  KdRtspPusher::Impl::_do_push_frame_data()
 
             key_frame = live_packet->key_frame;
             rtsp_pusher_.pushVideo(live_packet->sData,live_packet->dataLen,key_frame,live_packet->timestamp);
+            pushed_frame_count_++;
+            if (pushed_frame_count_ % 300 == 0)
+            {
+                std::unique_lock<std::mutex> stat_lck(fMutexFrame_);
+                int queue_depth = (int)fLiveFrameQueue_.size();
+                stat_lck.unlock();
+                std::unique_lock<std::mutex> free_lck(fMutexFreeFrame_);
+                int free_depth = (int)fLiveFrameFreeQueue_.size();
+                free_lck.unlock();
+                printf("%s rtsp pusher stats pushed:%llu dropped:%llu queue:%d free:%d max_depth:%d\n",
+                       PusherInitParam_.sRtspUrl,
+                       pushed_frame_count_.load(),
+                       dropped_frame_count_.load(),
+                       queue_depth,
+                       free_depth,
+                       (int)max_queue_depth_.load());
+            }
             _put_frame_to_free_queue(live_packet);
 
-        }
-        else
-        {
-            lck.unlock();
-            usleep(1000*5);
         }
 
     }
@@ -286,4 +375,3 @@ int KdRtspPusher::PushVideoData(const uint8_t *data, size_t size, bool key_frame
 int KdRtspPusher::PushVideoHeader(const uint8_t *data, size_t size) {
   return impl_->PushVideoHeader(data, size);
 }
-

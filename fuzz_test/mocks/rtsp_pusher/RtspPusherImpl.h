@@ -33,7 +33,7 @@ class RTSPPusherImpl {
     RTSPPusherImpl() = default;
     ~RTSPPusherImpl() = default;
 
-    int init(const char* url, int, int) {
+    int init(const char* url, int, int, int, const char*) {
         std::lock_guard<std::mutex> lock(mock_mutex_);
         ++init_calls_;
         last_url_ = (url ? url : "");

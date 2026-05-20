@@ -5,6 +5,7 @@
 #include <list>
 #include <thread>
 #include <mutex>
+#include <condition_variable>
 #include <atomic>
 #include <memory>
 
@@ -36,7 +37,7 @@ class LiveFrameSource : public FramedSource {
       std::shared_ptr<uint8_t> buffer_{nullptr};
       size_t offset_{0};
       size_t size_{0};
-      struct timeval timestamp_{0};
+      struct timeval timestamp_{0, 0};
     };
 
     struct RawData {
@@ -53,7 +54,7 @@ class LiveFrameSource : public FramedSource {
     virtual void doStopGettingFrames();
 
     virtual unsigned maxFrameSize() const {
-      return 128 * 1024; // set a reasonable value ..TODO
+      return 2 * 1024 * 1024;
     }
     static void deliverFrame0(void *clientData);
     void deliverFrame();
@@ -72,6 +73,7 @@ class LiveFrameSource : public FramedSource {
     std::thread fThread;
     std::mutex fMutex;
     std::mutex fMutexRaw;
+    std::condition_variable fCondRaw;
     std::atomic<bool> fNeedReadFrame{true};
     std::string fAuxLine;
 };

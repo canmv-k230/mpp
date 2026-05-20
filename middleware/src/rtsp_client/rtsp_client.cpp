@@ -20,6 +20,7 @@ static IOnAudioData *s_on_audio_data = nullptr;
 static IOnVideoData *s_on_video_data = nullptr;
 static IOnBackChannel *s_on_backchannel = nullptr;
 bool s_bRequireBackChannel = false;
+static std::mutex s_client_state_mutex;
 
 namespace backchannel_test {
 // RTSP 'response handlers':
@@ -332,9 +333,9 @@ void continueAfterSETUP(RTSPClient* rtspClient, int resultCode, char* resultStri
                       len += record[i].sPropLength;
                     }
                   }
-                  if (len) {
-                    uint8_t start_code[4] = {0x00, 0x00, 0x00, 0x01};
-                    extra_data = new uint8_t[len];
+	                  if (len) {
+	                    uint8_t start_code[4] = {0x00, 0x00, 0x00, 0x01};
+	                    extra_data = new uint8_t[len];
                     extra_data_size = 0;
                     for (auto i = 0; i < numSpropRecords; i++) {
                       memcpy(&extra_data[extra_data_size], start_code, 4);
@@ -342,12 +343,13 @@ void continueAfterSETUP(RTSPClient* rtspClient, int resultCode, char* resultStri
                       memcpy(&extra_data[extra_data_size], record[i].sPropBytes, record[i].sPropLength);
                       extra_data_size += record[i].sPropLength;
                     }
-                  }
-                  s_on_video_data->OnVideoType(IOnVideoData::VideoTypeH264, extra_data, extra_data_size);
+	                  }
+	                  s_on_video_data->OnVideoType(IOnVideoData::VideoTypeH264, extra_data, extra_data_size);
 
-                  if (extra_data) delete []extra_data;
-              }
-          } else if (!strcmp(scs.subsession->codecName(),"H265")) {
+	                  if (extra_data) delete []extra_data;
+	                  delete[] record;
+	              }
+	          } else if (!strcmp(scs.subsession->codecName(),"H265")) {
               if (s_on_video_data) {
                    // TODO
                   uint8_t *extra_data = nullptr;
@@ -371,10 +373,11 @@ void continueAfterSETUP(RTSPClient* rtspClient, int resultCode, char* resultStri
                       memcpy(&extra_data[extra_data_size], record[i].sPropBytes, record[i].sPropLength);
                       extra_data_size += record[i].sPropLength;
                     }
-                  }
-                  s_on_video_data->OnVideoType(IOnVideoData::VideoTypeH265, extra_data, extra_data_size);
-                  if (extra_data) delete []extra_data;
-              }
+	                  }
+	                  s_on_video_data->OnVideoType(IOnVideoData::VideoTypeH265, extra_data, extra_data_size);
+	                  if (extra_data) delete []extra_data;
+	                  delete[] record;
+	              }
           } else {
               if (s_on_video_data) {
                   s_on_video_data->OnVideoType(IOnVideoData::VideoTypeInvalid, nullptr, 0);
@@ -593,6 +596,7 @@ StreamClientState::~StreamClientState() {
 // Even though we're not going to be doing anything with the incoming data, we still need to receive it.
 // Define the size of the buffer that we'll use:
 #define DUMMY_SINK_RECEIVE_BUFFER_SIZE 1000000
+#define DUMMY_SINK_EXTRA_BUFFER_SIZE (64 * 1024)
 
 DummySink* DummySink::createNew(UsageEnvironment& env, MediaSubsession& subsession, char const* streamId) {
   return new DummySink(env, subsession, streamId);
@@ -602,10 +606,10 @@ DummySink::DummySink(UsageEnvironment& env, MediaSubsession& subsession, char co
   : MediaSink(env),
     fSubsession(subsession) {
   fStreamId = strDup(streamId);
-  fReceiveBufferAlloc = new u_int8_t[DUMMY_SINK_RECEIVE_BUFFER_SIZE + 2048];
+  fReceiveBufferAlloc = new u_int8_t[DUMMY_SINK_RECEIVE_BUFFER_SIZE + DUMMY_SINK_EXTRA_BUFFER_SIZE];
     // add bytes to merge vps/sps/pps and idr, and start-code as well
-  fReceiveBuffer = fReceiveBufferAlloc + 2048;
-  fExtraData = new u_int8_t[1536];
+  fReceiveBuffer = fReceiveBufferAlloc + DUMMY_SINK_EXTRA_BUFFER_SIZE;
+  fExtraData = new u_int8_t[DUMMY_SINK_EXTRA_BUFFER_SIZE];
   fExtraDataSize = 0;
   fExtraState = ExtraState::INIT;
 }
@@ -637,6 +641,11 @@ void DummySink::ProcessH264(unsigned frameSize, uint64_t ms) {
 
   int nal_type = H264_NAL(fReceiveBuffer[0]);
   if (nal_type == (int)H264_NAL_TYPE::NAL_SPS) {
+    if (frame_size > DUMMY_SINK_EXTRA_BUFFER_SIZE) {
+      fExtraState = ExtraState::INIT;
+      fExtraDataSize = 0;
+      return;
+    }
     fExtraDataSize = 0;
     memcpy(&fExtraData[fExtraDataSize], data, frame_size);
     fExtraDataSize = frame_size;
@@ -645,6 +654,11 @@ void DummySink::ProcessH264(unsigned frameSize, uint64_t ms) {
     // printf("SPS\n");
   } else if (nal_type == (int)H264_NAL_TYPE::NAL_PPS) {
     if (fExtraState == ExtraState::SPS_OK && fExtraTimestamp == ms) {
+      if (fExtraDataSize + frame_size > DUMMY_SINK_EXTRA_BUFFER_SIZE) {
+        fExtraState = ExtraState::INIT;
+        fExtraDataSize = 0;
+        return;
+      }
       memcpy(&fExtraData[fExtraDataSize], data, frame_size);
       fExtraDataSize += frame_size;
       fExtraState = ExtraState::OK;
@@ -656,6 +670,7 @@ void DummySink::ProcessH264(unsigned frameSize, uint64_t ms) {
   } else if (nal_type == (int)H264_NAL_TYPE::NAL_IDR) {
     // printf("IDR\n");
     if (fExtraState == ExtraState::OK) {
+      if (fExtraDataSize > DUMMY_SINK_EXTRA_BUFFER_SIZE) return;
       u_int8_t *start = &data[-fExtraDataSize];
       memcpy(start, fExtraData, fExtraDataSize);
       if(s_on_video_data) s_on_video_data->OnVideoData(start, frame_size + fExtraDataSize, ms, true);
@@ -692,6 +707,11 @@ void DummySink::ProcessH265(unsigned frameSize, uint64_t ms) {
 
   int nal_type = H265_NAL(fReceiveBuffer[0]);
   if (nal_type == (int)H265_NAL_TYPE::NAL_VPS) {
+    if (frame_size > DUMMY_SINK_EXTRA_BUFFER_SIZE) {
+      fExtraState = ExtraState::INIT;
+      fExtraDataSize = 0;
+      return;
+    }
     fExtraDataSize = 0;
     memcpy(&fExtraData[fExtraDataSize], data, frame_size);
     fExtraDataSize = frame_size;
@@ -701,6 +721,11 @@ void DummySink::ProcessH265(unsigned frameSize, uint64_t ms) {
   }
   else if (nal_type == (int)H265_NAL_TYPE::NAL_SPS) {
     if (fExtraState == ExtraState::VPS_OK && fExtraTimestamp == ms) {
+      if (fExtraDataSize + frame_size > DUMMY_SINK_EXTRA_BUFFER_SIZE) {
+        fExtraState = ExtraState::INIT;
+        fExtraDataSize = 0;
+        return;
+      }
       memcpy(&fExtraData[fExtraDataSize], data, frame_size);
       fExtraDataSize += frame_size;
       fExtraState = ExtraState::SPS_OK;
@@ -711,6 +736,11 @@ void DummySink::ProcessH265(unsigned frameSize, uint64_t ms) {
     }
   } else if (nal_type == (int)H265_NAL_TYPE::NAL_PPS) {
     if (fExtraState == ExtraState::SPS_OK && fExtraTimestamp == ms) {
+      if (fExtraDataSize + frame_size > DUMMY_SINK_EXTRA_BUFFER_SIZE) {
+        fExtraState = ExtraState::INIT;
+        fExtraDataSize = 0;
+        return;
+      }
       memcpy(&fExtraData[fExtraDataSize], data, frame_size);
       fExtraDataSize += frame_size;
       fExtraState = ExtraState::OK;
@@ -722,6 +752,7 @@ void DummySink::ProcessH265(unsigned frameSize, uint64_t ms) {
   } else if (nal_type == (int)H265_NAL_TYPE::NAL_IDR_W_RADL || nal_type == (int)H265_NAL_TYPE::NAL_IDR_N_LP) {
     // printf("IDR\n");
     if (fExtraState == ExtraState::OK) {
+      if (fExtraDataSize > DUMMY_SINK_EXTRA_BUFFER_SIZE) return;
       u_int8_t *start = &data[-fExtraDataSize];
       memcpy(start, fExtraData, fExtraDataSize);
       if(s_on_video_data) s_on_video_data->OnVideoData(start, frame_size + fExtraDataSize, ms, true);
@@ -741,6 +772,12 @@ void DummySink::ProcessH265(unsigned frameSize, uint64_t ms) {
 
 void DummySink::afterGettingFrame(unsigned frameSize, unsigned numTruncatedBytes,
 				  struct timeval presentationTime, unsigned /*durationInMicroseconds*/) {
+
+  if (numTruncatedBytes > 0) {
+    printf("DummySink::afterGettingFrame discard truncated frame, truncated bytes = %u\n", numTruncatedBytes);
+    continuePlaying();
+    return;
+  }
 
   if (!strcmp(fSubsession.mediumName(), "audio") && !strcmp(fSubsession.codecName(),"PCMU")) {
     if (s_on_audio_data) {
@@ -826,6 +863,7 @@ int KdRtspClient::Impl::Init(const RtspClientInitParam &param) {
 }
 
 void KdRtspClient::Impl::DeInit() {
+  Close();
   std::unique_lock<std::mutex> lck(mutex_);
   if (!initialized_) return;
   if (g711_source_) {
@@ -838,19 +876,21 @@ void KdRtspClient::Impl::DeInit() {
 }
 
 int KdRtspClient::Impl::Open(const char *url) {
-  std::unique_lock<std::mutex> lck(mutex_);
-  if (started_) return 0;
-  watchVariable_ = 0;
-  thread_ = std::thread([this, url]() {
-        s_bRequireBackChannel = enableBackchanel_;
-        if (s_bRequireBackChannel) {
+	  std::unique_lock<std::mutex> lck(mutex_);
+	  if (started_) return 0;
+	  watchVariable_ = 0;
+	  std::string rtsp_url = url ? url : "";
+	  thread_ = std::thread([this, rtsp_url]() {
+	        std::unique_lock<std::mutex> client_lck(s_client_state_mutex);
+	        s_bRequireBackChannel = enableBackchanel_;
+	        if (s_bRequireBackChannel) {
           s_backchannel_source = g711_source_;
           s_on_backchannel = on_backchannel_;
         }
         s_on_audio_data = on_audio_data_;
         s_on_video_data = on_video_data_;
         backchannel_test::on_event = on_event_;
-        backchannel_test::openURL(*env_, "BackChannel RTSP Client", url);
+	        backchannel_test::openURL(*env_, "BackChannel RTSP Client", rtsp_url.c_str());
         // All subsequent activity takes place within the event loop:
         env_->taskScheduler().doEventLoop(&watchVariable_);
         backchannel_test::on_event = nullptr;
@@ -906,4 +946,3 @@ void KdRtspClient::Close() {
 int KdRtspClient::SendAudioData(const uint8_t *data, size_t size, uint64_t timestamp) {
   return impl_->SendAudioData(data, size, timestamp);
 }
-

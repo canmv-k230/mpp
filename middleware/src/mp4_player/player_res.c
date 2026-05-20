@@ -35,6 +35,7 @@ static k_u32 g_max_sample_rate = 48000;
 static k_audio_stream g_audio_stream;
 static k_u32 g_audio_pool_id;
 static int g_enc_frame_len = 0;
+static k_s32 kd_sample_ao_stop(k_u32 dev,k_u32 chn);
 
 typedef struct
 {
@@ -259,7 +260,7 @@ static k_s32 _sys_munmap(k_u64 phy_addr, void *virt_addr, k_u32 size)
     {
         return -1;
     }
-    k_u32 ret;
+    int ret;
 
     k_u32 page_size = sysconf(_SC_PAGESIZE);
     k_u64 page_mask = page_size - 1;
@@ -299,6 +300,7 @@ static k_s32 kd_sample_sys_release_vb_block(k_u64 phys_addr, k_u64 blk_size)
 {
     k_s32 ret;
     k_vb_blk_handle handle;
+    (void)blk_size;
 
     handle = kd_mpi_vb_phyaddr_to_handle(phys_addr);
     if(handle == VB_INVALID_HANDLE) {
@@ -328,7 +330,7 @@ k_s32 disp_play(k_u8*pdata,k_u32 len,k_u64 timestamp,k_bool end_stream)
 
     blk_size = len;
 
-    while(1)
+    for (int retry = 0; retry < 100; retry++)
     {
         ret = kd_sample_sys_get_vb_block_from_pool_id(poolid, &phys_addr, blk_size, NULL);
         if (K_SUCCESS != ret)
@@ -338,9 +340,19 @@ k_s32 disp_play(k_u8*pdata,k_u32 len,k_u64 timestamp,k_bool end_stream)
         }
         break;
     }
+    if (phys_addr == 0)
+    {
+        printf("kd_sample_sys_get_vb_block_from_pool_id timeout\n");
+        return K_FAILED;
+    }
 
     vdec_conf->pool_id = poolid;
     virt_addr = (unsigned char*)_sys_mmap(phys_addr, blk_size);
+    if (virt_addr == NULL)
+    {
+        kd_sample_sys_release_vb_block(phys_addr, blk_size);
+        return K_FAILED;
+    }
 
     memcpy(virt_addr,pdata,len);
     stream.phy_addr = phys_addr;
@@ -352,6 +364,8 @@ k_s32 disp_play(k_u8*pdata,k_u32 len,k_u64 timestamp,k_bool end_stream)
     if (K_SUCCESS != ret)
     {
         printf("kd_mpi_vdec_send_stream failed\n");
+        _sys_munmap(phys_addr, virt_addr, blk_size);
+        kd_sample_sys_release_vb_block(phys_addr, blk_size);
         return K_FAILED;
     }
     _sys_munmap(phys_addr, virt_addr, blk_size);
@@ -492,7 +506,7 @@ static k_s32 kd_sample_ao_start(k_u32 dev,k_u32 chn)
         return K_FAILED;
     }
 
-    if (chn <0 || chn > 2)
+    if (chn > 2)
     {
         printf("chn value not supported\n");
         return K_FAILED;
@@ -571,14 +585,33 @@ k_s32 ao_open(k_s32 s32SampleRate, k_s32 s32ChanNum,k_payload_type audio_dec_typ
     }
 
     g_enc_frame_len = s32SampleRate * 2 * 2 / AUDIO_PERSEC_DIV_NUM / 2;
-    kd_sample_sys_get_vb_block(&g_audio_pool_id, &g_audio_stream.phys_addr, g_enc_frame_len, NULL);
+    if (K_SUCCESS != kd_sample_sys_get_vb_block(&g_audio_pool_id, &g_audio_stream.phys_addr, g_enc_frame_len, NULL))
+    {
+        kd_sample_adec_unbind_ao(g_ao_dev,g_ao_chn,g_adec_hdl);
+        kd_mpi_adec_destroy_chn(g_adec_hdl);
+        kd_sample_ao_stop(g_ao_dev,g_ao_chn);
+        return K_FAILED;
+    }
     g_audio_stream.stream = _sys_mmap(g_audio_stream.phys_addr,g_enc_frame_len);
+    if (g_audio_stream.stream == NULL)
+    {
+        kd_sample_sys_release_vb_block(g_audio_stream.phys_addr, g_enc_frame_len);
+        kd_sample_adec_unbind_ao(g_ao_dev,g_ao_chn,g_adec_hdl);
+        kd_mpi_adec_destroy_chn(g_adec_hdl);
+        kd_sample_ao_stop(g_ao_dev,g_ao_chn);
+        return K_FAILED;
+    }
 
     return K_SUCCESS;
 }
 
 k_s32 ao_play(k_u8*pdata,k_u32 len,k_u64 timestamp)
 {
+    if ((int)len > g_enc_frame_len)
+    {
+        printf("ao_play data too large:%u max:%d\n", len, g_enc_frame_len);
+        return K_FAILED;
+    }
     memcpy(g_audio_stream.stream, pdata, len);
     g_audio_stream.seq++;
     g_audio_stream.time_stamp = timestamp;
@@ -597,7 +630,7 @@ static k_s32 kd_sample_ao_stop(k_u32 dev,k_u32 chn)
         return K_FAILED;
     }
 
-    if (chn <0 || chn > 2)
+    if (chn > 2)
     {
         printf("chn value not supported\n");
         return K_FAILED;
@@ -656,4 +689,3 @@ k_s32 ao_close()
 
     return K_SUCCESS;
 }
-

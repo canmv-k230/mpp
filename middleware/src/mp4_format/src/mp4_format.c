@@ -293,6 +293,7 @@ int kd_mp4_create(KD_HANDLE *mp4_handle, k_mp4_config_s *mp4_cfg) {
     }
 
     k_mp4_instance *mp4_instance = NULL;
+    FILE *fp = NULL;
     mp4_instance = (k_mp4_instance *)calloc(1, sizeof(k_mp4_instance));
     if (!mp4_instance) {
         printf("kd_mp4_create: create mp4 instance failed.\n");
@@ -305,19 +306,20 @@ int kd_mp4_create(KD_HANDLE *mp4_handle, k_mp4_config_s *mp4_cfg) {
 
     switch (mp4_cfg->config_type) {
         case K_MP4_CONFIG_MUXER: {
-            FILE *fp = fopen(mp4_cfg->muxer_config.file_name, "wb+");
+            fp = fopen(mp4_cfg->muxer_config.file_name, "wb+");
             if (!fp) {
                 printf("kd_mp4_create: output file %s open failed.\n", mp4_cfg->muxer_config.file_name);
-                return -1;
+                goto err_exit;
             }
 
             // remove "MOV_FLAG_SEGMENT", in order to obtain fmp4-duration.. TODO
             mp4_instance->muxer_instance.mov = mp4_writer_create(mp4_cfg->muxer_config.fmp4_flag, mov_file_buffer(), fp, MOV_FLAG_FASTSTART /*| MOV_FLAG_SEGMENT*/);
             if (!mp4_instance->muxer_instance.mov) {
                 printf("kd_mp4_create: create mp4 writer failed.\n");
-                return -1;
+                goto err_exit;
             }
             mp4_instance->muxer_instance.fp = fp;
+            fp = NULL;
             break;
         }
         case K_MP4_CONFIG_DEMUXER: {
@@ -325,12 +327,12 @@ int kd_mp4_create(KD_HANDLE *mp4_handle, k_mp4_config_s *mp4_cfg) {
             file_cache->fp = fopen(mp4_cfg->demuxer_config.file_name, "rb");
             if (!file_cache->fp) {
                 printf("input file %s open failed.\n", mp4_cfg->demuxer_config.file_name);
-                return -1;
+                goto err_exit;
             }
             mp4_instance->demuxer_instance.mov = mov_reader_create(mov_file_cache_buffer(), file_cache);
             if (!mp4_instance->demuxer_instance.mov) {
                 printf("kd_mp4_create: create mp4 reader failed.\n");
-                return -1;
+                goto err_exit;
             }
 
             k_demuxer_instance *demuxer = &mp4_instance->demuxer_instance;
@@ -350,13 +352,37 @@ int kd_mp4_create(KD_HANDLE *mp4_handle, k_mp4_config_s *mp4_cfg) {
         }
         default : {
             printf("kd_mp4_create: mp4 config type not support.\n");
-            return -1;
+            goto err_exit;
         }
     }
 
     *mp4_handle = (KD_HANDLE)mp4_instance;
 
     return 0;
+
+err_exit:
+    if (mp4_instance) {
+        if (mp4_instance->instance_type == K_MP4_CONFIG_MUXER) {
+            if (mp4_instance->muxer_instance.mov) {
+                mp4_writer_destroy(mp4_instance->muxer_instance.mov);
+            }
+            if (mp4_instance->muxer_instance.fp) {
+                fclose(mp4_instance->muxer_instance.fp);
+            }
+        } else if (mp4_instance->instance_type == K_MP4_CONFIG_DEMUXER) {
+            if (mp4_instance->demuxer_instance.mov) {
+                mov_reader_destroy(mp4_instance->demuxer_instance.mov);
+            }
+            if (mp4_instance->demuxer_instance.file_cache.fp) {
+                fclose(mp4_instance->demuxer_instance.file_cache.fp);
+            }
+        }
+        free(mp4_instance);
+    }
+    if (fp) {
+        fclose(fp);
+    }
+    return -1;
 }
 
 int kd_mp4_destroy(KD_HANDLE mp4_handle) {
@@ -467,6 +493,7 @@ int kd_mp4_create_track(KD_HANDLE mp4_handle, KD_HANDLE *track_handle, k_mp4_tra
 
     if (!track_set_to_mp4) {
         printf("kd_mp4_create_track: mp4 already cannot creat new track.\n");
+        free(track);
         return -1;
     }
 
@@ -593,6 +620,10 @@ int kd_mp4_write_frame(KD_HANDLE mp4_handle, KD_HANDLE track_handle, k_mp4_frame
         size_t s_buffer_size = mp4_instance->buffer_size;
         if (frame_data->codec_id == K_MP4_CODEC_ID_H264) {
             int n = h264_annexbtomp4(&track->avc, ptr, ptr_len, s_buffer, s_buffer_size, &vcl, &update);
+            if (n <= 0 || (size_t)n > s_buffer_size) {
+                printf("kd_mp4_write_frame: h264_annexbtomp4 failed or output too large.\n");
+                return -1;
+            }
             if (track->add_to_mp4 < 0) {
                 if (track->avc.nb_sps < 1 || track->avc.nb_pps < 1) {
                     return -2;
@@ -621,6 +652,10 @@ int kd_mp4_write_frame(KD_HANDLE mp4_handle, KD_HANDLE track_handle, k_mp4_frame
             mp4_writer_write(mp4_instance->muxer_instance.mov, track->add_to_mp4, s_buffer, n, track->pts, track->pts, vcl == 1 ? MOV_AV_FLAG_KEYFREAME : 0);
         } else if (frame_data->codec_id == K_MP4_CODEC_ID_H265) {
             int n = h265_annexbtomp4(&track->hevc, ptr, ptr_len, s_buffer, s_buffer_size, &vcl, &update);
+            if (n <= 0 || (size_t)n > s_buffer_size) {
+                printf("kd_mp4_write_frame: h265_annexbtomp4 failed or output too large.\n");
+                return -1;
+            }
             if (track->add_to_mp4 < 0) {
                 if (track->hevc.numOfArrays < 1) {
                     return -2;
@@ -711,7 +746,7 @@ int kd_mp4_get_track_by_index(KD_HANDLE mp4_handle, uint32_t index, k_mp4_track_
     struct mov_reader_t *reader = mp4_instance->demuxer_instance.mov;
 
     uint32_t track_num = mov_reader_gettrackcount(reader);
-    if (index < 0 || index > track_num) {
+    if (index >= track_num) {
         printf("k_mp4_get_track_by_index: the track index: %d is invalid.\n", index);
         return -1;
     }
