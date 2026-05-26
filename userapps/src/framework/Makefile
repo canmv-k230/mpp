@@ -58,6 +58,6 @@ $(OBJ_DIRS):
 	$(Q)mkdir -p $@
 
 clean:
-	$(Q)rm -rf $(LIB_TARGET) $(BUILD)
+	$(Q)rm -rf $(LIB) $(BUILD)
 
 -include $(DEPS)

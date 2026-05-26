@@ -391,10 +391,21 @@ int setupStreamSocket(UsageEnvironment& env, Port port, int domain,
 int readSocket(UsageEnvironment& env,
 	       int socket, unsigned char* buffer, unsigned bufferSize,
 	       struct sockaddr_storage& fromAddress) {
-  SOCKLEN_T addressSize = sizeof fromAddress;
-  int bytesRead = recvfrom(socket, (char*)buffer, bufferSize, 0,
-			   (struct sockaddr*)&fromAddress,
-			   (socklen_t *)&addressSize);
+  int socketType = 0;
+  SOCKLEN_T socketTypeSize = sizeof socketType;
+  Boolean isStreamSocket
+    = getsockopt(socket, SOL_SOCKET, SO_TYPE, (char*)&socketType, (socklen_t*)&socketTypeSize) == 0
+      && socketType == SOCK_STREAM;
+
+  int bytesRead;
+  if (isStreamSocket) {
+    bytesRead = recv(socket, (char*)buffer, bufferSize, 0);
+  } else {
+    SOCKLEN_T addressSize = sizeof fromAddress;
+    bytesRead = recvfrom(socket, (char*)buffer, bufferSize, 0,
+			 (struct sockaddr*)&fromAddress,
+			 (socklen_t *)&addressSize);
+  }
   if (bytesRead < 0) {
     //##### HACK to work around bugs in Linux and Windows:
     int err = env.getErrno();
@@ -408,7 +419,7 @@ int readSocket(UsageEnvironment& env,
 	// this alleged error:
 	|| err == 0 || err == EWOULDBLOCK
 #else
-	|| err == EAGAIN
+  || err == EAGAIN || err == EINTR
 #endif
 	|| err == 113 /*EHOSTUNREACH (Linux)*/) { // Why does Linux return this for datagram sock?
       return 0;
