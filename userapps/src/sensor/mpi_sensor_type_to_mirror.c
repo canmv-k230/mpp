@@ -51,11 +51,13 @@ static struct sensor_type_mirror_t type_mirror_tbl[] = {
 };
 #elif defined(CONFIG_BOARD_K230_CANMV_V2)
 static struct sensor_type_mirror_t type_mirror_tbl[] = {
-    // {.type =, .mirror = },
+    // TODO: Add sensor type mirror configurations for K230_CANMV_V2
+    { .type = 0, .mirror = 0 },  /* Dummy entry to avoid empty array */
 };
 #elif defined(CONFIG_BOARD_K230D_CANMV)
 static struct sensor_type_mirror_t type_mirror_tbl[] = {
-    // {.type =, .mirror = },
+    // TODO: Add sensor type mirror configurations for K230D_CANMV
+    { .type = 0, .mirror = 0 },  /* Dummy entry to avoid empty array */
 };
 #elif defined(CONFIG_BOARD_K230_CANMV_01STUDIO)
 static struct sensor_type_mirror_t type_mirror_tbl[] = {
@@ -95,23 +97,33 @@ static struct sensor_type_mirror_t type_mirror_tbl[] = {
     {.type = GC2093_MIPI_CSI2_1280X960_90FPS_10BIT_LINEAR, .mirror = 0},
     {.type = GC2093_MIPI_CSI2_1280X720_90FPS_10BIT_LINEAR, .mirror = 0},
 #endif // CONFIG_MPP_ENABLE_SENSOR_GC2093
+
+#if defined (CONFIG_MPP_ENABLE_SENSOR_OV13850)
+    {.type = OV13850_MIPI_CSI0_3840x2160_7FPS_10BIT_LINEAR, .mirror = 0},
+    {.type = OV13850_MIPI_CSI1_3840x2160_7FPS_10BIT_LINEAR, .mirror = 0},
+    {.type = OV13850_MIPI_CSI2_3840x2160_7FPS_10BIT_LINEAR, .mirror = 0},
+#endif // CONFIG_MPP_ENABLE_SENSOR_OV13850
 };
 #elif defined(CONFIG_BOARD_K230_CANMV_DONGSHANPI)
 static struct sensor_type_mirror_t type_mirror_tbl[] = {
-    // {.type =, .mirror = },
+    // TODO: Add sensor type mirror configurations for K230_CANMV_DONGSHANPI
+    { .type = 0, .mirror = 0 },  /* Dummy entry to avoid empty array */
 };
 #elif defined(CONFIG_BOARD_K230_CANMV_RTT_EVB)
 static struct sensor_type_mirror_t type_mirror_tbl[] = {
-    // {.type =, .mirror = },
+    // TODO: Add sensor type mirror configurations for K230_CANMV_RTT_EVB
+    { .type = 0, .mirror = 0 },  /* Dummy entry to avoid empty array */
 };
 
 #elif defined(CONFIG_BOARD_K230D_CANMV_BPI_ZERO)
 static struct sensor_type_mirror_t type_mirror_tbl[] = {
-    // {.type =, .mirror = },
+    // TODO: Add sensor type mirror configurations for K230D_CANMV_BPI_ZERO
+    { .type = 0, .mirror = 0 },  /* Dummy entry to avoid empty array */
 };
 #elif defined(CONFIG_BOARD_K230D_CANMV_ATK_DNK230D)
 static struct sensor_type_mirror_t type_mirror_tbl[] = {
-    // {.type =, .mirror = },
+    // TODO: Add sensor type mirror configurations for K230D_CANMV_ATK_DNK230D
+    { .type = 0, .mirror = 0 },  /* Dummy entry to avoid empty array */
 };
 #endif
 

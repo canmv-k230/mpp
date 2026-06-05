@@ -287,6 +287,27 @@ menu "MPP Configuration"
                     depends on MPP_ENABLE_CSI_DEV_2
             endif
 
+        menuconfig MPP_ENABLE_SENSOR_OV13850
+            bool "Enable OV13850"
+            default n
+
+            if MPP_ENABLE_SENSOR_OV13850
+
+                config MPP_SENSOR_OV13850_ON_CSI0_USE_CHIP_CLK
+                    bool "OV13850 On CSI0 Use CHIP MCLK"
+                    default n
+                    depends on MPP_ENABLE_CSI_DEV_0
+
+                config MPP_SENSOR_OV13850_ON_CSI1_USE_CHIP_CLK
+                    bool "OV13850 On CSI1 Use CHIP MCLK"
+                    default n
+                    depends on MPP_ENABLE_CSI_DEV_1
+
+                config MPP_SENSOR_OV13850_ON_CSI2_USE_CHIP_CLK
+                    bool "OV13850 On CSI2 Use CHIP MCLK"
+                    default n
+                    depends on MPP_ENABLE_CSI_DEV_2
+            endif
     endmenu
 
     menu "Display Configuration"
