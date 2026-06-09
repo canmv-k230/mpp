@@ -146,8 +146,9 @@ typedef k_u32 k_connector_type;
 #define LT9611_1280_720_HDMI_V6     K_CONN_TYPE(K_CHIP_LT9611,  K_BUS_HDMI, 1280,  720, 6) /* 30fps */
 #define LT9611_640_480_HDMI_V2      K_CONN_TYPE(K_CHIP_LT9611,  K_BUS_HDMI,  640,  480, 2) /* 60fps */
 
-/* SPI panels */
+/* SPI / SPI-like panels */
 #define ST7789_320_240_SPI_V1       K_CONN_TYPE(K_CHIP_ST7789,   K_BUS_SPI,  320,  240, 1)
+#define ST7789_240_280_I8080_V1     K_CONN_TYPE(K_CHIP_ST7789,   K_BUS_SPI,  240,  280, 2)
 #define NV3030B_240_240_QSPI_V1     K_CONN_TYPE(K_CHIP_NV3030B,  K_BUS_SPI,  240,  240, 1)
 
 /* Virtual / special */

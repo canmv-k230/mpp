@@ -282,6 +282,26 @@ static k_u32 qspi_panel_bytes_per_pixel(const struct panel_desc* desc)
     }
 }
 
+static k_u32 qspi_align_chunk_rows(k_u32 row_bytes, k_u32 max_rows)
+{
+    k_u32 align_rows = 1;
+
+    if (row_bytes == 0 || max_rows == 0) {
+        return 0;
+    }
+
+    while (align_rows < max_rows && ((row_bytes * align_rows) % RT_CPU_CACHE_LINE_SZ)) {
+        align_rows++;
+    }
+
+    if ((row_bytes * align_rows) % RT_CPU_CACHE_LINE_SZ) {
+        return max_rows;
+    }
+
+    max_rows -= max_rows % align_rows;
+    return max_rows ? max_rows : align_rows;
+}
+
 static int qspi_bus_send_frame(const struct panel_desc* desc, void* data, k_u32 size)
 {
     struct rt_qspi_message msg;
@@ -326,7 +346,7 @@ static int qspi_bus_send_frame(const struct panel_desc* desc, void* data, k_u32 
         return -1;
     }
 
-    rows_per_chunk = QSPI_MAX_CHUNK_SIZE / row_bytes;
+    rows_per_chunk = qspi_align_chunk_rows(row_bytes, QSPI_MAX_CHUNK_SIZE / row_bytes);
     if (rows_per_chunk == 0) {
         rows_per_chunk = 1;
     }
@@ -348,13 +368,13 @@ static int qspi_bus_send_frame(const struct panel_desc* desc, void* data, k_u32 
 
         rt_memset(&msg, 0, sizeof(msg));
 
-        msg.instruction.content    = 0x12;
+        msg.instruction.content    = 0x32;
         msg.instruction.size       = 8;
         msg.instruction.qspi_lines = 1;
 
         msg.address.content    = 0x002C00;
         msg.address.size       = 24;
-        msg.address.qspi_lines = 4;
+        msg.address.qspi_lines = 1;
 
         msg.dummy_cycles = 0;
 

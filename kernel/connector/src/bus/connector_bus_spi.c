@@ -60,6 +60,7 @@ static struct {
     k_s32                  dc_pin;
     k_bool                 initialized;
     k_bool                 dev_allocated;
+    k_u8                   dfs;
 } spi_ctx;
 
 static inline void spi_dc_cmd(void)
@@ -86,10 +87,63 @@ static inline void spi_cs_high(void)
         kd_pin_write(spi_ctx.cs_pin, GPIO_PV_HIGH);
 }
 
-static int spi_bus_init(const struct panel_desc* desc)
+static int spi_bus_configure(const struct panel_desc* desc, int datawidth)
 {
     struct rt_qspi_configuration cfg;
-    struct rt_qspi_device*       qspi_dev;
+    struct rt_qspi_device*       qspi_dev = spi_ctx.qspi_dev;
+
+    if (!qspi_dev) {
+        // Should never happen if spi_bus_init is implemented correctly, but check just in case
+        return -1;
+    }
+
+    if (datawidth == spi_ctx.dfs) {
+        // Already configured with the same data width, skip reconfiguration
+        return 0;
+    }
+
+    /* Configure as QSPI with single data line (standard SPI mode) */
+    rt_memset(&cfg, 0, sizeof(cfg));
+    cfg.parent.max_hz     = desc->bus.spi.spi_speed_hz;
+    cfg.parent.data_width = datawidth;
+    cfg.parent.mode       = RT_SPI_MASTER | RT_SPI_MSB;
+    cfg.qspi_dl_width     = 1;
+
+    switch (desc->bus.spi.spi_mode) {
+    case 0:
+        cfg.parent.mode |= RT_SPI_MODE_0;
+        break;
+    case 1:
+        cfg.parent.mode |= RT_SPI_MODE_1;
+        break;
+    case 2:
+        cfg.parent.mode |= RT_SPI_MODE_2;
+        break;
+    case 3:
+        cfg.parent.mode |= RT_SPI_MODE_3;
+        break;
+    default:
+        cfg.parent.mode |= RT_SPI_MODE_0;
+        break;
+    }
+
+    /* Use K230 SPI driver's built-in soft_cs: bit7 = enable, bits[6:0] = pin */
+    cfg.parent.hard_cs = 0;
+    cfg.parent.soft_cs = 0;
+
+    if (rt_qspi_configure(qspi_dev, &cfg) != RT_EOK) {
+        rt_kprintf("spi_bus: configure failed\n");
+        return -1;
+    }
+
+    spi_ctx.dfs = datawidth;
+
+    return 0;
+}
+
+static int spi_bus_init(const struct panel_desc* desc)
+{
+    struct rt_qspi_device* qspi_dev;
 
     if (!desc)
         return -1;
@@ -121,37 +175,9 @@ static int spi_bus_init(const struct panel_desc* desc)
         rt_free(qspi_dev);
         return -1;
     }
+    spi_ctx.qspi_dev = qspi_dev;
 
-    /* Configure as QSPI with single data line (standard SPI mode) */
-    rt_memset(&cfg, 0, sizeof(cfg));
-    cfg.parent.max_hz     = desc->bus.spi.spi_speed_hz;
-    cfg.parent.data_width = 8;
-    cfg.parent.mode       = RT_SPI_MASTER | RT_SPI_MSB;
-    cfg.qspi_dl_width     = 1;
-
-    switch (desc->bus.spi.spi_mode) {
-    case 0:
-        cfg.parent.mode |= RT_SPI_MODE_0;
-        break;
-    case 1:
-        cfg.parent.mode |= RT_SPI_MODE_1;
-        break;
-    case 2:
-        cfg.parent.mode |= RT_SPI_MODE_2;
-        break;
-    case 3:
-        cfg.parent.mode |= RT_SPI_MODE_3;
-        break;
-    default:
-        cfg.parent.mode |= RT_SPI_MODE_0;
-        break;
-    }
-
-    /* Use K230 SPI driver's built-in soft_cs: bit7 = enable, bits[6:0] = pin */
-    cfg.parent.hard_cs = 0;
-    cfg.parent.soft_cs = 0;
-
-    if (rt_qspi_configure(qspi_dev, &cfg) != RT_EOK) {
+    if (spi_bus_configure(desc, 8) != 0) {
         rt_kprintf("spi_bus: configure failed\n");
         rt_device_unregister(&qspi_dev->parent.parent);
         rt_free(qspi_dev);
@@ -171,7 +197,6 @@ static int spi_bus_init(const struct panel_desc* desc)
         kd_pin_write(spi_ctx.dc_pin, GPIO_PV_HIGH);
     }
 
-    spi_ctx.qspi_dev      = qspi_dev;
     spi_ctx.dev_allocated = K_TRUE;
     spi_ctx.initialized   = K_TRUE;
 
@@ -199,6 +224,7 @@ static int spi_bus_disable(const struct panel_desc* desc)
         spi_ctx.dc_pin        = -1;
         spi_ctx.dev_allocated = K_FALSE;
         spi_ctx.initialized   = K_FALSE;
+        spi_ctx.dfs           = 0;
     }
     return 0;
 }
@@ -233,6 +259,11 @@ static int spi_bus_send_cmd(const struct panel_desc* desc, k_u8 cmd, const k_u8*
 
     if (!spi_ctx.initialized || !spi_ctx.qspi_dev)
         return -1;
+
+    if (spi_bus_configure(desc, 8) != 0) {
+        rt_kprintf("spi_bus: configure failed\n");
+        return -1;
+    }
 
     spi_cs_low();
 
@@ -300,21 +331,17 @@ static int spi_bus_send_frame(const struct panel_desc* desc, void* data, k_u32 s
     /* Prepare panel for receiving pixel data */
     spi_panel_set_draw_area(desc, 0, 0, desc->timing.hactive, desc->timing.vactive);
 
+    if (spi_bus_configure(desc, 32) != 0) {
+        rt_kprintf("spi_bus: configure failed\n");
+        return -1;
+    }
+
     /* DC=HIGH for pixel data; driver handles CS via soft_cs per chunk */
     spi_dc_data();
 
     spi_cs_low();
 
-    /* Send in chunks to stay within SPI DMA limits */
-    p = (const k_u8*)data;
-
-    remaining = size;
-    while (remaining > 0) {
-        chunk = (remaining > SPI_MAX_CHUNK_SIZE) ? SPI_MAX_CHUNK_SIZE : remaining;
-        spi_bus_send(spi_ctx.qspi_dev, p, chunk);
-        p += chunk;
-        remaining -= chunk;
-    }
+    spi_bus_send(spi_ctx.qspi_dev, data, size);
 
     spi_cs_high();
 

@@ -87,6 +87,7 @@ static struct {
     k_u32                    width;
     k_u32                    height;
     k_bool                   byte_swap; /* SPI needs byte-swapped RGB565 */
+    k_bool                   pixel_swap; /* 32-bit SPI path needs adjacent RGB565 pixels swapped */
 
     /* Frame pacing */
     k_u32 frame_interval_ms; /* Minimum ms per frame (0 = unlimited) */
@@ -174,7 +175,8 @@ static void sw_bridge_thread_entry(void* param)
 #endif
 
             ret = pixfmt_convert_yuv420sp_to_rgb((const k_u8*)y_virt, (const k_u8*)uv_virt, (k_u8*)g_bridge.conv_virt,
-                                                 g_bridge.width, g_bridge.height, g_bridge.target_fmt, g_bridge.byte_swap);
+                                                 g_bridge.width, g_bridge.height, g_bridge.target_fmt, g_bridge.byte_swap,
+                                                 g_bridge.pixel_swap);
 
 #if DBG_LVL == DBG_LOG
             uint64_t conv_ms = cpu_ticks_ms() - conv_start;
@@ -239,7 +241,7 @@ static int sw_bridge_ensure_thread(void)
 int sw_bridge_start(const struct panel_desc* desc)
 {
     k_u32                        bpp;
-    k_vo_wbc_attr                wbc_attr;
+    k_vo_wbc_attr                wbc_attr = {0};
     struct panel_sw_bridge_base* sw_bridge_base;
 
     if (!desc) {
@@ -271,6 +273,7 @@ int sw_bridge_start(const struct panel_desc* desc)
     g_bridge.height     = desc->timing.vactive;
     g_bridge.target_fmt = panel_pixfmt_to_bridge(sw_bridge_base->pixel_format);
     g_bridge.byte_swap  = sw_bridge_base->flag & CONNECTOR_SW_BRIDGE_FLAG_SWAP_RGB565_BYTE_ORDER;
+    g_bridge.pixel_swap = sw_bridge_base->flag & CONNECTOR_SW_BRIDGE_FLAG_SWAP_RGB565_PIXEL_ORDER;
 
     /* Compute target frame interval from panel timing */
     if (0x00 == sw_bridge_base->fps) {

@@ -41,6 +41,7 @@ extern "C" {
 #define PANEL_BG_COLOR_WHITE 0x00FFFFFF
 
 #define CONNECTOR_SW_BRIDGE_FLAG_SWAP_RGB565_BYTE_ORDER (1 << 0)
+#define CONNECTOR_SW_BRIDGE_FLAG_SWAP_RGB565_PIXEL_ORDER (1 << 1)
 
 /* Forward declarations */
 struct panel_desc;
@@ -77,6 +78,8 @@ struct panel_sw_bridge_base {
     k_u32 pixel_format;
     k_u32 flag; /* see CONNECTOR_SW_BRIDGE_FLAG_* */
     k_u8  fps; /* Frames per second */
+    k_u16 x_offset; /* Optional GRAM x offset for SPI-like panels */
+    k_u16 y_offset; /* Optional GRAM y offset for SPI-like panels */
 };
 
 struct panel_spi_config {

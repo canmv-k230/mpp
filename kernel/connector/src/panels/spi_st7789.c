@@ -150,7 +150,7 @@ static const struct panel_desc st7789_spi_320x240_desc = {
     .bus.spi = {
         .base = {
             .pixel_format = PIXEL_FORMAT_RGB_565,
-            .flag = CONNECTOR_SW_BRIDGE_FLAG_SWAP_RGB565_BYTE_ORDER,
+            .flag = CONNECTOR_SW_BRIDGE_FLAG_SWAP_RGB565_PIXEL_ORDER,
         },
         .spi_dev_name  = "lcd_st7789",
         .spi_mode      = 3,

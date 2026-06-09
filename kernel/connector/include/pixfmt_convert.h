@@ -65,8 +65,11 @@ static inline k_u32 bridge_pixfmt_bpp(enum bridge_pixel_format fmt)
  * @width:    Image width in pixels
  * @height:   Image height in pixels
  * @dst_fmt:  Target pixel format (BRIDGE_PIXFMT_RGB565 etc.)
- * @swap_bytes: If true, byte-swap RGB565 pixels for SPI big-endian wire order.
+ * @swap_bytes: If true, byte-swap RGB565 pixels before storing them.
  *              Ignored for non-RGB565 formats.
+ * @swap_pixels: If true, swap adjacent RGB565 pixels in the output stream.
+ *               This is useful when a 32-bit SPI path reverses byte order
+ *               within each 32-bit transfer word.
  *
  * Performs BT.601 color space conversion from YUV420 semi-planar (NV12)
  * to the specified RGB format. Uses RVV vector instructions when available,
@@ -78,7 +81,8 @@ int pixfmt_convert_yuv420sp_to_rgb(const k_u8 *y_virt, const k_u8 *uv_virt,
                                    k_u8 *dst_virt,
                                    k_u32 width, k_u32 height,
                                    enum bridge_pixel_format dst_fmt,
-                                   k_bool swap_bytes);
+                                   k_bool swap_bytes,
+                                   k_bool swap_pixels);
 
 /**
  * rgb565_swap_bytes_rvv_inplace - In-place byte swap for RGB565 buffers using RVV

@@ -528,6 +528,11 @@ menu "MPP Configuration"
             depends on MPP_ENABLE_SPI_LCD
             default n
 
+        config MPP_OSPI_ENABLE_LCD_ST7789
+            bool "Enable I8080-over-OSPI LCD Panel Driver ST7789 240x280"
+            depends on MPP_ENABLE_OSPI_LCD
+            default n
+
         config MPP_QSPI_ENABLE_LCD_NV3030B
             bool "Enable QSPI LCD Panel Driver NV3030B"
             depends on MPP_ENABLE_QSPI_LCD

@@ -41,5 +41,6 @@
 
 /* SPI panels */
 #define ST7789_SPI_320X240_30FPS             ST7789_320_240_SPI_V1
+#define ST7789_I8080_240X280_60FPS           ST7789_240_280_I8080_V1
 
 #endif /* __K_CONNECTOR_COMPAT_H__ */

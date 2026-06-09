@@ -35,6 +35,7 @@ src-$(CONFIG_MPP_DSI_ENABLE_LCD_AML020T) += src/panels/mipi_aml020t.c
 src-$(CONFIG_MPP_DSI_ENABLE_LCD_JD9852) += src/panels/mipi_jd9852.c
 
 src-$(CONFIG_MPP_SPI_ENABLE_LCD_ST7789) += src/panels/spi_st7789.c
+src-$(CONFIG_MPP_OSPI_ENABLE_LCD_ST7789) += src/panels/i8080_st7789.c
 src-$(CONFIG_MPP_QSPI_ENABLE_LCD_NV3030B) += src/panels/qspi_nv3030b.c
 
 C_SRCS          := $(src-y)

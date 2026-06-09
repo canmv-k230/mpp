@@ -61,6 +61,7 @@ extern struct panel_drv mipi_aml020t_drv;
 extern struct panel_drv mipi_jd9852_drv;
 
 extern struct panel_drv spi_st7789_drv;
+extern struct panel_drv i8080_st7789_drv;
 extern struct panel_drv qspi_nv3030b_drv;
 
 struct panel_drv* connector_drv_list[] = {
@@ -114,6 +115,10 @@ struct panel_drv* connector_drv_list[] = {
 
 #ifdef CONFIG_MPP_SPI_ENABLE_LCD_ST7789
     &spi_st7789_drv,
+#endif
+
+#ifdef CONFIG_MPP_OSPI_ENABLE_LCD_ST7789
+    &i8080_st7789_drv,
 #endif
 
 #ifdef CONFIG_MPP_QSPI_ENABLE_LCD_NV3030B
