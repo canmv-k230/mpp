@@ -61,7 +61,7 @@ extern k_s32 dsi_send_cmd_sequence(const struct panel_desc* desc, const k_u8* cm
 
 extern k_u32 dsi_read_chip_id(const struct panel_desc* desc);
 
-extern k_u32 dsi_correct_pclk(k_u32 pclk_hz, k_vo_dsi_lane_num lanes);
+extern k_u32 dsi_correct_pclk(k_u32 pclk_hz, k_vo_dsi_lane_num lanes, k_u32 lane_rate_mbps);
 
 // Forward Vo dwc_dsi_xxx
 extern void dwc_dsi_init(k_vo_dsi_config* cfg);

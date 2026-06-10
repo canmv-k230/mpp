@@ -270,7 +270,13 @@ k_s32 panel_generic_power_on(struct panel_desc* desc)
     // correct the pclk, user maybe set invalid one.
 #if defined(CONFIG_MPP_ENABLE_DSI_LCD) && CONFIG_MPP_ENABLE_DSI_LCD
     if (desc->bus_type == PANEL_BUS_DSI) {
-        desc->timing.pclk_khz = dsi_correct_pclk(desc->timing.pclk_khz * 1000, desc->bus.dsi.lanes) / 1000;
+        k_u32 corrected_pclk = dsi_correct_pclk(desc->timing.pclk_khz * 1000, desc->bus.dsi.lanes, desc->bus.dsi.lane_rate_mbps);
+
+        if (corrected_pclk != 0) {
+            desc->timing.pclk_khz = corrected_pclk / 1000;
+        } else {
+            rt_kprintf("panel %s: DSI pclk correction failed, keep %u kHz\n", desc->name, desc->timing.pclk_khz);
+        }
     } else
 #endif
     {

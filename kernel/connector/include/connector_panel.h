@@ -70,6 +70,7 @@ struct panel_dsi_config {
     k_vo_dsi_lane_num   lanes;
     k_u32               cmd_mode;
     k_vo_dsi_video_mode video_mode;
+    k_u32               lane_rate_mbps; /* Optional fixed per-lane bit rate; 0 = derive from pclk */
     k_u8                vc_id;
     k_u8                lp_cmd_speed_mhz;
 };

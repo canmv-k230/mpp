@@ -34,6 +34,7 @@
 
 /* Reference clock for PLL calculations (24 MHz) */
 #define DSI_PHY_REF_CLK 24000000
+#define DSI_VO_MAX_CLK_DIV_RATIO 256
 
 static k_u32 current_phy_clk_hz = 0; // global var, every times will recalculate.
 
@@ -72,15 +73,21 @@ static const dsi_phy_hsfreq_range_t hsfreq_ranges[] = {
     { 83125000ULL, 118125000ULL, 0x20 },    { 80000000ULL, 107625000ULL, 0x10 },    { 80000000ULL, 97125000ULL, 0x00 },
 };
 
-static inline k_u32 dsi_bus_calc_lane_clk(const k_vo_timing* res, k_vo_dsi_lane_num lan_num)
+#define DSI_DPI_BITS_PER_PIXEL 24
+
+static inline k_u32 dsi_bus_calc_lane_clk(const k_vo_timing* res, k_vo_dsi_lane_num lan_num, k_u32 lane_rate_mbps)
 {
-    k_u32 lanes;
+    k_u32 bpp = DSI_DPI_BITS_PER_PIXEL;
+
+    if (lane_rate_mbps != 0) {
+        return (lane_rate_mbps * 1000000U) / 2;
+    }
 
     if (!res || res->pclk_khz == 0) {
         return 0;
     }
 
-    return ((res->pclk_khz * 3 * 8 * 1000) / (lan_num * 2));
+    return ((res->pclk_khz * bpp * 1000) / (lan_num * 2));
 }
 
 /**
@@ -245,36 +252,44 @@ static int dsi_bus_check_lane_clk(k_u32 lane_clk_hz)
  * @param lanes: number of DSI data lanes
  * @return: corrected pixel clock in Hz, or 0 on failure
  */
-k_u32 dsi_correct_pclk(k_u32 pclk_hz, k_vo_dsi_lane_num lanes)
+k_u32 dsi_correct_pclk(k_u32 pclk_hz, k_vo_dsi_lane_num lanes, k_u32 lane_rate_mbps)
 {
-    k_u32 ratio, candidate_pclk, lane_clk;
-    int delta;
+    k_u32 bpp, best_pclk = 0, best_diff = 0xffffffff;
 
     if (pclk_hz == 0 || lanes == 0)
         return 0;
 
-    ratio = (VO_PIXEL_CLOCK_HZ + pclk_hz / 2) / pclk_hz;
-    if (ratio == 0)
-        ratio = 1;
+    if (lane_rate_mbps != 0) {
+        k_u32 lane_clk = (lane_rate_mbps * 1000000U) / 2;
 
-    for (delta = 0; delta <= 10; delta++) {
-        /* try ratio + delta */
-        if (ratio + delta > 0) {
-            candidate_pclk = VO_PIXEL_CLOCK_HZ / (ratio + delta);
-            lane_clk = (candidate_pclk / 1000 * 3 * 8 * 1000) / (lanes * 2);
-            if (dsi_bus_check_lane_clk(lane_clk) == 0)
-                return candidate_pclk;
-        }
-        /* try ratio - delta (skip delta == 0 to avoid duplicate) */
-        if (delta > 0 && ratio > (k_u32)delta) {
-            candidate_pclk = VO_PIXEL_CLOCK_HZ / (ratio - delta);
-            lane_clk = (candidate_pclk / 1000 * 3 * 8 * 1000) / (lanes * 2);
-            if (dsi_bus_check_lane_clk(lane_clk) == 0)
-                return candidate_pclk;
+        if (dsi_bus_check_lane_clk(lane_clk) != 0)
+            return 0;
+
+        return panel_correct_pclk(pclk_hz);
+    }
+
+    bpp = DSI_DPI_BITS_PER_PIXEL;
+
+    for (k_u32 ratio = 1; ratio <= DSI_VO_MAX_CLK_DIV_RATIO; ratio++) {
+        k_u32 candidate_pclk = VO_PIXEL_CLOCK_HZ / ratio;
+        k_u32 lane_clk       = (candidate_pclk / 1000 * bpp * 1000) / (lanes * 2);
+        k_u32 diff           = (candidate_pclk > pclk_hz) ? (candidate_pclk - pclk_hz) : (pclk_hz - candidate_pclk);
+
+        if (dsi_bus_check_lane_clk(lane_clk) != 0)
+            continue;
+
+        if (best_pclk == 0 || diff < best_diff) {
+            best_pclk = candidate_pclk;
+            best_diff = diff;
         }
     }
 
-    return 0;
+    if (best_pclk == 0) {
+        rt_kprintf("dsi_correct_pclk: no valid pclk for target %u Hz, lanes=%u, bpp=%u\n", pclk_hz, lanes, bpp);
+        return 0;
+    }
+
+    return best_pclk;
 }
 
 /**
@@ -316,7 +331,7 @@ static int dsi_bus_init(const struct panel_desc* desc)
         return -1;
     }
 
-    lane_clk = dsi_bus_calc_lane_clk(&desc->timing, desc->bus.dsi.lanes);
+    lane_clk = dsi_bus_calc_lane_clk(&desc->timing, desc->bus.dsi.lanes, desc->bus.dsi.lane_rate_mbps);
     if (lane_clk == 0) {
         rt_kprintf("dsi_bus_init: failed to calculate lane_clk\n");
         return -2;
@@ -343,11 +358,13 @@ static int dsi_bus_init(const struct panel_desc* desc)
 
     dwc_dsi_init(&cfg);
 
+#if 0 // optional read chip id after init, can be used for debug or verification. but some panel may not support it, so we disable it by default.
     if (desc->ops && desc->ops->read_chip_id) {
         k_u32 chipid = desc->ops->read_chip_id(desc);
 
         rt_kprintf("panel %s, chip id: 0x%08x\n", desc->name, chipid);
     }
+#endif
 
     return 0;
 }
