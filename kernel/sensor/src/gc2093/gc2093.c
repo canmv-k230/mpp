@@ -862,11 +862,11 @@ k_s32 sensor_gc2093_probe(struct k_sensor_probe_cfg *cfg, struct sensor_driver_d
     /* probe different slave address */
     dev->i2c_info.reg_addr_size = SENSOR_REG_VALUE_16BIT;
     dev->i2c_info.reg_val_size = SENSOR_REG_VALUE_8BIT;
-    dev->i2c_info.slave_addr = (0xFC >> 1); /* TYS-K230-200W-V2 */
+    dev->i2c_info.slave_addr = (0x6E >> 1); /* TYS-K230-200W-V2 */
     if((0x00 != _sensor_read_chip_id_r(dev, &chip_id)) || (GC2093_CHIP_ID != chip_id)) {
         _sensor_power_state_set(dev, 1, 1);
 
-        dev->i2c_info.slave_addr = (0x6E >> 1); /* TYS-2093-V31 */
+        dev->i2c_info.slave_addr = (0xFC >> 1); /* TYS-2093-V31 */
         if((0x00 != _sensor_read_chip_id_r(dev, &chip_id)) || (GC2093_CHIP_ID != chip_id)) {
             // rt_kprintf("gc2093 read chip id failed, 0x%04x\n", chip_id);
             goto _on_failed;
