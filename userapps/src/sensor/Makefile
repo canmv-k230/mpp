@@ -7,6 +7,18 @@ BUILD	:= $(SDK_RTSMART_BUILD_DIR)/mpp/userapps/$(DIR)
 # Direct target path for the library
 LIB		:= $(MPP_USERAPPS_LIB_INSTALL_PATH)/lib$(DIR).a
 
+ISP_CONFIG_SRC_DIR     := $(SDK_RTSMART_SRC_DIR)/mpp/userapps/src/sensor/config
+ISP_CONFIG_OUT_DIR     := $(SDK_BUILD_IMAGES_DIR)/bin
+
+ISP_SENSOR_CONFIG_PATTERNS :=
+ISP_SENSOR_CONFIG_PATTERNS += $(if $(filter y,$(CONFIG_MPP_ENABLE_SENSOR_GC2093)),gc2093-*)
+ISP_SENSOR_CONFIG_PATTERNS += $(if $(filter y,$(CONFIG_MPP_ENABLE_SENSOR_OV5647)),ov5647-*)
+ISP_SENSOR_CONFIG_PATTERNS += $(if $(filter y,$(CONFIG_MPP_ENABLE_SENSOR_IMX335)),imx335-*)
+ISP_SENSOR_CONFIG_PATTERNS += $(if $(filter y,$(CONFIG_MPP_ENABLE_SENSOR_SC132GS)),sc132gs-*)
+ISP_SENSOR_CONFIG_PATTERNS += $(if $(filter y,$(CONFIG_MPP_ENABLE_SENSOR_XS9950)),xs9950-*)
+ISP_SENSOR_CONFIG_PATTERNS += $(if $(filter y,$(CONFIG_MPP_ENABLE_SENSOR_BF3238)),bf3238-*)
+ISP_SENSOR_CONFIG_PATTERNS += $(if $(filter y,$(CONFIG_MPP_ENABLE_SENSOR_OV13850)),ov13850-*)
+
 include $(SDK_RTSMART_SRC_DIR)/libs/mk/libmpp.mk
 
 # Source and Object Handling
@@ -33,7 +45,7 @@ CXX_FLAGS       := $(C_CXX_FLAGS) -std=c++20 -Wno-register
 
 # --- Targets ---
 
-.PHONY: all clean
+.PHONY: all clean install_isp_configs
 
 # 'all' now ensures the library is built directly into the target and headers are synced
 all: $(LIB)
@@ -55,6 +67,19 @@ $(BUILD)/%.o : %.cpp | $(OBJ_DIRS)
 
 $(OBJ_DIRS):
 	$(Q)mkdir -p $@
+
+$(ISP_CONFIG_OUT_DIR):
+	$(Q)mkdir -p $@
+
+install_isp_configs: | $(ISP_CONFIG_OUT_DIR)
+	@$(ECHO) "Copy sensor configs from $(ISP_CONFIG_SRC_DIR)/ to $(ISP_CONFIG_OUT_DIR)/"
+	@if [ -n "$(strip $(ISP_SENSOR_CONFIG_PATTERNS))" ]; then \
+		for pattern in $(ISP_SENSOR_CONFIG_PATTERNS); do \
+			rsync -a --delete $(ISP_CONFIG_SRC_DIR)/$$pattern $(ISP_CONFIG_OUT_DIR)/ || exit $$?; \
+		done; \
+	else \
+		echo "No enabled sensor configs to copy."; \
+	fi
 
 clean:
 	$(Q)rm -rf $(LIB) $(BUILD)
