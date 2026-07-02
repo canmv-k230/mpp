@@ -1113,14 +1113,18 @@ static int mov_write_audio_tag(AVFormatContext *s, AVIOContext *pb, MOVMuxContex
         } else { /* reserved for mp4/3gp */
             if (track->par->codec_id == AV_CODEC_ID_FLAC ||
                 track->par->codec_id == AV_CODEC_ID_ALAC ||
-                track->par->codec_id == AV_CODEC_ID_OPUS) {
+                track->par->codec_id == AV_CODEC_ID_OPUS ||
+                track->par->codec_id == AV_CODEC_ID_PCM_ALAW ||
+                track->par->codec_id == AV_CODEC_ID_PCM_MULAW) {
                 avio_wb16(pb, track->par->channels);
             } else {
                 avio_wb16(pb, 2);
             }
             if (track->par->codec_id == AV_CODEC_ID_FLAC ||
-                track->par->codec_id == AV_CODEC_ID_ALAC) {
-                avio_wb16(pb, track->par->bits_per_raw_sample);
+                track->par->codec_id == AV_CODEC_ID_ALAC ||
+                track->par->codec_id == AV_CODEC_ID_PCM_ALAW ||
+                track->par->codec_id == AV_CODEC_ID_PCM_MULAW) {
+                avio_wb16(pb, track->par->bits_per_raw_sample ? track->par->bits_per_raw_sample : track->par->bits_per_coded_sample);
             } else {
                 avio_wb16(pb, 16);
             }
