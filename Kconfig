@@ -542,15 +542,10 @@ menu "MPP Configuration"
     menu "Middleware Configuration"
         config MPP_ENABLE_MIDDLEWARE_LIB_FFMPEG
             bool "Enable Build Lib ffmpeg"
-            default n
-        config MPP_ENABLE_MIDDLEWARE_LIB_X264
-            bool "Enable Build Lib X264"
-            default n
-            select MPP_ENABLE_MIDDLEWARE_LIB_FFMPEG
+            default y
         config MPP_ENABLE_MIDDLEWARE_LIB_RTSP_PUSHER
             bool "Enable Build Lib Rtsp Pusher"
             default n
-            select MPP_ENABLE_MIDDLEWARE_LIB_X264
             select MPP_ENABLE_MIDDLEWARE_LIB_FFMPEG
     endmenu
 

@@ -16,9 +16,9 @@ function builddef() {
     --arch=riscv64 --prefix=$(pwd)/lib_ffmpeg \
     --pkg-config-flags="--static" \
     --enable-gpl --extra-cflags="-fPIC -Wno-multichar -Wno-deprecated-declarations -Wno-unused-result -Wno-unused-variable -Wno-format -Wno-return-type -Wno-sign-compare -Wno-unused-label" --enable-nonfree --disable-ffplay --enable-swscale --enable-pthreads --disable-armv5te --disable-armv6 --disable-armv6t2 --disable-x86asm  --disable-stripping \
-    --enable-libx264 --extra-cflags=-I/home/sunxiaopeng/src/work/k230/k230_sdk/src/big/mpp/middleware/src/x264/src/lib_x264/include --extra-ldflags=-L/home/sunxiaopeng/src/work/k230/k230_sdk/src/big/mpp/middleware/src/x264/src/lib_x264/lib --extra-libs=-ldl \
+    --extra-libs=-ldl \
     --disable-debug --disable-doc --disable-htmlpages --disable-manpages --disable-podpages --disable-txtpages \
-    --disable-encoders --enable-encoder=pcm_alaw  --enable-encoder=pcm_mulaw --enable-encoder=aac --enable-libx264 --enable-encoder=libx264 --enable-encoder=mjpeg \
+    --disable-encoders --enable-encoder=pcm_alaw  --enable-encoder=pcm_mulaw --enable-encoder=aac --enable-encoder=mjpeg \
     --disable-decoders --enable-decoder=h264 --enable-decoder=mjpeg --enable-decoder=hevc --enable-decoder=aac --enable-decoder=pcm_alaw --enable-decoder=pcm_mulaw \
     --disable-demuxers --enable-demuxer=h264 --enable-demuxer=hevc --enable-demuxer=mjpeg --enable-demuxer=aac --enable-demuxer=mp3 --enable-demuxer=pcm_alaw --enable-demuxer=pcm_mulaw --enable-demuxer=wav --enable-demuxer=rtp --enable-demuxer=rtsp \
     --disable-muxers --enable-muxer=mp4 --enable-muxer=adts --enable-muxer=h264 --enable-muxer=hevc --enable-muxer=mjpeg --enable-muxer=rtp --enable-muxer=rtsp --enable-muxer=pcm_alaw --enable-muxer=pcm_mulaw --enable-demuxer=wav \

@@ -8,7 +8,6 @@
 extern "C" {
 #include <libavformat/avformat.h>
 #include <libavutil/opt.h>
-#include <libavcodec/avcodec.h>
 }
 
 bool  RTSPPusherImpl::m_bFfmpegInit = false;
@@ -48,7 +47,6 @@ RTSPPusherImpl::RTSPPusherImpl()
 		m_start_reconnect = false;
 		m_hConnectThread = 0;
 		outputContext = NULL;
-		videoCodecContext = NULL;
 		m_semInited = false;
 		m_mutexInited = false;
 	}
@@ -133,68 +131,6 @@ int RTSPPusherImpl::_openVideoOutput()
 
 	av_opt_set(outputContext->priv_data, "rtsp_transport", m_sTransport, 0);
 
-	// Video encoder setup
-	AVCodec* videoCodec = avcodec_find_encoder(AV_CODEC_ID_H264);
-	if (!videoCodec)
-	{
-		printf("=========avcodec_find_encoder failed\n");
-		return -1;
-	}
-
-
-	videoCodecContext = avcodec_alloc_context3(videoCodec);
-	if (!videoCodecContext)
-	{
-		printf("=========avcodec_alloc_context3 failed\n");
-		return -1;
-	}
-
-	// Set video codec parameters
-	videoCodecContext->width = m_nVideoWidth;
-	videoCodecContext->height = m_nVideoHeight;
-	videoCodecContext->framerate = { m_nfps, 1 };
-	videoCodecContext->gop_size = m_nfps;
-	videoCodecContext->time_base = { 1, m_nfps };
-	videoCodecContext->max_b_frames = 0;
-	videoCodecContext->pix_fmt = AV_PIX_FMT_YUV420P;
-	videoCodecContext->bit_rate = 20000000;
-	videoCodecContext->rc_min_rate = 20000000;
-	videoCodecContext->rc_max_rate = 20000000;
-	videoCodecContext->rc_buffer_size = 20000000;
-	videoCodecContext->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
-	videoCodecContext->codec_type = AVMEDIA_TYPE_VIDEO;
-
-	AVDictionary* param = nullptr;
-	if (AV_CODEC_ID_H264 == videoCodecContext->codec_id)
-	{
-		av_dict_set(&param, "preset", "medium", 0);
-		av_dict_set(&param, "tune", "zerolatency", 0);
-		//av_dict_set(&param, "profile", "high", 0);
-	}
-	else if (AV_CODEC_ID_H265 == videoCodecContext->codec_id)
-	{
-		av_dict_set(&param, "preset", "ultrafast", 0);
-		av_dict_set(&param, "tune", "zero-latency", 0);
-	}
-
-	int nRet = avcodec_open2(videoCodecContext, videoCodec, &param);
-	if (nRet < 0)
-	{
-		// Handle error - could not open video codec
-		char log[256];
-		av_strerror(nRet, log, 256);
-		printf("=========avcodec_open2 failed, %s\n", log);
-		return -1;
-	}
-
-	// {
-	// 	//memcpy(videoCodecContext->extradata, m_pSPSPPS, m_nSPSPPSLen);
-	// 	videoCodecContext->extradata = (uint8_t*)m_pSPSPPS;
-	// 	videoCodecContext->extradata_size = m_nSPSPPSLen;
-	// }
-
-	if (videoCodecContext->extradata)
-		printf("url: %s pusher extradata: %p, size: %d\n", m_sUrl, videoCodecContext->extradata, videoCodecContext->extradata_size);
 	return 0;
 }
 
@@ -210,23 +146,36 @@ int RTSPPusherImpl::_OpenRtspStreams()
 		if (!videoStream)
 			break;
 		videoStream->id = outputContext->nb_streams - 1;
+
+		// Manually fill codec parameters (no encoder needed, MPP hardware does encoding)
+		AVCodecParameters *par = videoStream->codecpar;
+		par->codec_type = AVMEDIA_TYPE_VIDEO;
+		par->codec_id = AV_CODEC_ID_H264;
+		par->width = m_nVideoWidth;
+		par->height = m_nVideoHeight;
+		par->format = AV_PIX_FMT_YUV420P;
+		par->video_delay = 0;
+
+		videoStream->time_base = (AVRational){ 1, m_nfps };
+		videoStream->avg_frame_rate = (AVRational){ m_nfps, 1 };
+
+		if (outputContext->oformat->flags & AVFMT_GLOBALHEADER)
+			videoStream->codec->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
+
+		// Use SPS/PPS from MPP hardware encoder (Annex-B format)
+		if (m_nSPSPPSLen > 0)
 		{
-			if (avcodec_copy_context(videoStream->codec, videoCodecContext) < 0) {
-				printf("Fail: avcodec_copy_context\n");
-				return -1;
+			par->extradata = (uint8_t*)av_mallocz(m_nSPSPPSLen + AV_INPUT_BUFFER_PADDING_SIZE);
+			if (par->extradata)
+			{
+				memcpy(par->extradata, m_pSPSPPS, m_nSPSPPSLen);
+				par->extradata_size = m_nSPSPPSLen;
 			}
-			videoStream->codec->codec_tag = 0;
-			videoStream->time_base = videoCodecContext->time_base;
-			videoStream->avg_frame_rate = videoCodecContext->framerate;
-
-			if (outputContext->oformat->flags & AVFMT_GLOBALHEADER)
-				videoStream->codec->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
-
-			avcodec_parameters_from_context(videoStream->codecpar, videoCodecContext);
 		}
 
 		printf("extradata: %p, size: %d\n", videoStream->codecpar->extradata, videoStream->codecpar->extradata_size);
-		SPSPPSPrint3(m_sUrl, (char*)videoStream->codecpar->extradata, videoStream->codecpar->extradata_size);
+		if (videoStream->codecpar->extradata)
+			SPSPPSPrint3(m_sUrl, (char*)videoStream->codecpar->extradata, videoStream->codecpar->extradata_size);
 		nRet = _ConnectRtspServer();
 
 	} while (0);
@@ -398,7 +347,6 @@ void RTSPPusherImpl::close()
 	if (!m_mutexInited)
 	{
 		outputContext = NULL;
-		videoCodecContext = NULL;
 		return;
 	}
 
@@ -413,11 +361,6 @@ void RTSPPusherImpl::close()
 		outputContext = NULL;
 	}
 
-	if (videoCodecContext != NULL)
-	{
-		avcodec_free_context(&videoCodecContext);
-		videoCodecContext = NULL;
-	}
 	pthread_mutex_unlock(&m_Lock);
 }
 
@@ -457,12 +400,6 @@ void RTSPPusherImpl::_CloseRtspPusher()
 	{
 		avformat_free_context(outputContext);
 		outputContext = nullptr;
-	}
-
-	if (videoCodecContext != NULL)
-	{
-		avcodec_free_context(&videoCodecContext);
-		videoCodecContext = NULL;
 	}
 
 }

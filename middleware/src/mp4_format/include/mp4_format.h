@@ -30,6 +30,7 @@ typedef enum {
     K_MP4_CODEC_ID_H265,
     K_MP4_CODEC_ID_G711A,
     K_MP4_CODEC_ID_G711U,
+    K_MP4_CODEC_ID_OPUS,
     K_MP4_CODEC_ID_BUTT
 } k_mp4_codec_id_e;
 
@@ -81,7 +82,7 @@ typedef struct {
 
 typedef struct {
     k_mp4_codec_id_e codec_id;
-    uint64_t time_stamp;
+    uint64_t time_stamp;    // microseconds, both for kd_mp4_write_frame() input and kd_mp4_get_frame() output
     uint8_t *data;
     uint32_t data_length;
     uint8_t eof;

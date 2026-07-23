@@ -5,7 +5,6 @@
 //
 class AVStream;
 class AVFormatContext;
-class AVCodecContext;
 class RTSPPusherImpl {
 public:
 	RTSPPusherImpl();
@@ -38,7 +37,6 @@ private:
 		int m_nVideoWidth;
 	int m_nVideoHeight;
 	AVFormatContext* outputContext;
-	AVCodecContext * videoCodecContext;
 	AVStream* videoStream = nullptr;
 	AVStream* audioStream = nullptr;
 

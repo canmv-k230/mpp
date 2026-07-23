@@ -10,18 +10,18 @@ LIB		:= $(MPP_MIDDLEWARE_LIB_INSTALL_PATH)/lib$(DIR).a
 include $(SDK_RTSMART_SRC_DIR)/libs/mk/libmpp.mk
 
 # 2. Source and Object Handling
+# The implementation now uses FFmpeg's libavformat/libavcodec directly
+# (src/mp4_format.cc). The old libmov/libflv sub-libraries are no longer used.
 C_SRCS	:= \
 	$(wildcard src/*.c) \
-	$(wildcard src/libflv/source/*.c) \
-	$(wildcard src/libmov/source/*.c) \
 
 CXX_SRCS	:= \
+	$(wildcard src/*.cc) \
 	$(wildcard src/*.cpp) \
-	$(wildcard src/libflv/source/*.cpp) \
-	$(wildcard src/libmov/source/*.cpp) \
 
 C_OBJS          := $(patsubst %.c, $(BUILD)/%.o, $(C_SRCS))
-CXX_OBJS        := $(patsubst %.cpp, $(BUILD)/%.o, $(CXX_SRCS))
+CXX_OBJS        := $(patsubst %.cc, $(BUILD)/%.o, $(filter %.cc,$(CXX_SRCS)))
+CXX_OBJS        += $(patsubst %.cpp, $(BUILD)/%.o, $(filter %.cpp,$(CXX_SRCS)))
 
 OBJS            := $(C_OBJS) $(CXX_OBJS)
 DEPS            := $(OBJS:.o=.d)
@@ -39,10 +39,8 @@ C_CXX_FLAGS     += -Iinclude -I. -Wall -Wextra -ffunction-sections -fdata-sectio
 C_CXX_FLAGS     += -Wno-multichar -Wno-unused-result -Wno-unused-variable -Wno-format
 C_CXX_FLAGS     += $(LIB_CFLAGS)
 
-C_CXX_FLAGS		+= -Isrc/libflv/include -Isrc/libmov/include
-
 CFLAGS          := $(C_CXX_FLAGS) -std=gnu99
-CXX_FLAGS       := $(C_CXX_FLAGS) -std=c++20 -Wno-register 
+CXX_FLAGS       := $(C_CXX_FLAGS) -std=c++20 -Wno-register
 
 # --- Targets ---
 
@@ -67,6 +65,10 @@ $(LIB): $(OBJS) | $(MPP_MIDDLEWARE_LIB_INSTALL_PATH)
 $(BUILD)/%.o : %.c | $(OBJ_DIRS)
 	@echo "[CC] $@"
 	$(Q)$(CC) $(CFLAGS) -MD -MP -MF $(@:.o=.d) -c $< -o $@
+
+$(BUILD)/%.o : %.cc | $(OBJ_DIRS)
+	@echo "[CXX] $@"
+	$(Q)$(CXX) $(CXX_FLAGS) -MD -MP -MF $(@:.o=.d) -c $< -o $@
 
 $(BUILD)/%.o : %.cpp | $(OBJ_DIRS)
 	@echo "[CXX] $@"
