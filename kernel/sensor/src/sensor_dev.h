@@ -152,6 +152,7 @@ extern k_s32 sensor_sc132gs_probe(struct k_sensor_probe_cfg *cfg, struct sensor_
 extern k_s32 sensor_xs9950_probe(struct k_sensor_probe_cfg *cfg, struct sensor_driver_dev *dev);
 extern k_s32 sensor_bf3238_probe(struct k_sensor_probe_cfg *cfg, struct sensor_driver_dev *dev);
 extern k_s32 sensor_ov13850_probe(struct k_sensor_probe_cfg *cfg, struct sensor_driver_dev *dev);
+extern k_s32 sensor_imx675_probe(struct k_sensor_probe_cfg *cfg, struct sensor_driver_dev *dev);
 
 extern const k_sensor_af_dev af_dev_dw9714p;
 extern k_s32 sensor_get_exposure_time_range_common(void *ctx, k_sensor_exposure_time_range *range);

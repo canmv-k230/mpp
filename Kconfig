@@ -268,6 +268,25 @@ menu "MPP Configuration"
                     depends on MPP_ENABLE_CSI_DEV_2
             endif
 
+        menuconfig MPP_ENABLE_SENSOR_IMX675
+            bool "Enable IMX675"
+            default n
+
+            if MPP_ENABLE_SENSOR_IMX675
+                config MPP_SENSOR_IMX675_ON_CSI0_USE_CHIP_CLK
+                    bool "IMX675 On CSI0 Use CHIP MCLK"
+                    default n
+                    depends on MPP_ENABLE_CSI_DEV_0
+                config MPP_SENSOR_IMX675_ON_CSI1_USE_CHIP_CLK
+                    bool "IMX675 On CSI1 Use CHIP MCLK"
+                    default n
+                    depends on MPP_ENABLE_CSI_DEV_1
+                config MPP_SENSOR_IMX675_ON_CSI2_USE_CHIP_CLK
+                    bool "IMX675 On CSI2 Use CHIP MCLK"
+                    default n
+                    depends on MPP_ENABLE_CSI_DEV_2
+            endif
+
         menuconfig MPP_ENABLE_SENSOR_BF3238
             bool "Enable BF3238"
             default n

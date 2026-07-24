@@ -1143,6 +1143,68 @@ static const k_vicap_sensor_info sensor_info_list[] = {
 
 #endif // CONFIG_MPP_ENABLE_SENSOR_OV13850
 
+#if defined (CONFIG_MPP_ENABLE_SENSOR_IMX675)
+#if defined (CONFIG_MPP_ENABLE_CSI_DEV_0)
+    {
+        "imx675_csi0",
+        "imx675-2592x1944",
+        2592,
+        1944,
+        VICAP_CSI0,
+        VICAP_MIPI_2LANE,
+        VICAP_SOURCE_CSI0,
+        K_FALSE,
+        VICAP_MIPI_PHY_1200M,
+        VICAP_CSI_DATA_TYPE_RAW10,
+        VICAP_LINERA_MODE,
+        VICAP_FLASH_DISABLE,
+        VICAP_VI_FIRST_FRAME_FS_TR0,
+        0,
+        30,
+        IMX675_MIPI_CSI0_2LANE_RAW10_2592X1944_30FPS_LINEAR,
+    },
+#endif
+#if defined (CONFIG_MPP_ENABLE_CSI_DEV_1)
+    {
+        "imx675_csi1",
+        "imx675-2592x1944",
+        2592,
+        1944,
+        VICAP_CSI1,
+        VICAP_MIPI_2LANE,
+        VICAP_SOURCE_CSI1,
+        K_FALSE,
+        VICAP_MIPI_PHY_1200M,
+        VICAP_CSI_DATA_TYPE_RAW10,
+        VICAP_LINERA_MODE,
+        VICAP_FLASH_DISABLE,
+        VICAP_VI_FIRST_FRAME_FS_TR0,
+        0,
+        30,
+        IMX675_MIPI_CSI1_2LANE_RAW10_2592X1944_30FPS_LINEAR,
+    },
+#endif
+#if defined (CONFIG_MPP_ENABLE_CSI_DEV_2)
+    {
+        "imx675_csi2",
+        "imx675-2592x1944",
+        2592,
+        1944,
+        VICAP_CSI2,
+        VICAP_MIPI_2LANE,
+        VICAP_SOURCE_CSI2,
+        K_FALSE,
+        VICAP_MIPI_PHY_1200M,
+        VICAP_CSI_DATA_TYPE_RAW10,
+        VICAP_LINERA_MODE,
+        VICAP_FLASH_DISABLE,
+        VICAP_VI_FIRST_FRAME_FS_TR0,
+        0,
+        30,
+        IMX675_MIPI_CSI2_2LANE_RAW10_2592X1944_30FPS_LINEAR,
+    },
+#endif
+#endif // CONFIG_MPP_ENABLE_SENSOR_IMX675
     /* the end of table */
     {
         .sensor_name = NULL,
