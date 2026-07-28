@@ -57,12 +57,12 @@ static sensor_probe_impl sensor_probes[] = {
 #if defined (CONFIG_MPP_ENABLE_SENSOR_OV13850)
     sensor_ov13850_probe,
 #endif // CONFIG_MPP_ENABLE_SENSOR_OV13850
-#if defined (CONFIG_MPP_ENABLE_SENSOR_IMX335)
-    sensor_imx335_probe,
-#endif // CONFIG_MPP_ENABLE_SENSOR_IMX335
 #if defined (CONFIG_MPP_ENABLE_SENSOR_IMX675)
     sensor_imx675_probe,
 #endif // CONFIG_MPP_ENABLE_SENSOR_IMX675
+#if defined (CONFIG_MPP_ENABLE_SENSOR_IMX335)
+    sensor_imx335_probe,
+#endif // CONFIG_MPP_ENABLE_SENSOR_IMX335
     0, // end
 };
 

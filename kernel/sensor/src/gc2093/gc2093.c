@@ -49,6 +49,9 @@
 #define GC2093_REG_DGAIN_H	            (0x00b1)
 #define GC2093_REG_DGAIN_L	            (0x00b2)
 #define GC2093_MIN_GAIN_STEP            (1.0f/64.0f)
+/* Keep the longer post-reset delay required for reliable restart on existing boards. */
+#define GC2093_RESET_DELAY_MS           (5)
+#define GC2093_POWER_STABLE_DELAY_MS    (20)
 
 /* include sensor register configure */
 #include "sensor_reg_table.c"
@@ -127,10 +130,10 @@ static int _sensor_power_state_set(struct sensor_driver_dev *dev, k_s32 on, k_u3
         kd_pin_write(reset_gpio, GPIO_PV_LOW);
         rt_thread_mdelay(delay);
         kd_pin_write(reset_gpio, GPIO_PV_HIGH);
+        rt_thread_mdelay(GC2093_POWER_STABLE_DELAY_MS);
     } else {
         kd_pin_write(reset_gpio, GPIO_PV_LOW);
     }
-    rt_thread_mdelay(20);
 
     return 0;
 }
@@ -142,12 +145,28 @@ static k_s32 sensor_power_impl(void *ctx, k_s32 on)
 
     pr_info("%s enter, %s\n", __func__, dev->sensor_name);
 
-    if (K_FALSE == on) {
-        ret = sensor_reg_write(&dev->i2c_info, 0x03fe, 0xf0);
+    if (on) {
+        if (dev->power_flag) {
+            dev->init_flag = K_TRUE;
+            return 0;
+        }
+
+        ret = _sensor_power_state_set(dev, K_TRUE, GC2093_RESET_DELAY_MS);
+        if (!ret) {
+            dev->power_flag = K_TRUE;
+            dev->init_flag = K_TRUE;
+        }
+        return ret;
     }
 
-    _sensor_power_state_set(dev, on, 100);
-    dev->init_flag = on;
+    if (dev->power_flag) {
+        ret = sensor_reg_write(&dev->i2c_info, 0x03fe, 0xf0);
+        ret |= _sensor_power_state_set(dev, K_FALSE, GC2093_RESET_DELAY_MS);
+    }
+
+    dev->power_flag = K_FALSE;
+    dev->init_flag = K_FALSE;
+    dev->mode_init_flag = K_FALSE;
 
     return ret;
 }
@@ -247,9 +266,10 @@ static k_s32 sensor_get_chip_id_impl(void *ctx, k_u32 *chip_id)
 
     ret = _sensor_read_chip_id_r(dev, chip_id);
 
-    if(chip_id && (GC2093_CHIP_ID != *chip_id)) {
+    if(ret || (chip_id && (GC2093_CHIP_ID != *chip_id))) {
         ret = -1;
-        pr_err("%s, iic read chip id err \n", __func__);
+        pr_err("%s, iic read chip id err (id=0x%04x)\n",
+            __func__, chip_id ? *chip_id : 0);
     }
 
     return ret;
@@ -858,6 +878,8 @@ k_s32 sensor_gc2093_probe(struct k_sensor_probe_cfg *cfg, struct sensor_driver_d
     snprintf(dev->sensor_name, sizeof(dev->sensor_name), "gc2093_csi%d", cfg->csi_num);
 
     _sensor_power_state_set(dev, 1, 1);
+    dev->power_flag = K_TRUE;
+    dev->init_flag = K_TRUE;
 
     /* probe different slave address */
     dev->i2c_info.reg_addr_size = SENSOR_REG_VALUE_16BIT;

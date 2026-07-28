@@ -18,63 +18,6 @@
 #define pr_warn(...) //printf(__VA_ARGS__)
 #define pr_err(...)  printf(__VA_ARGS__)
 
-static const k_vicap_sensor_type_map sensor_type_map_list[] = {
-#if 0
-    {
-        "cam-ov9732-mode0",
-        OV_OV9732_MIPI_1280X720_30FPS_10BIT_LINEAR
-    },
-    {
-        "cam-ov97286-mode0",
-        OV_OV9286_MIPI_1280X720_30FPS_10BIT_LINEAR_IR
-    },
-    {
-        "cam-ov97286-mode1",
-        OV_OV9286_MIPI_1280X720_30FPS_10BIT_LINEAR_SPECKLE
-    },
-    {
-        "cam-ov97286-mode2",
-        OV_OV9286_MIPI_1280X720_60FPS_10BIT_LINEAR_IR
-    },
-    {
-        "cam-ov97286-mode3",
-        OV_OV9286_MIPI_1280X720_60FPS_10BIT_LINEAR_SPECKLE
-    },
-    {
-        "cam-ov97286-mode4",
-        OV_OV9286_MIPI_1280X720_30FPS_10BIT_LINEAR_IR_SPECKLE
-    },
-    {
-        "cam-ov97286-mode5",
-        OV_OV9286_MIPI_1280X720_60FPS_10BIT_LINEAR_IR_SPECKLE
-    },
-    {
-        "cam-imx335-mode0",
-        IMX335_MIPI_2LANE_RAW12_1920X1080_30FPS_LINEAR
-    },
-    {
-        "cam-imx335-mode1",
-        IMX335_MIPI_2LANE_RAW12_2592X1944_30FPS_LINEAR
-    },
-    {
-        "cam-imx335-mode2",
-        IMX335_MIPI_4LANE_RAW12_2592X1944_30FPS_LINEAR
-    },
-    {
-        "cam-ov5647-mode0",
-        OV5647_MIPI_CSI0_1920X1080_30FPS_10BIT_LINEAR
-    },
-    {
-        "cam-ov5647-mode1",
-        OV5647_MIPI_CSI1_1920X1080_30FPS_10BIT_LINEAR
-    },
-    {
-        "cam-ov5647-mode2",
-        OV5647_MIPI_CSI2_1920X1080_30FPS_10BIT_LINEAR
-    }
-#endif
-};
-
 static const k_vicap_sensor_info sensor_info_list[] = {
 #if defined (CONFIG_MPP_ENABLE_SENSOR_IMX335)
 #if defined (CONFIG_MPP_ENABLE_CSI_DEV_0)
@@ -1213,35 +1156,40 @@ static const k_vicap_sensor_info sensor_info_list[] = {
 
 const char *kd_mpi_vicap_get_sensor_string(k_vicap_sensor_type sensor_type)
 {
-    printf("kd_mpi_vicap_get_sensor_string, sensor_type(%d)\n", sensor_type);
-
     if (sensor_type >= SENSOR_TYPE_MAX) {
         pr_err("%s, invalid sensor type.\n", __func__);
         return NULL;
     }
 
-    for(k_s32 i = 0; i < sizeof(sensor_type_map_list)/sizeof(k_vicap_sensor_type_map); i++) {
-        if (sensor_type_map_list[i].sensor_type == sensor_type) {
-            printf("kd_mpi_vicap_get_sensor_string, sensor_string(%s)\n", sensor_type_map_list[i].sensor_string);
-            return sensor_type_map_list[i].sensor_string;
+    for (k_s32 i = 0; sensor_info_list[i].sensor_name; i++) {
+        if (sensor_info_list[i].sensor_type == sensor_type) {
+            return sensor_info_list[i].sensor_name;
         }
     }
+
     return NULL;
 }
 
 k_s32 kd_mpi_vicap_get_sensor_type(k_vicap_sensor_type *sensor_type, const char *sensor_string)
 {
-    if(!sensor_string) {
-        pr_err("%s, type_string is null\n",__func__);
+    if (!sensor_type) {
+        pr_err("%s, sensor_type is null\n", __func__);
         return K_ERR_VICAP_NULL_PTR;
     }
 
-    for(k_s32 i = 0; i < sizeof(sensor_type_map_list)/sizeof(k_vicap_sensor_type_map); i++) {
-        if (!strcmp(sensor_string, sensor_type_map_list[i].sensor_string)) {
-            *sensor_type = sensor_type_map_list[i].sensor_type;
+    if (!sensor_string) {
+        pr_err("%s, sensor_string is null\n", __func__);
+        return K_ERR_VICAP_NULL_PTR;
+    }
+
+    for (k_s32 i = 0; sensor_info_list[i].sensor_name; i++) {
+        if (!strcmp(sensor_string, sensor_info_list[i].sensor_name) ||
+            (sensor_info_list[i].database_name && !strcmp(sensor_string, sensor_info_list[i].database_name))) {
+            *sensor_type = sensor_info_list[i].sensor_type;
             return 0;
         }
     }
+
     return K_ERR_UNEXIST;
 }
 
@@ -1256,7 +1204,7 @@ k_s32 kd_mpi_vicap_get_sensor_info(k_vicap_sensor_type sensor_type, k_vicap_sens
         pr_err("%s, invalid sensor type.\n", __func__);
         return K_ERR_VICAP_ILLEGAL_PARAM;
     }
-    for(k_s32 i = 0; i < sizeof(sensor_info_list)/sizeof(k_vicap_sensor_info); i++) {
+    for (k_s32 i = 0; sensor_info_list[i].sensor_name; i++) {
         if (sensor_type == sensor_info_list[i].sensor_type) {
             memcpy(sensor_info, &sensor_info_list[i], sizeof(k_vicap_sensor_info));
             return 0;
@@ -1286,6 +1234,10 @@ k_s32 kd_mpi_sensor_open(const char *sensor_name)
 
 k_s32 kd_mpi_sensor_close(k_s32 fd)
 {
+    if (fd < 0) {
+        return K_ERR_VICAP_ILLEGAL_PARAM;
+    }
+
     close(fd);
 
     return K_ERR_OK;
@@ -1326,7 +1278,7 @@ k_s32 kd_mpi_sensor_init(k_s32 fd, k_sensor_mode mode)
 {
     k_s32 ret;
 
-    ret = ioctl(fd, KD_IOC_SENSOR_S_INIT, mode);
+    ret = ioctl(fd, KD_IOC_SENSOR_S_INIT, &mode);
     if (ret != 0) {
         pr_err("%s, error(%d)\n", __func__, ret);
         return K_ERR_VICAP_NOT_SUPPORT;
@@ -1835,7 +1787,7 @@ k_s32 kd_mpi_sensor_set_focus_power(k_s32 fd, k_bool power)
 {
     k_s32 ret;
 
-    ret = ioctl(fd, KD_IOC_SENSOR_S_FOCUS_POWER, power);
+    ret = ioctl(fd, KD_IOC_SENSOR_S_FOCUS_POWER, &power);
     if (ret != 0) {
         pr_err("%s, error(%d)\n", __func__, ret);
         return K_ERR_VICAP_NOT_SUPPORT;
@@ -1844,18 +1796,33 @@ k_s32 kd_mpi_sensor_set_focus_power(k_s32 fd, k_bool power)
     return ret;
 }
 
+static k_s32 sensor_adapt_id_append(k_vicap_adapt_id *adapt_id, k_u32 sensor_type)
+{
+    if (adapt_id->adapt_len >= sizeof(adapt_id->adapt_id) / sizeof(adapt_id->adapt_id[0])) {
+        return K_ERR_VICAP_ILLEGAL_PARAM;
+    }
+
+    adapt_id->adapt_id[adapt_id->adapt_len++] = sensor_type;
+    return K_ERR_OK;
+}
+
 k_s32 kd_mpi_adapt_sensor_get(k_vicap_adapt_id *csi0_adapt_id, k_vicap_adapt_id *csi1_adapt_id, k_vicap_adapt_id *csi2_adapt_id)
 {
-    k_s32 i = 0, j = 0;
+    k_s32 i = 0;
     k_s32 ret = 0;
     k_s32 sensor_fd = -1;
     k_u32 chip_id;
     k_vicap_sensor_info sensor_info;
     k_sensor_mode mode;
 
-    csi0_adapt_id->adapt_len = 0;
-    csi1_adapt_id->adapt_len = 0;
-    csi2_adapt_id->adapt_len = 0;
+    if (!csi0_adapt_id || !csi1_adapt_id || !csi2_adapt_id) {
+        pr_err("%s, adapt_id is null\n", __func__);
+        return K_ERR_VICAP_NULL_PTR;
+    }
+
+    memset(csi0_adapt_id, 0, sizeof(*csi0_adapt_id));
+    memset(csi1_adapt_id, 0, sizeof(*csi1_adapt_id));
+    memset(csi2_adapt_id, 0, sizeof(*csi2_adapt_id));
 
     for (i = 0; i != SENSOR_TYPE_MAX; i++) 
     {
@@ -1870,13 +1837,16 @@ k_s32 kd_mpi_adapt_sensor_get(k_vicap_adapt_id *csi0_adapt_id, k_vicap_adapt_id 
        // open sensor 
         sensor_fd = kd_mpi_sensor_open(sensor_info.sensor_name);
         if (sensor_fd < 0) {
-            pr_err("%s, sensor open failed.\n", __func__);
+            pr_debug("%s, sensor %s is not ready.\n", __func__, sensor_info.sensor_name);
+            continue;
         }
 
         mode.sensor_type = sensor_info.sensor_type;
         ret = kd_mpi_sensor_mode_get(sensor_fd, &mode);
         if (ret) {
             pr_err("%s, sensor mode get failed. i is %d \n", __func__, i);
+            kd_mpi_sensor_close(sensor_fd);
+            continue;
         }
 
         // check sensor need mclk
@@ -1900,20 +1870,23 @@ k_s32 kd_mpi_adapt_sensor_get(k_vicap_adapt_id *csi0_adapt_id, k_vicap_adapt_id 
             switch(sensor_info.csi_num)
             {
                 case VICAP_CSI0 :
-                    csi0_adapt_id->adapt_id[csi0_adapt_id->adapt_len] = i;
-                    csi0_adapt_id->adapt_len = csi0_adapt_id->adapt_len + 1;
+                    ret = sensor_adapt_id_append(csi0_adapt_id, i);
                     break;
                 case VICAP_CSI1 :
-                    csi1_adapt_id->adapt_id[csi1_adapt_id->adapt_len] = i;
-                    csi1_adapt_id->adapt_len = csi1_adapt_id->adapt_len + 1;
+                    ret = sensor_adapt_id_append(csi1_adapt_id, i);
                     break;
                 case VICAP_CSI2 :
-                    csi2_adapt_id->adapt_id[csi2_adapt_id->adapt_len] = i;
-                    csi2_adapt_id->adapt_len = csi2_adapt_id->adapt_len + 1;
+                    ret = sensor_adapt_id_append(csi2_adapt_id, i);
                     break;
                 default : 
                     printf("csi num err \n");
                     break;
+            }
+
+            if (ret) {
+                pr_err("%s, adapt list full for csi %d\n", __func__, sensor_info.csi_num);
+                kd_mpi_sensor_close(sensor_fd);
+                return ret;
             }
         }
 
@@ -1959,7 +1932,7 @@ k_s32 kd_mpi_sensor_adapt_get(k_vicap_probe_config *config, k_vicap_sensor_info 
     k_u32 sensor_info_count = 0;
 
     int last_sensor_open_failed = 0;
-    char last_failed_sensor_name[32];
+    char last_failed_sensor_name[32] = {0};
 
     k_vicap_sensor_info info_list[MAX_SENSOR_COUNT];
     k_vicap_sensor_info *p_info_list = NULL;
@@ -1991,10 +1964,16 @@ k_s32 kd_mpi_sensor_adapt_get(k_vicap_probe_config *config, k_vicap_sensor_info 
             // printf("open failed %s\n", p_sensor_info->sensor_name);
 
             last_sensor_open_failed = 1;
-            strncpy(last_failed_sensor_name, p_sensor_info->sensor_name, sizeof(last_failed_sensor_name));
+            strncpy(last_failed_sensor_name, p_sensor_info->sensor_name, sizeof(last_failed_sensor_name) - 1);
+            last_failed_sensor_name[sizeof(last_failed_sensor_name) - 1] = '\0';
             continue;
         }
         kd_mpi_sensor_close(sensor_fd);
+
+        if (sensor_info_count >= MAX_SENSOR_COUNT) {
+            pr_err("%s, sensor info list full (max %d)\n", __func__, MAX_SENSOR_COUNT);
+            break;
+        }
 
         memcpy(&info_list[sensor_info_count], p_sensor_info, sizeof(k_vicap_sensor_info));
         sensor_info_count++;
@@ -2007,7 +1986,7 @@ k_s32 kd_mpi_sensor_adapt_get(k_vicap_probe_config *config, k_vicap_sensor_info 
         /* first find wanted fps */
         if(0x00 != config->fps)
         {
-            for (int i = 0; i < sensor_info_count; i++)
+            for (k_u32 i = 0; i < sensor_info_count; i++)
             {
                 p_info_list = &info_list[i];
 
@@ -2020,7 +1999,7 @@ k_s32 kd_mpi_sensor_adapt_get(k_vicap_probe_config *config, k_vicap_sensor_info 
         }
 
         /* find same resolution */
-        for (int i = 0; i < sensor_info_count; i++)
+        for (k_u32 i = 0; i < sensor_info_count; i++)
         {
             p_info_list = &info_list[i];
 
@@ -2032,7 +2011,7 @@ k_s32 kd_mpi_sensor_adapt_get(k_vicap_probe_config *config, k_vicap_sensor_info 
         }
 
         /* find a bigger resolution */
-        for (int i = 0; i < sensor_info_count; i++)
+        for (k_u32 i = 0; i < sensor_info_count; i++)
         {
             p_info_list = &info_list[i];
 
@@ -2048,7 +2027,7 @@ k_s32 kd_mpi_sensor_adapt_get(k_vicap_probe_config *config, k_vicap_sensor_info 
 
 _on_success:
 
-    strncpy(config->sensor_name, info->sensor_name, sizeof(config->sensor_name));
+    snprintf((char *)config->sensor_name, sizeof(config->sensor_name), "%s", info->sensor_name);
     config->mirror = get_mirror_by_sensor_type(info->sensor_type);
 
     printf("probe sensor type %d, mirror %d\n", info->sensor_type, config->mirror);
@@ -2069,17 +2048,20 @@ k_s32 kd_mpi_sensor_list_mode(const char *sensor_name,
                                k_sensor_mode_list *list)
 {
     k_s32 i;
-    k_vicap_sensor_type sensor_type = SENSOR_TYPE_MAX;
     
+    if (!sensor_name) {
+        pr_err("%s, sensor_name is null\n", __func__);
+        return K_ERR_VICAP_NULL_PTR;
+    }
+
     if (!list) {
         pr_err("%s, list is null\n", __func__);
         return K_ERR_VICAP_NULL_PTR;
     }
     
     memset(list, 0, sizeof(k_sensor_mode_list));
-    // 遍历 sensor_info_list，收集匹配的模式
-    for (i = 0; i < sizeof(sensor_info_list)/sizeof(k_vicap_sensor_info); i++) {
-        if (sensor_info_list[i].sensor_name && strcmp(sensor_info_list[i].sensor_name, sensor_name) == 0) {
+    for (i = 0; sensor_info_list[i].sensor_name; i++) {
+        if (strcmp(sensor_info_list[i].sensor_name, sensor_name) == 0) {
             if (list->count < 6) {
                 list->modes[list->count].width = sensor_info_list[i].width;
                 list->modes[list->count].height = sensor_info_list[i].height;
@@ -2096,4 +2078,3 @@ k_s32 kd_mpi_sensor_list_mode(const char *sensor_name,
             __func__, list->count, sensor_name);
     return 0;
 }
-

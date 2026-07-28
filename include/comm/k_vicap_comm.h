@@ -448,7 +448,7 @@ typedef struct {
     k_u32 buffer_size;
     k_s32 buffer_pool_id; // set to VB_INVALID_POOLID will auto create
     k_vicap_mirror mirror;
-    k_bool fastboot_enable;
+    k_bool fastboot_enable; // @deprecated
 } k_vicap_dev_attr;
 
 /**

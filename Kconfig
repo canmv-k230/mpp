@@ -20,6 +20,18 @@ menu "MPP Configuration"
             default 1 if MPP_DEFAULT_SENSOR_CSI_1
             default 2 if MPP_DEFAULT_SENSOR_CSI_2
 
+        config MPP_ISP_CONFIG_INSTALL_BIN
+            bool "Install binary ISP configurations"
+            default y
+            help
+                Generate and install binary ISP configuration files.
+
+        config MPP_ISP_CONFIG_INSTALL_JSON_XML
+            bool "Install JSON and XML ISP configurations"
+            default y
+            help
+                Install the JSON and XML ISP source configuration files.
+
         comment "Sensor AutoFocus Drivers Configuration"
 
         menuconfig  MPP_ENABLE_SENSOR_AF

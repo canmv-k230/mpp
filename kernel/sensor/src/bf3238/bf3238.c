@@ -48,6 +48,8 @@
 /* Analog gain control */
 
 #define BF3238_MIN_GAIN_STEP    (1.0f/15.0f)
+#define BF3238_POWER_DELAY_MS   CANMV_SENSOR_POWER_RESET_DELAY_MS
+#define BF3238_POWER_STABLE_DELAY_MS  CANMV_SENSOR_POWER_STABLE_DELAY_MS
 
 /* include sensor register configure */
 #include "sensor_reg_table.c"
@@ -122,10 +124,10 @@ static int _sensor_power_state_set(struct sensor_driver_dev *dev, k_s32 on, k_u3
         kd_pin_write(reset_gpio, GPIO_PV_LOW);
         rt_thread_mdelay(delay);
         kd_pin_write(reset_gpio, GPIO_PV_HIGH);
+        rt_thread_mdelay(BF3238_POWER_STABLE_DELAY_MS);
     } else {
         kd_pin_write(reset_gpio, GPIO_PV_LOW);
     }
-    rt_thread_mdelay(20);
 
     return 0;
 }
@@ -137,11 +139,27 @@ static k_s32 sensor_power_impl(void *ctx, k_s32 on)
 
     pr_info("%s enter, %s\n", __func__, dev->sensor_name);
 
-    if (K_FALSE == on) {
+    if (on) {
+        if (dev->power_flag) {
+            dev->init_flag = K_TRUE;
+            return 0;
+        }
+
+        ret = _sensor_power_state_set(dev, K_TRUE, BF3238_POWER_DELAY_MS);
+        if (!ret) {
+            dev->power_flag = K_TRUE;
+            dev->init_flag = K_TRUE;
+        }
+        return ret;
     }
 
-    _sensor_power_state_set(dev, on, 100);
-    dev->init_flag = on;
+    if (dev->power_flag) {
+        ret |= _sensor_power_state_set(dev, K_FALSE, BF3238_POWER_DELAY_MS);
+    }
+
+    dev->power_flag = K_FALSE;
+    dev->init_flag = K_FALSE;
+    dev->mode_init_flag = K_FALSE;
 
     return ret;
 }
@@ -767,6 +785,8 @@ k_s32 sensor_bf3238_probe(struct k_sensor_probe_cfg *cfg, struct sensor_driver_d
     snprintf(dev->sensor_name, sizeof(dev->sensor_name), "bf3238_csi%d", cfg->csi_num);
 
     _sensor_power_state_set(dev, 1, 1);
+    dev->power_flag = K_TRUE;
+    dev->init_flag = K_TRUE;
 
     /* probe different slave address */
     dev->i2c_info.reg_addr_size = SENSOR_REG_VALUE_8BIT;

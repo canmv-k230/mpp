@@ -231,7 +231,19 @@ k_s32 sensor_priv_ioctl(struct sensor_driver_dev *dev, k_u32 cmd, void *args)
                 return -1;
             }
 
+            if (power_on && dev->power_flag) {
+                ret = 0;
+                break;
+            }
+
 			ret = dev->sensor_func.sensor_power(dev, power_on);
+            if (!power_on) {
+                dev->power_flag = K_FALSE;
+                dev->init_flag = K_FALSE;
+                dev->mode_init_flag = K_FALSE;
+            } else if (!ret) {
+                dev->power_flag = K_TRUE;
+            }
 			break;
 		}
         case KD_IOC_SENSOR_S_INIT:
@@ -246,7 +258,18 @@ k_s32 sensor_priv_ioctl(struct sensor_driver_dev *dev, k_u32 cmd, void *args)
                 rt_kprintf("%s:%d lwp_get_from_user err\n", __func__, __LINE__);
                 return -1;
             }
+
+            if (dev->mode_init_flag &&
+                dev->current_sensor_mode.sensor_type == sensor_mode.sensor_type) {
+                ret = 0;
+                break;
+            }
+
+            dev->mode_init_flag = K_FALSE;
 			ret = dev->sensor_func.sensor_init(dev, sensor_mode);
+            if (!ret) {
+                dev->mode_init_flag = K_TRUE;
+            }
 			break;
 		}
         case KD_IOC_SENSOR_G_ID:
@@ -531,8 +554,8 @@ k_s32 sensor_priv_ioctl(struct sensor_driver_dev *dev, k_u32 cmd, void *args)
         {
             k_sensor_intg_time time;
 
-            if (dev->sensor_func.sensor_get_dgain == NULL) {
-                rt_kprintf("%s (%s)sensor_get_dgain is null\n", __func__, dev->sensor_name);
+            if (dev->sensor_func.sensor_get_intg_time == NULL) {
+                rt_kprintf("%s (%s)sensor_get_intg_time is null\n", __func__, dev->sensor_name);
                 return -1;
             }
             if (sizeof(k_sensor_intg_time) != lwp_get_from_user(&time, args, sizeof(k_sensor_intg_time))){
@@ -840,6 +863,7 @@ k_s32 sensor_priv_ioctl(struct sensor_driver_dev *dev, k_u32 cmd, void *args)
                 rt_kprintf("%s (%s)sensor_mirror_set err\n", __func__, dev->sensor_name);
                 return ret;
             }
+            dev->mode_init_flag = K_FALSE;
             break;
         }
         case KD_IOC_SENSOR_S_FOCUS_POINT:
@@ -901,12 +925,20 @@ k_s32 sensor_priv_ioctl(struct sensor_driver_dev *dev, k_u32 cmd, void *args)
 			break;
         }
         case KD_IOC_SENSOR_S_FOCUS_POWER: {
-            int on_off = (int)(long)args;
+            k_bool on_off = K_FALSE;
+            unsigned long raw_arg = (unsigned long)args;
 
             if (dev->sensor_func.sensor_set_focus_power == NULL) {
                 rt_kprintf("%s (%s)sensor_set_focus_power is null\n", __func__, dev->sensor_name);
-				return -1;
-			}
+                return -1;
+            }
+
+            if (raw_arg <= 1) {
+                on_off = raw_arg ? K_TRUE : K_FALSE;
+            } else if (sizeof(on_off) != lwp_get_from_user(&on_off, args, sizeof(on_off))) {
+                rt_kprintf("%s:%d lwp_get_from_user err\n", __func__, __LINE__);
+                return -1;
+            }
 
             ret = dev->sensor_func.sensor_set_focus_power(dev, on_off);
             if (ret) {

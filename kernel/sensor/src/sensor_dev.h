@@ -42,6 +42,14 @@
 #include "k_sensor_comm.h"
 #include "k_vicap_comm.h"
 
+#ifndef CANMV_SENSOR_POWER_RESET_DELAY_MS
+#define CANMV_SENSOR_POWER_RESET_DELAY_MS       (5)
+#endif
+
+#ifndef CANMV_SENSOR_POWER_STABLE_DELAY_MS
+#define CANMV_SENSOR_POWER_STABLE_DELAY_MS      (20)
+#endif
+
 typedef struct {
     k_s32 (*sensor_power) (void *ctx, k_s32 on);
     k_s32 (*sensor_init) (void *ctx, k_sensor_mode mode);
@@ -125,6 +133,8 @@ struct sensor_driver_dev {
 
     /* runtime related */
     k_bool init_flag;                   /**< if set, indicated the driver have init the device */
+    k_bool power_flag;                  /**< if set, indicated the sensor has been powered on */
+    k_bool mode_init_flag;              /**< if set, indicated current_sensor_mode was applied to hardware */
     k_vicap_mirror_mode mirror_setting; /**< sensor mirrot setting, should apply when init sensor */
 
     k_sensor_mode current_sensor_mode;

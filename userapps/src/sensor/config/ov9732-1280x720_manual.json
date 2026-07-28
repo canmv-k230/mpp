@@ -169,7 +169,7 @@
         {
           "class": "CDpf",
           "div": 16,
-          "enable": true,
+          "enable": false,
           "gain": 24,
           "gradient": 2,
           "min": 2.5,

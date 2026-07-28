@@ -49,8 +49,7 @@
 #define IMX335_REG_LPFR 0x3030
 
 /* Chip ID */
-#define IMX355_REG_CHIP_ID		0x0016
-#define IMX355_CHIP_ID			0x0355
+#define IMX335_REG_CHIP_ID 0x3912
 
 /* Exposure control */
 #define IMX335_REG_SHR0_L 0x3058
@@ -81,6 +80,8 @@
 
 /* Input clock rate */
 #define IMX335_INCLK_RATE 24000000
+#define IMX335_POWER_DELAY_MS CANMV_SENSOR_POWER_RESET_DELAY_MS
+#define IMX335_POWER_STABLE_DELAY_MS CANMV_SENSOR_POWER_STABLE_DELAY_MS
 
 /* CSI2 HW configuration */
 #define IMX335_LINK_FREQ 594000000
@@ -115,8 +116,7 @@
 static k_s32 _sensor_read_chip_id_r(struct sensor_driver_dev *dev, k_u32 *chip_id)
 {
     k_s32 ret = 0;
-    k_u16 id_high = 0;
-    k_u16 id_low = 0;
+    k_u16 id = 0;
 
     const k_s32 pwd_gpio = dev->pwd_gpio;
     const k_s32 reset_gpio = dev->reset_gpio;
@@ -134,11 +134,10 @@ static k_s32 _sensor_read_chip_id_r(struct sensor_driver_dev *dev, k_u32 *chip_i
     }
     rt_thread_mdelay(1); // wait reset stable.
 
-    ret = sensor_reg_read(&dev->i2c_info, IMX355_REG_CHIP_ID, &id_high);
-    ret |= sensor_reg_read(&dev->i2c_info, IMX355_REG_CHIP_ID + 1, &id_low);
+    ret = sensor_reg_read(&dev->i2c_info, IMX335_REG_CHIP_ID, &id);
 
     if(chip_id) {
-        *chip_id = (id_high << 8) | id_low;
+        *chip_id = id;
         pr_info("%s chip id 0x%x\n", __func__, *chip_id);
     }
 
@@ -170,10 +169,10 @@ static int _sensor_power_state_set(struct sensor_driver_dev *dev, k_s32 on, k_u3
         kd_pin_write(reset_gpio, GPIO_PV_LOW);
         rt_thread_mdelay(delay);
         kd_pin_write(reset_gpio, GPIO_PV_HIGH);
+        rt_thread_mdelay(IMX335_POWER_STABLE_DELAY_MS);
     } else {
         kd_pin_write(reset_gpio, GPIO_PV_LOW);
     }
-    rt_thread_mdelay(20);
 
     return 0;
 }
@@ -185,8 +184,27 @@ static k_s32 sensor_power_impl(void *ctx, k_s32 on)
 
     pr_info("%s enter, %s\n", __func__, dev->sensor_name);
 
-    _sensor_power_state_set(dev, on, 100);
-    dev->init_flag = on;
+    if (on) {
+        if (dev->power_flag) {
+            dev->init_flag = K_TRUE;
+            return 0;
+        }
+
+        ret = _sensor_power_state_set(dev, K_TRUE, IMX335_POWER_DELAY_MS);
+        if (!ret) {
+            dev->power_flag = K_TRUE;
+            dev->init_flag = K_TRUE;
+        }
+        return ret;
+    }
+
+    if (dev->power_flag) {
+        ret |= _sensor_power_state_set(dev, K_FALSE, IMX335_POWER_DELAY_MS);
+    }
+
+    dev->power_flag = K_FALSE;
+    dev->init_flag = K_FALSE;
+    dev->mode_init_flag = K_FALSE;
 
     return ret;
 }
@@ -305,10 +323,9 @@ static k_s32 sensor_get_chip_id_impl(void *ctx, k_u32 *chip_id)
 
     ret = _sensor_read_chip_id_r(dev, chip_id);
 
-    // if(chip_id && (IMX355_CHIP_ID != *chip_id)) {
-    //     ret = -1;
-    //     pr_err("%s, iic read chip id err \n", __func__);
-    // }
+    if(ret) {
+        pr_err("%s, iic read chip id err \n", __func__);
+    }
 
     return ret;
 }
@@ -830,17 +847,17 @@ k_s32 sensor_imx335_probe(struct k_sensor_probe_cfg *cfg, struct sensor_driver_d
     snprintf(dev->sensor_name, sizeof(dev->sensor_name), "imx335_csi%d", cfg->csi_num);
 
     _sensor_power_state_set(dev, 1, 1);
+    dev->power_flag = K_TRUE;
+    dev->init_flag = K_TRUE;
 
     dev->i2c_info.reg_addr_size = SENSOR_REG_VALUE_16BIT;
     dev->i2c_info.reg_val_size = SENSOR_REG_VALUE_8BIT;
     dev->i2c_info.slave_addr = 0x1A; /* TYS-335-FPC-V1 */
-    if((0x00 != _sensor_read_chip_id_r(dev, &chip_id))/* || (IMX355_CHIP_ID != chip_id) */) {
-        // rt_kprintf("imx335 read chip id failed, 0x%04x\n", chip_id);
+    /* IMX675 shares the I2C address and must be probed before this fallback.
+     * Some supported IMX335 modules do not return the documented ID value. */
+    if(0x00 != _sensor_read_chip_id_r(dev, &chip_id)) {
+        // rt_kprintf("imx335 read chip id failed, 0x%02x\n", chip_id);
         goto _on_failed;
-    }
-
-    if (IMX355_CHIP_ID != chip_id) {
-        rt_kprintf("TODO: imx335 read chip id maybe failed, 0x%04x != 0x%04x\n", IMX355_CHIP_ID, chip_id);
     }
 
     sensor_autofocus_dev_probe(dev);

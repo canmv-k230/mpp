@@ -75,7 +75,7 @@ static const k_sensor_mode sensor_csi1_mode_list[] = {
         .bayer_pattern = BAYER_PAT_RGGB,
         .mipi_info = {
             .csi_id = 0,
-            .mipi_lanes = 4,
+            .mipi_lanes = 2,
             .data_type = 0x1e,
         },
         .reg_list = xs9950_mipi4lane_720p_25fps_linear,

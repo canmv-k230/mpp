@@ -347,11 +347,17 @@ k_s32 kd_mpi_vicap_3d_mode_crtl(k_bool enable);
  * @see K_ERR_CODE_E
  * @note
  */
-k_s32 kd_mpi_vicap_sensor_set_mclk(k_sensor_mclk sensor_mclk);
+static inline k_s32 kd_mpi_vicap_sensor_set_mclk(k_sensor_mclk sensor_mclk)
+{
+    return kd_mpi_vicap_set_mclk((k_vicap_mclk_id)sensor_mclk.id,
+        (k_vicap_mclk_sel)sensor_mclk.mclk_sel, sensor_mclk.mclk_div, K_TRUE);
+}
 
-k_s32 kd_mpi_vicap_sensor_disable_mclk(k_sensor_mclk sensor_mclk);
-
-int kd_mpi_export_vicap_config_to_bin(char *path, char *config_name);
+static inline k_s32 kd_mpi_vicap_sensor_disable_mclk(k_sensor_mclk sensor_mclk)
+{
+    return kd_mpi_vicap_set_mclk((k_vicap_mclk_id)sensor_mclk.id,
+        (k_vicap_mclk_sel)sensor_mclk.mclk_sel, sensor_mclk.mclk_div, K_FALSE);
+}
 
 
 /**

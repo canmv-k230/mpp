@@ -46,6 +46,10 @@
 //#define XS9950_REG_LONG_AGAIN_L    0x350b
 
 #define XS9950_MIN_GAIN_STEP    (1.0f/16.0f)
+/* The legacy XS9950 driver used a 100 ms high/low/high reset sequence.
+ * Short generic camera reset timings leave its MIPI transmitter in LP-11. */
+#define XS9950_POWER_DELAY_MS          100
+#define XS9950_POWER_STABLE_DELAY_MS   3
 
 /* include sensor register configure */
 #include "sensor_reg_table.c"
@@ -120,10 +124,10 @@ static int _sensor_power_state_set(struct sensor_driver_dev *dev, k_s32 on, k_u3
         kd_pin_write(reset_gpio, GPIO_PV_LOW);
         rt_thread_mdelay(delay);
         kd_pin_write(reset_gpio, GPIO_PV_HIGH);
+        rt_thread_mdelay(XS9950_POWER_STABLE_DELAY_MS);
     } else {
         kd_pin_write(reset_gpio, GPIO_PV_LOW);
     }
-    rt_thread_mdelay(20);
 
     return 0;
 }
@@ -135,18 +139,33 @@ static k_s32 sensor_power_impl(void *ctx, k_s32 on)
 
     pr_info("%s enter, %s\n", __func__, dev->sensor_name);
 
-    if (K_FALSE == on) {
+    if (on) {
+        if (dev->power_flag) {
+            dev->init_flag = K_TRUE;
+            return 0;
+        }
+
+        ret = _sensor_power_state_set(dev, K_TRUE, XS9950_POWER_DELAY_MS);
+        if (!ret) {
+            dev->power_flag = K_TRUE;
+            dev->init_flag = K_TRUE;
+        }
+        return ret;
     }
 
-    _sensor_power_state_set(dev, on, 100);
-    dev->init_flag = on;
+    if (dev->power_flag) {
+        ret |= _sensor_power_state_set(dev, K_FALSE, XS9950_POWER_DELAY_MS);
+    }
+
+    dev->power_flag = K_FALSE;
+    dev->init_flag = K_FALSE;
+    dev->mode_init_flag = K_FALSE;
 
     return ret;
 }
 
 static k_s32 sensor_init_impl(void *ctx, k_sensor_mode mode)
 {
-    k_s32 i = 0;
     k_s32 ret = 0;
 
     struct sensor_driver_dev *dev = ctx;
@@ -173,14 +192,16 @@ static k_s32 sensor_init_impl(void *ctx, k_sensor_mode mode)
 
     // write sensor reg 
     ret = sensor_reg_list_write(&dev->i2c_info, current_mode->reg_list);
+    if (ret) {
+        pr_err("%s register initialization failed, ret=%d\n",
+               dev->sensor_name, ret);
+        return ret;
+    }
 
     current_mode->sensor_again = 0;
     current_mode->et_line = 0;
 
-    k_u16 again_h;
-    k_u16 again_l;
-    k_u16 exp_time_h, exp_time_l;
-    k_u16 exp_time;
+    k_u16 exp_time = 0;
     float again = 0, dgain = 0;
 
     // ret = sensor_reg_read(&dev->i2c_info, XS9950_REG_LONG_AGAIN, &again_h);
@@ -195,8 +216,6 @@ static k_s32 sensor_init_impl(void *ctx, k_sensor_mode mode)
 
     // ret = sensor_reg_read(&dev->i2c_info, XS9950_REG_LONG_EXP_TIME_H, &exp_time_h);
     // ret = sensor_reg_read(&dev->i2c_info, XS9950_REG_LONG_EXP_TIME_L, &exp_time_l);
-    exp_time = (exp_time_h << 4) | ((exp_time_l >> 4) & 0x0F);
-
     current_mode->ae_info.cur_integration_time = exp_time * current_mode->ae_info.one_line_exp_time;
 
     dev->init_flag = K_TRUE;
@@ -728,7 +747,9 @@ k_s32 sensor_xs9950_probe(struct k_sensor_probe_cfg *cfg, struct sensor_driver_d
     /** NEW SENSOR MODIFY START */
     snprintf(dev->sensor_name, sizeof(dev->sensor_name), "xs9950_csi%d", cfg->csi_num);
 
-    _sensor_power_state_set(dev, 1, 1);
+    _sensor_power_state_set(dev, K_TRUE, XS9950_POWER_DELAY_MS);
+    dev->power_flag = K_TRUE;
+    dev->init_flag = K_TRUE;
 
     /* probe different slave address */
     dev->i2c_info.reg_addr_size = SENSOR_REG_VALUE_16BIT;

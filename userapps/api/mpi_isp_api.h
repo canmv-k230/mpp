@@ -35,7 +35,6 @@
 
 #include "k_type.h"
 #include "k_isp_comm.h"
-#include <stdio.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -84,7 +83,7 @@ k_s32 kd_mpi_isp_set_chn_attr(k_isp_dev dev_num, k_isp_chn chn_num, k_isp_chn_at
  * @note Before call the API, need to set the device & channel attribute.
  *
  */
-k_s32 kd_mpi_isp_init(k_isp_dev dev_num, int fastboot, void *database);
+k_s32 kd_mpi_isp_init(k_isp_dev dev_num, void *database);
 
 /**
  * @brief Deinit ISP
@@ -97,7 +96,7 @@ k_s32 kd_mpi_isp_init(k_isp_dev dev_num, int fastboot, void *database);
  * @note
  *
  */
- k_s32 kd_mpi_isp_deinit(k_isp_dev dev_num, int fastboot);
+ k_s32 kd_mpi_isp_deinit(k_isp_dev dev_num);
 
 /**
  * @brief Connect of the the ISP
@@ -283,7 +282,6 @@ k_s32 kd_mpi_isp_ae_set_roi_by_chn(k_isp_dev dev_num, k_isp_chn chn_num, k_isp_a
  */
 k_s32 kd_mpi_isp_load_image(k_isp_dev dev_num, const void *image_data, k_u32 data_len);
 
-k_s32 kd_mpi_isp_dump_register(k_isp_dev dev_num, FILE* file);
 
 int kd_mpi_isp_tuning(char* command, k_u32 command_size, char** response, k_u32* response_size);
 
