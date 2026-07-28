@@ -669,15 +669,15 @@ static const struct panel_desc st7701_480x640_panel_desc = {
     .bus_type = PANEL_BUS_DSI,
 
     .timing = {
-        .pclk_khz = 21300,
+        .pclk_khz = 24750,
         .hactive = 480,
-        .hsync_len = 6,
-        .hback_porch = 10,
-        .hfront_porch = 20,
+        .hsync_len = 25,
+        .hback_porch = 50,
+        .hfront_porch = 25,
         .vactive = 640,
-        .vsync_len = 8,
-        .vback_porch = 20,
-        .vfront_porch = 20,
+        .vsync_len = 17,
+        .vback_porch = 26,
+        .vfront_porch = 28,
     },
 
     .bg_color = PANEL_BG_COLOR_BLACK,
