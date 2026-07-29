@@ -77,7 +77,7 @@ H264LiveFrameSource::parseFrame(std::shared_ptr<uint8_t> data, size_t data_size,
             char *pps_base64 = base64Encode((char*)fPps.get(), pps_size);
 
             std::ostringstream os;
-            os << "profile-level-id=" << std::hex << std::setw(6) << profile_level_id;
+            os << "packetization-mode=1;profile-level-id=" << std::hex << std::setw(6) << profile_level_id;
             os << ";sprop-parameter-sets=" << sps_base64 << "," << pps_base64 << ";";
             fAuxLine.assign(os.str());
 

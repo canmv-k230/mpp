@@ -53,7 +53,8 @@ void LiveFrameSource::pushData(const uint8_t *data, size_t data_size, uint64_t t
     if (fRawDataQueue.size() >= fQueueSize / 2) {
         std::cout << "LiveFrameSource raw queue depth " << fRawDataQueue.size() << "/"
                   << fQueueSize << ", raw_drop " << fRawDropCount.load()
-                  << ", packet_drop " << fPacketDropCount.load() << std::endl;
+                  << ", active_drop " << fPacketDropCount.load()
+                  << ", idle_drop " << fIdleDropCount.load() << std::endl;
     }
     lck.unlock();
     fCondRaw.notify_one();
@@ -106,15 +107,21 @@ void LiveFrameSource::dropOldestAccessUnitLocked() {
         return;
     }
     uint64_t drop_id = fFramePacketQueue.front().access_unit_id_;
+    bool consumer_active = fConsumerActive.load();
     do {
         fFramePacketQueue.pop_front();
-        fPacketDropCount++;
+        if (consumer_active) {
+            fPacketDropCount++;
+        } else {
+            fIdleDropCount++;
+        }
     } while (!fFramePacketQueue.empty() && fFramePacketQueue.front().access_unit_id_ == drop_id);
 }
 
 void LiveFrameSource::queueFramePackets(std::list<LiveFrameSource::FramePacket> &packets) {
     std::unique_lock<std::mutex> lck(fMutex);
-    while (!fFramePacketQueue.empty() && fFramePacketQueue.size() + packets.size() > fQueueSize) {
+    size_t queue_limit = fConsumerActive.load() ? fQueueSize : (fQueueSize < 16 ? fQueueSize : 16);
+    while (!fFramePacketQueue.empty() && fFramePacketQueue.size() + packets.size() > queue_limit) {
         dropOldestAccessUnitLocked();
     }
     fFramePacketQueue.splice(fFramePacketQueue.end(), packets);
@@ -127,11 +134,21 @@ void LiveFrameSource::queueFramePackets(std::list<LiveFrameSource::FramePacket> 
     envir().taskScheduler().triggerEvent(fEventTriggerId, this);
 }
 
- void LiveFrameSource::doGetNextFrame() {
-    deliverFrame();
- }
+void LiveFrameSource::doGetNextFrame() {
+    fConsumerActive.store(true);
+    // Do not deliver synchronously from the RTSP PLAY call stack.  A queued
+    // source can otherwise fill the interleaved TCP window before live555 has
+    // sent the PLAY response, while clients wait for that response before
+    // reading RTP.  Deferring by one scheduler turn also prevents recursive
+    // draining of the queue.
+    if (nextTask() == nullptr) {
+        nextTask() = envir().taskScheduler().scheduleDelayedTask(
+            0, deliverFrameFromTask, this);
+    }
+}
 
 void LiveFrameSource::doStopGettingFrames() {
+    fConsumerActive.store(false);
     FramedSource::doStopGettingFrames();
 }
 
@@ -199,7 +216,17 @@ struct timeval LiveFrameSource::presentationTimeFor(uint64_t timestamp) {
 
 
 void LiveFrameSource::deliverFrame0(void *clientData) {
-    ((LiveFrameSource*)clientData)->deliverFrame();
+    LiveFrameSource *source = (LiveFrameSource*)clientData;
+    if (source->nextTask() != nullptr) {
+        source->envir().taskScheduler().unscheduleDelayedTask(source->nextTask());
+    }
+    source->deliverFrame();
+}
+
+void LiveFrameSource::deliverFrameFromTask(void *clientData) {
+    LiveFrameSource *source = (LiveFrameSource*)clientData;
+    source->nextTask() = nullptr;
+    source->deliverFrame();
 }
 
 void LiveFrameSource::deliverFrame() {
@@ -232,7 +259,8 @@ void LiveFrameSource::deliverFrame() {
             if (fDeliverCount % 300 == 0) {
                 std::cout << "LiveFrameSource stats delivered " << fDeliverCount.load()
                           << ", raw_drop " << fRawDropCount.load()
-                          << ", packet_drop " << fPacketDropCount.load()
+                          << ", active_drop " << fPacketDropCount.load()
+                          << ", idle_drop " << fIdleDropCount.load()
                           << ", max_raw_depth " << fMaxRawDepth.load()
                           << ", max_packet_depth " << fMaxPacketDepth.load() << std::endl;
             }

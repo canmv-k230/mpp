@@ -180,12 +180,9 @@ void GenericMediaServer::cleanup() {
 int GenericMediaServer::setUpOurSocket(UsageEnvironment& env, Port& ourPort, int domain) {
   int ourSocket = -1;
     do {
-    // The following statement is enabled by default.
-    // Don't disable it (by defining ALLOW_SERVER_PORT_REUSE) unless you know what you're doing.
-#if !defined(ALLOW_SERVER_PORT_REUSE) && !defined(ALLOW_RTSP_SERVER_PORT_REUSE)
-    // ALLOW_RTSP_SERVER_PORT_REUSE is for backwards-compatibility #####
-    NoReuse dummy(env); // Don't use this socket if there's already a local server using it
-#endif
+    // Keep SO_REUSEADDR enabled.  On lwIP this skips stale TIME_WAIT PCBs
+    // after an RTSP restart, while tcp_listen() still rejects a second live
+    // listener on the same address and port.
     ourSocket = setupStreamSocket(env, ourPort, domain, True, True);
         // later fix to support IPv6
     if (ourSocket < 0) break;

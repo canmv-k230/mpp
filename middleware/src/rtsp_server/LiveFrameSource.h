@@ -58,6 +58,7 @@ class LiveFrameSource : public FramedSource {
       return 2 * 1024 * 1024;
     }
     static void deliverFrame0(void *clientData);
+    static void deliverFrameFromTask(void *clientData);
     void deliverFrame();
 
     int getFrame();
@@ -81,9 +82,11 @@ class LiveFrameSource : public FramedSource {
     std::atomic<bool> fNeedReadFrame{true};
     std::atomic<unsigned long long> fRawDropCount{0};
     std::atomic<unsigned long long> fPacketDropCount{0};
+    std::atomic<unsigned long long> fIdleDropCount{0};
     std::atomic<unsigned long long> fDeliverCount{0};
     std::atomic<size_t> fMaxRawDepth{0};
     std::atomic<size_t> fMaxPacketDepth{0};
+    std::atomic<bool> fConsumerActive{false};
     uint64_t fNextAccessUnitId{0};
     bool fHaveTimestampBase{false};
     uint64_t fTimestampBaseInput{0};

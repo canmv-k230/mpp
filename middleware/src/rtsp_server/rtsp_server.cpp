@@ -47,7 +47,10 @@ static std::mutex session_info_map_mutex_;
 static std::map<std::string, SessionInfo> session_info_map_;
 typedef std::map<std::string, std::string> SessionUrlMap;
 static SessionUrlMap session_url_map_;
-static constexpr size_t kRtspVideoQueueSize = 16;
+// At 60 fps, 64 access units cover transient TCP/Wi-Fi backpressure without
+// adding an unbounded live-stream delay. LiveFrameSource keeps the idle queue
+// capped at 16 until a player starts consuming it.
+static constexpr size_t kRtspVideoQueueSize = 64;
 static constexpr size_t kRtspAudioQueueSize = 64;
 
 void OnBackChannel::OnData(unsigned char const* data, unsigned size, struct timeval presentationTime) {
@@ -92,13 +95,29 @@ class KdRtspServer::Impl {
 };
 
 int KdRtspServer::Impl::Init(Port port, IOnBackChannel *back_channel) {
+    if (rtspServer_) {
+        return 0;
+    }
+
     scheduler_ = BasicTaskScheduler::createNew();
+    if (!scheduler_) {
+        return -1;
+    }
     env_ = BasicUsageEnvironment::createNew(*scheduler_);
+    if (!env_) {
+        delete scheduler_;
+        scheduler_ = nullptr;
+        return -1;
+    }
     UserAuthenticationDatabase* authDB = nullptr;
-    unsigned reclamationSeconds = 10;
+    unsigned reclamationSeconds = 65;
     rtspServer_ = RTSPServer::createNew(*env_, port, authDB, reclamationSeconds);
     if (!rtspServer_) {
         *env_ << "create rtsp server failed." << env_->getResultMsg() << "\n";
+        env_->reclaim();
+        delete scheduler_;
+        env_ = nullptr;
+        scheduler_ = nullptr;
         return -1;
     }
     back_channel_ = back_channel;
@@ -106,18 +125,31 @@ int KdRtspServer::Impl::Init(Port port, IOnBackChannel *back_channel) {
 }
 
 void KdRtspServer::Impl::DeInit() {
+    if (!env_ && !scheduler_ && !rtspServer_) {
+        return;
+    }
+
     Stop();
     if (rtspServer_) {
-      Medium::close(rtspServer_);
-      env_->reclaim();
-      delete scheduler_;
-      env_ = nullptr;
-      scheduler_ = nullptr;
-      rtspServer_ = nullptr;
+        Medium::close(rtspServer_);
+        rtspServer_ = nullptr;
     }
+    if (env_) {
+        env_->reclaim();
+        env_ = nullptr;
+    }
+    if (scheduler_) {
+        delete scheduler_;
+        scheduler_ = nullptr;
+    }
+    back_channel_ = nullptr;
 }
 
 int KdRtspServer::Impl::CreateSession(const std::string &session_name, const SessionAttr &session_attr) {
+    if (!env_ || !rtspServer_) {
+        return -1;
+    }
+
     std::unique_lock<std::mutex> lck(session_info_map_mutex_);
     if (session_info_map_.count(session_name)) {
         *env_ << "stream session has already been created\n";
@@ -236,6 +268,10 @@ char* KdRtspServer::Impl::GetRtspUrl(const std::string &session_name) {
 }
 
 void KdRtspServer::Impl::Start() {
+    if (!env_ || !rtspServer_) {
+        return;
+    }
+
     if (server_loop_.joinable()) {
         return;
     }
@@ -254,6 +290,10 @@ void KdRtspServer::Impl::Start() {
 }
 
 void KdRtspServer::Impl::Stop() {
+    if (!env_ || !rtspServer_) {
+        return;
+    }
+
     if(server_loop_.joinable()) {
       watchVariable_ = 1;
       server_loop_.join();

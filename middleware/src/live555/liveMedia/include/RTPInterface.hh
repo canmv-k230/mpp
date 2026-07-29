@@ -92,14 +92,14 @@ private:
   Boolean sendRTPorRTCPPacketOverTCP(unsigned char* packet, unsigned packetSize,
 				     int socketNum, unsigned char streamChannelId,
 				     TLSState* tlsState);
-  Boolean sendDataOverTCP(int socketNum, TLSState* tlsState,
-			  u_int8_t const* data, unsigned dataSize, Boolean forceSendToSucceed);
 
 private:
   friend class SocketDescriptor;
   Medium* fOwner;
   Groupsock* fGS;
   class tcpStreamRecord* fTCPStreams; // optional, for RTP-over-TCP streaming/receiving
+  u_int8_t* fTCPWriteBuffer;
+  unsigned fTCPWriteBufferSize;
 
   unsigned short fNextTCPReadSize;
     // how much data (if any) is available to be read from the TCP stream

@@ -68,6 +68,7 @@ public:
 			    RTPInterface* rtpInterface);
   RTPInterface* lookupRTPInterface(unsigned char streamChannelId);
   void deregisterRTPInterface(unsigned char streamChannelId);
+  Boolean sendInterleavedFrame(u_int8_t const* data, unsigned dataSize);
 
   void setServerRequestAlternativeByteHandler(ServerRequestAlternativeByteHandler* handler, void* clientData) {
     fServerRequestAlternativeByteHandler = handler;
@@ -77,6 +78,9 @@ public:
 private:
   static void tcpReadHandler(SocketDescriptor*, int mask);
   Boolean tcpReadHandler1(int mask);
+  Boolean flushPendingWrite();
+  void updateBackgroundHandling();
+  void handleWriteError(int sendResult, int errorNumber);
 
 private:
   UsageEnvironment& fEnv;
@@ -87,6 +91,8 @@ private:
   void* fServerRequestAlternativeByteHandlerClientData;
   u_int8_t fStreamChannelId, fSizeByte1;
   Boolean fReadErrorOccurred, fDeleteMyselfNext, fAreInReadHandlerLoop;
+  u_int8_t* fPendingWrite;
+  unsigned fPendingWriteSize, fPendingWriteOffset, fNumDroppedFrames;
   enum { AWAITING_DOLLAR, AWAITING_STREAM_CHANNEL_ID, AWAITING_SIZE1, AWAITING_SIZE2, AWAITING_PACKET_DATA } fTCPReadingState;
 };
 
@@ -133,7 +139,7 @@ static void removeSocketDescription(UsageEnvironment& env, int sockNum) {
 
 RTPInterface::RTPInterface(Medium* owner, Groupsock* gs)
   : fOwner(owner), fGS(gs),
-    fTCPStreams(NULL),
+    fTCPStreams(NULL), fTCPWriteBuffer(NULL), fTCPWriteBufferSize(0),
     fNextTCPReadSize(0), fNextTCPReadStreamSocketNum(-1),
     fNextTCPReadStreamChannelId(0xFF), fNextTCPReadTLSState(NULL), fReadHandlerProc(NULL),
     fAuxReadHandlerFunc(NULL), fAuxReadHandlerClientData(NULL) {
@@ -149,6 +155,7 @@ RTPInterface::RTPInterface(Medium* owner, Groupsock* gs)
 RTPInterface::~RTPInterface() {
   stopNetworkReading();
   delete fTCPStreams;
+  delete[] fTCPWriteBuffer;
 }
 
 void RTPInterface::setStreamSocket(int sockNum, unsigned char streamChannelId,
@@ -345,155 +352,106 @@ void RTPInterface::stopNetworkReading() {
 Boolean RTPInterface::sendRTPorRTCPPacketOverTCP(u_int8_t* packet, unsigned packetSize,
 						 int socketNum, unsigned char streamChannelId,
 						 TLSState* tlsState) {
-//printf("sendRTPorRTCPPacketOverTCP before,socknum:%d\n",socketNum);
-
 #ifdef DEBUG_SEND
   fprintf(stderr, "sendRTPorRTCPPacketOverTCP: %d bytes over channel %d (socket %d)\n",
 	  packetSize, streamChannelId, socketNum); fflush(stderr);
 #endif
-  // Send a RTP/RTCP packet over TCP, using the encoding defined in RFC 2326, section 10.12:
-  //     $<streamChannelId><packetSize><packet>
-  // (If the initial "send()" of '$<streamChannelId><packetSize>' succeeds, then we force
-  // the subsequent "send()" for the <packet> data to succeed, even if we have to do so with
-  // a blocking "send()".)
-  do {
-    u_int8_t framingHeader[4];
-    framingHeader[0] = '$';
-    framingHeader[1] = streamChannelId;
-    framingHeader[2] = (u_int8_t) ((packetSize&0xFF00)>>8);
-    framingHeader[3] = (u_int8_t) (packetSize&0xFF);
-    if (!sendDataOverTCP(socketNum, tlsState, framingHeader, 4,True))
-    {
-      printf("=========sendDataOverTCP 0 failed\n");
-      break;
-    }
+  // Send the interleaved header and RTP/RTCP payload as one write. This lets
+  // SocketDescriptor safely drop a complete packet when the TCP send buffer
+  // is full, or defer the remainder when lwIP accepts only a partial write.
+  if (packetSize > 0xFFFF) return False;
 
-    if (!sendDataOverTCP(socketNum, tlsState, packet, packetSize, True))
-    {
-      printf("=========sendDataOverTCP 1 failed\n");
-      break;
-    }
+  unsigned framedPacketSize = packetSize + 4;
+  if (fTCPWriteBufferSize < framedPacketSize) {
+    delete[] fTCPWriteBuffer;
+    fTCPWriteBuffer = new u_int8_t[framedPacketSize];
+    fTCPWriteBufferSize = framedPacketSize;
+  }
+
+  fTCPWriteBuffer[0] = '$';
+  fTCPWriteBuffer[1] = streamChannelId;
+  fTCPWriteBuffer[2] = (u_int8_t)((packetSize & 0xFF00) >> 8);
+  fTCPWriteBuffer[3] = (u_int8_t)(packetSize & 0xFF);
+  memmove(&fTCPWriteBuffer[4], packet, packetSize);
+
+  SocketDescriptor* socketDescriptor
+    = lookupSocketDescriptor(envir(), socketNum, tlsState, False);
+  if (socketDescriptor != NULL
+      && socketDescriptor->sendInterleavedFrame(fTCPWriteBuffer, framedPacketSize)) {
 
 #ifdef DEBUG_SEND
     fprintf(stderr, "sendRTPorRTCPPacketOverTCP: completed\n"); fflush(stderr);
 #endif
-    //printf("sendRTPorRTCPPacketOverTCP end0\n");
     return True;
-  } while (0);
+  }
 
 #ifdef DEBUG_SEND
   fprintf(stderr, "sendRTPorRTCPPacketOverTCP: failed! (errno %d)\n", envir().getErrno()); fflush(stderr);
 #endif
 
-  printf("sendRTPorRTCPPacketOverTCP end1\n");
   return False;
 }
 
-#ifndef RTPINTERFACE_BLOCKING_WRITE_TIMEOUT_MS
-#define RTPINTERFACE_BLOCKING_WRITE_TIMEOUT_MS 500
-#endif
+Boolean SocketDescriptor::sendInterleavedFrame(u_int8_t const* data,
+					       unsigned dataSize) {
+  // A previous interleaved frame was only partially accepted. The remainder
+  // must stay next in the TCP byte stream, so drop this complete RTP/RTCP
+  // packet and let the writable-socket callback finish the previous one.
+  if (fPendingWrite != NULL) {
+    ++fNumDroppedFrames;
+    return True;
+  }
 
-#if 0
-Boolean RTPInterface::sendDataOverTCP_ex(int socketNum, TLSState* tlsState,
-				      u_int8_t const* data, unsigned dataSize,
-				      Boolean forceSendToSucceed) {
-  int sendResult = (tlsState != NULL && tlsState->isNeeded)
-    ? tlsState->write((char const*)data, dataSize)
-    : send(socketNum, (char const*)data, dataSize, 0/*flags*/);
-  if (sendResult < (int)dataSize) {
-    // The TCP send() failed - at least partially.
+  int sendResult;
+  do {
+    sendResult = (fTLSState != NULL && fTLSState->isNeeded)
+      ? fTLSState->write((char const*)data, dataSize)
+      : send(fOurSocketNum, (char const*)data, dataSize, 0/*flags*/);
+  } while (sendResult < 0 && fEnv.getErrno() == EINTR);
 
-    unsigned numBytesSentSoFar = sendResult < 0 ? 0 : (unsigned)sendResult;
-    if (numBytesSentSoFar > 0 || (forceSendToSucceed && envir().getErrno() == EAGAIN)) {
-      // The OS's TCP send buffer has filled up (because the stream's bitrate has exceeded
-      // the capacity of the TCP connection!).
-      // Force this data write to succeed, by blocking if necessary until it does:
-      unsigned numBytesRemainingToSend = dataSize - numBytesSentSoFar;
-#ifdef DEBUG_SEND
-      fprintf(stderr, "sendDataOverTCP: resending %d-byte send (blocking)\n", numBytesRemainingToSend); fflush(stderr);
-#endif
-      makeSocketBlocking(socketNum, RTPINTERFACE_BLOCKING_WRITE_TIMEOUT_MS);
-      sendResult = (tlsState != NULL && tlsState->isNeeded)
-	? tlsState->write((char const*)(&data[numBytesSentSoFar]), numBytesRemainingToSend)
-	: send(socketNum, (char const*)(&data[numBytesSentSoFar]), numBytesRemainingToSend, 0/*flags*/);
-      makeSocketNonBlocking(socketNum);
-      if ((unsigned)sendResult != numBytesRemainingToSend) {
-	// The blocking "send()" failed, or timed out.  In either case, we assume that the
-	// TCP connection has failed (or is 'hanging' indefinitely), and we stop using it
-	// (for both RTP and RTP).
-	// (If we kept using the socket here, the RTP or RTCP packet write would be in an
-	//  incomplete, inconsistent state.)
-#ifdef DEBUG_SEND
-	fprintf(stderr, "sendDataOverTCP: blocking send() failed (delivering %d bytes out of %d); closing socket %d\n", sendResult, numBytesRemainingToSend, socketNum); fflush(stderr);
-#endif
-	removeStreamSocket(socketNum, 0xFF);
-	return False;
-      }
+  if (sendResult == (int)dataSize) return True;
 
+  int const errorNumber = fEnv.getErrno();
+  if (sendResult < 0) {
+    if (errorNumber == EAGAIN || errorNumber == EWOULDBLOCK) {
+      // No byte was accepted, so dropping this complete interleaved frame is
+      // equivalent to normal RTP packet loss and cannot desynchronize RTSP.
       return True;
-    } else if (sendResult < 0 && envir().getErrno() != EAGAIN) {
-      // Because the "send()" call failed, assume that the socket is now unusable, so stop
-      // using it (for both RTP and RTCP):
-      removeStreamSocket(socketNum, 0xFF);
     }
-
+    handleWriteError(sendResult, errorNumber);
     return False;
   }
 
-  return True;
-}
-#endif
-
-static int loopsend(int sock, u_int8_t const* buf, unsigned int sndsize)
-{
-  int remian = sndsize;
-  int sendlen = 0;
-  int ret = 0;
-  while(remian > 0)
-  {
-    ret=send(sock,buf+sendlen,remian,0);
-    if(ret <= 0)
-    {
-      printf("ret = %d\n",ret);
-      return ret;
-    }
-    sendlen += ret;
-    remian -= ret;
+  if (sendResult == 0) {
+    handleWriteError(sendResult, errorNumber);
+    return False;
   }
-  return sndsize;
-}
-Boolean RTPInterface::sendDataOverTCP(int socketNum, TLSState* tlsState,
-				      u_int8_t const* data, unsigned dataSize,
-				      Boolean forceSendToSucceed)
-{
-  //printf("==========loopsend size before:%d,socknumber:%d\n",dataSize,socketNum);
-   makeSocketBlocking(socketNum,500);
-  int sendSuccess = loopsend(socketNum,data,dataSize);
-  makeSocketNonBlocking(socketNum);
-    if(sendSuccess == dataSize)
-    {
-     // printf("==========loopsend size end:%d\n",dataSize);
-      return True;
-    }
-    else
-    {
-      printf("send false...........\n");
-      return False;
-    }
 
-    return True;
+  // lwIP nonblocking send() may accept only the current tcp_sndbuf space.
+  // Keep the unsent tail and finish it when select() reports the socket
+  // writable. Blocking here would stop the live555 event loop from reading
+  // ACK-driven socket state and servicing other clients.
+  fPendingWriteSize = dataSize - (unsigned)sendResult;
+  fPendingWriteOffset = 0;
+  fPendingWrite = new u_int8_t[fPendingWriteSize];
+  memmove(fPendingWrite, &data[sendResult], fPendingWriteSize);
+  updateBackgroundHandling();
+  return True;
 }
 
 SocketDescriptor::SocketDescriptor(UsageEnvironment& env, int socketNum, TLSState* tlsState)
   : fEnv(env), fOurSocketNum(socketNum), fTLSState(tlsState),
     fSubChannelHashTable(HashTable::create(ONE_WORD_HASH_KEYS)),
    fServerRequestAlternativeByteHandler(NULL), fServerRequestAlternativeByteHandlerClientData(NULL),
-   fReadErrorOccurred(False), fDeleteMyselfNext(False), fAreInReadHandlerLoop(False), fTCPReadingState(AWAITING_DOLLAR) {
+   fReadErrorOccurred(False), fDeleteMyselfNext(False), fAreInReadHandlerLoop(False),
+   fPendingWrite(NULL), fPendingWriteSize(0), fPendingWriteOffset(0), fNumDroppedFrames(0),
+   fTCPReadingState(AWAITING_DOLLAR) {
 }
 
 SocketDescriptor::~SocketDescriptor() {
   fEnv.taskScheduler().turnOffBackgroundReadHandling(fOurSocketNum);
   removeSocketDescription(fEnv, fOurSocketNum);
+  delete[] fPendingWrite;
 
   if (fSubChannelHashTable != NULL) {
     // Remove knowledge of this socket from any "RTPInterface"s that are using it:
@@ -534,12 +492,72 @@ void SocketDescriptor::registerRTPInterface(unsigned char streamChannelId,
 			    rtpInterface);
 
   if (isFirstRegistration) {
-    // Arrange to handle reads on this TCP socket:
-    TaskScheduler::BackgroundHandlerProc* handler
-      = (TaskScheduler::BackgroundHandlerProc*)&tcpReadHandler;
-    fEnv.taskScheduler().
-      setBackgroundHandling(fOurSocketNum, SOCKET_READABLE|SOCKET_EXCEPTION, handler, this);
+    updateBackgroundHandling();
   }
+}
+
+void SocketDescriptor::updateBackgroundHandling() {
+  if (fSubChannelHashTable->IsEmpty()) {
+    fEnv.taskScheduler().disableBackgroundHandling(fOurSocketNum);
+    return;
+  }
+
+  TaskScheduler::BackgroundHandlerProc* handler
+    = (TaskScheduler::BackgroundHandlerProc*)&tcpReadHandler;
+  // While an interleaved frame is incomplete, do not read RTSP commands that
+  // could produce a response in the middle of that frame. Resume reads after
+  // the pending tail has been written.
+  int conditionSet = SOCKET_EXCEPTION
+    | (fPendingWrite == NULL ? SOCKET_READABLE : SOCKET_WRITABLE);
+  fEnv.taskScheduler().setBackgroundHandling(fOurSocketNum, conditionSet,
+					      handler, this);
+}
+
+Boolean SocketDescriptor::flushPendingWrite() {
+  while (fPendingWrite != NULL) {
+    unsigned const bytesRemaining = fPendingWriteSize - fPendingWriteOffset;
+    int sendResult = (fTLSState != NULL && fTLSState->isNeeded)
+      ? fTLSState->write((char const*)&fPendingWrite[fPendingWriteOffset], bytesRemaining)
+      : send(fOurSocketNum, (char const*)&fPendingWrite[fPendingWriteOffset],
+	     bytesRemaining, 0/*flags*/);
+
+    if (sendResult > 0) {
+      fPendingWriteOffset += (unsigned)sendResult;
+      if (fPendingWriteOffset < fPendingWriteSize) continue;
+
+      delete[] fPendingWrite;
+      fPendingWrite = NULL;
+      fPendingWriteSize = fPendingWriteOffset = 0;
+#ifdef DEBUG_SEND
+      if (fNumDroppedFrames > 0) {
+	fprintf(stderr, "SocketDescriptor(socket %d): resumed TCP output after dropping %u packets\n",
+		fOurSocketNum, fNumDroppedFrames);
+      }
+#endif
+      fNumDroppedFrames = 0;
+      updateBackgroundHandling();
+      return True;
+    }
+
+    int const errorNumber = fEnv.getErrno();
+    if (sendResult < 0 && errorNumber == EINTR) continue;
+    if (sendResult < 0
+	&& (errorNumber == EAGAIN || errorNumber == EWOULDBLOCK)) return True;
+
+    handleWriteError(sendResult, errorNumber);
+    return False;
+  }
+
+  return True;
+}
+
+void SocketDescriptor::handleWriteError(int sendResult, int errorNumber) {
+  fEnv << "RTP-over-TCP write failed on socket " << fOurSocketNum
+       << " (result " << sendResult << ", errno " << errorNumber
+       << "); closing the RTSP connection\n";
+  fReadErrorOccurred = True;
+  fDeleteMyselfNext = True;
+  shutdown(fOurSocketNum, SHUT_RDWR);
 }
 
 RTPInterface* SocketDescriptor
@@ -566,10 +584,21 @@ void SocketDescriptor
 }
 
 void SocketDescriptor::tcpReadHandler(SocketDescriptor* socketDescriptor, int mask) {
-  // Call the read handler until it returns false, with a limit to avoid starving other sockets
-  unsigned count = 2000;
   socketDescriptor->fAreInReadHandlerLoop = True;
-  while (!socketDescriptor->fDeleteMyselfNext && socketDescriptor->tcpReadHandler1(mask) && --count > 0) {}
+
+  if ((mask & SOCKET_WRITABLE) != 0) {
+    socketDescriptor->flushPendingWrite();
+  }
+
+  if (!socketDescriptor->fDeleteMyselfNext
+      && (mask & (SOCKET_READABLE|SOCKET_EXCEPTION)) != 0) {
+    // Call the read handler until it returns false, with a limit to avoid
+    // starving other sockets.
+    unsigned count = 2000;
+    while (!socketDescriptor->fDeleteMyselfNext
+	   && socketDescriptor->tcpReadHandler1(mask) && --count > 0) {}
+  }
+
   socketDescriptor->fAreInReadHandlerLoop = False;
   if (socketDescriptor->fDeleteMyselfNext) delete socketDescriptor;
 }
