@@ -55,6 +55,7 @@ typedef struct {
     k_u16                     slave_addr;
     const char*               i2c_name;
     struct rt_i2c_bus_device* i2c_bus;
+    k_s32                     write_status;
 } k_i2c_info;
 
 struct lt9611_dev {
@@ -96,6 +97,10 @@ static k_s32 lt9611_write_reg(k_i2c_info* i2c_info, k_u8 reg_addr, k_u8 reg_val)
     k_u8              buf[2];
 
     RT_ASSERT(i2c_info != RT_NULL);
+
+    if (i2c_info->write_status != RT_EOK)
+        return i2c_info->write_status;
+
     buf[0]    = reg_addr;
     buf[1]    = reg_val;
     msg.addr  = i2c_info->slave_addr;
@@ -103,8 +108,10 @@ static k_s32 lt9611_write_reg(k_i2c_info* i2c_info, k_u8 reg_addr, k_u8 reg_val)
     msg.len   = 2;
     msg.buf   = buf;
 
-    if (rt_i2c_transfer(i2c_info->i2c_bus, &msg, 1) != 1)
-        return RT_ERROR;
+    if (rt_i2c_transfer(i2c_info->i2c_bus, &msg, 1) != 1) {
+        i2c_info->write_status = RT_ERROR;
+        return i2c_info->write_status;
+    }
 
     return RT_EOK;
 }
@@ -142,7 +149,7 @@ static k_s32 lt9611_set_interface(struct lt9611_dev* lt9611_dev)
     lt9611_write_reg(&lt9611_dev->i2c_info, 0xff, 0x80);
     lt9611_write_reg(&lt9611_dev->i2c_info, 0xee, 0x01);
 
-    return 0;
+    return lt9611_dev->i2c_info.write_status;
 }
 
 static k_s32 lt9611_init_system(struct lt9611_dev* lt9611_dev)
@@ -195,7 +202,7 @@ static k_s32 lt9611_mipi_input_digital(struct lt9611_dev* lt9611_dev)
     lt9611_write_reg(&lt9611_dev->i2c_info, 0x06, 0x08);
     lt9611_write_reg(&lt9611_dev->i2c_info, 0x0a, 0x00);
 
-    return 0;
+    return lt9611_dev->i2c_info.write_status;
 }
 
 static k_s32 lt9611_setup_pll(struct lt9611_dev* lt9611_dev, k_u32 pclk)
@@ -245,7 +252,7 @@ static k_s32 lt9611_setup_pll(struct lt9611_dev* lt9611_dev, k_u32 pclk)
     lt9611_write_reg(&lt9611_dev->i2c_info, 0x18, 0xfc);
     lt9611_write_reg(&lt9611_dev->i2c_info, 0x16, 0xf3);
 
-    return 0;
+    return lt9611_dev->i2c_info.write_status;
 }
 
 static k_s32 lt9611_setup_pcr(struct lt9611_dev* lt9611_dev)
@@ -264,7 +271,7 @@ static k_s32 lt9611_setup_pcr(struct lt9611_dev* lt9611_dev)
     lt9611_write_reg(&lt9611_dev->i2c_info, 0x11, 0x5a);
     lt9611_write_reg(&lt9611_dev->i2c_info, 0x11, 0xfa);
 
-    return 0;
+    return lt9611_dev->i2c_info.write_status;
 }
 
 static k_s32 lt9611_setup_timing(struct lt9611_dev* lt9611_dev, k_vo_timing* resolution)
@@ -306,7 +313,7 @@ static k_s32 lt9611_setup_timing(struct lt9611_dev* lt9611_dev, k_vo_timing* res
     lt9611_write_reg(&lt9611_dev->i2c_info, 0x1a, (k_u8)(((hfront_porch / 256) << 4) + (hsync_len + hback_porch) / 256));
     lt9611_write_reg(&lt9611_dev->i2c_info, 0x1b, (k_u8)((hsync_len + hback_porch) % 256));
 
-    return 0;
+    return lt9611_dev->i2c_info.write_status;
 }
 
 static k_s32 lt9611_hdmi_tx_digital(struct lt9611_dev* lt9611_dev)
@@ -321,7 +328,7 @@ static k_s32 lt9611_hdmi_tx_digital(struct lt9611_dev* lt9611_dev)
     lt9611_write_reg(&lt9611_dev->i2c_info, 0xd6, 0x8e);
     lt9611_write_reg(&lt9611_dev->i2c_info, 0xd7, 0x04);
 
-    return 0;
+    return lt9611_dev->i2c_info.write_status;
 }
 
 static k_s32 lt9611_hdmi_tx_phy(struct lt9611_dev* lt9611_dev)
@@ -342,7 +349,7 @@ static k_s32 lt9611_irq_init(struct lt9611_dev* lt9611_dev)
     lt9611_write_reg(&lt9611_dev->i2c_info, 0x59, 0x00);
     lt9611_write_reg(&lt9611_dev->i2c_info, 0x9e, 0xf7);
 
-    return 0;
+    return lt9611_dev->i2c_info.write_status;
 }
 
 static k_s32 lt9611_enable_hpd_interrupts(struct lt9611_dev* lt9611_dev)
@@ -352,7 +359,7 @@ static k_s32 lt9611_enable_hpd_interrupts(struct lt9611_dev* lt9611_dev)
     lt9611_write_reg(&lt9611_dev->i2c_info, 0x07, 0x3f);
     lt9611_write_reg(&lt9611_dev->i2c_info, 0x03, 0x3f);
 
-    return 0;
+    return lt9611_dev->i2c_info.write_status;
 }
 
 static k_s32 lt9611_enable_hdmi_out(struct lt9611_dev* lt9611_dev)
@@ -375,7 +382,7 @@ static k_s32 lt9611_enable_hdmi_out(struct lt9611_dev* lt9611_dev)
     lt9611_write_reg(&lt9611_dev->i2c_info, 0xff, 0x81);
     lt9611_write_reg(&lt9611_dev->i2c_info, 0x30, 0xea);
 
-    return 0;
+    return lt9611_dev->i2c_info.write_status;
 }
 
 static struct lt9611_dev* lt9611_dev_create(k_u32 input_port, k_u16 slave_addr, const char* i2c_name)
@@ -393,10 +400,11 @@ static struct lt9611_dev* lt9611_dev_create(k_u32 input_port, k_u16 slave_addr, 
         return RT_NULL;
     }
 
-    lt9611_dev->input_port          = input_port;
-    lt9611_dev->i2c_info.i2c_bus    = i2c_bus;
-    lt9611_dev->i2c_info.i2c_name   = i2c_name;
-    lt9611_dev->i2c_info.slave_addr = slave_addr;
+    lt9611_dev->input_port            = input_port;
+    lt9611_dev->i2c_info.i2c_bus      = i2c_bus;
+    lt9611_dev->i2c_info.i2c_name     = i2c_name;
+    lt9611_dev->i2c_info.slave_addr   = slave_addr;
+    lt9611_dev->i2c_info.write_status = RT_EOK;
 
     return lt9611_dev;
 }
@@ -406,7 +414,7 @@ static int lt9611_panel_init(const struct panel_desc* desc)
     k_vo_timing timing = desc->timing;
 
     k_u32 pclk = timing.pclk_khz;
-    k_s32 ret  = 0;
+    k_s32 ret;
 
     // k230_display_rst();
     lt9611_reset(CONFIG_MPP_DSI_HDMI_RESET_PIN);
@@ -419,21 +427,62 @@ static int lt9611_panel_init(const struct panel_desc* desc)
         }
     }
 
-    lt9611_set_interface(g_lt9611_dev);
+    g_lt9611_dev->i2c_info.write_status = RT_EOK;
 
-    ret |= lt9611_init_system(g_lt9611_dev);
-    ret |= lt9611_mipi_input_analog(g_lt9611_dev);
-    ret |= lt9611_mipi_input_digital(g_lt9611_dev);
-    ret |= lt9611_setup_pll(g_lt9611_dev, pclk);
-    ret |= lt9611_setup_pcr(g_lt9611_dev);
-    ret |= lt9611_setup_timing(g_lt9611_dev, &timing);
-    ret |= lt9611_hdmi_tx_digital(g_lt9611_dev);
-    ret |= lt9611_hdmi_tx_phy(g_lt9611_dev);
-    ret |= lt9611_irq_init(g_lt9611_dev);
-    ret |= lt9611_enable_hpd_interrupts(g_lt9611_dev);
-    ret |= lt9611_enable_hdmi_out(g_lt9611_dev);
+    ret = lt9611_set_interface(g_lt9611_dev);
+    if (ret)
+        goto init_failed;
 
-    return ret;
+    ret = lt9611_init_system(g_lt9611_dev);
+    if (ret)
+        goto init_failed;
+
+    ret = lt9611_mipi_input_analog(g_lt9611_dev);
+    if (ret)
+        goto init_failed;
+
+    ret = lt9611_mipi_input_digital(g_lt9611_dev);
+    if (ret)
+        goto init_failed;
+
+    ret = lt9611_setup_pll(g_lt9611_dev, pclk);
+    if (ret)
+        goto init_failed;
+
+    ret = lt9611_setup_pcr(g_lt9611_dev);
+    if (ret)
+        goto init_failed;
+
+    ret = lt9611_setup_timing(g_lt9611_dev, &timing);
+    if (ret)
+        goto init_failed;
+
+    ret = lt9611_hdmi_tx_digital(g_lt9611_dev);
+    if (ret)
+        goto init_failed;
+
+    ret = lt9611_hdmi_tx_phy(g_lt9611_dev);
+    if (ret)
+        goto init_failed;
+
+    ret = lt9611_irq_init(g_lt9611_dev);
+    if (ret)
+        goto init_failed;
+
+    ret = lt9611_enable_hpd_interrupts(g_lt9611_dev);
+    if (ret)
+        goto init_failed;
+
+    ret = lt9611_enable_hdmi_out(g_lt9611_dev);
+    if (ret)
+        goto init_failed;
+
+    return K_SUCCESS;
+
+init_failed:
+    g_panel_init_status = K_FALSE;
+    LOG_W("lt9611 init failed, but we treat it as non-fatal\n");
+    return K_SUCCESS;
 }
 
 static const struct panel_ops lt9611_ops = {

@@ -182,6 +182,8 @@ struct panel_desc {
     const struct panel_ops* ops;
 };
 
+extern k_bool g_panel_init_status;
+
 k_u32 panel_correct_pclk(k_u32 pclk);
 
 int panel_calculate_fps(const k_vo_timing* timing);

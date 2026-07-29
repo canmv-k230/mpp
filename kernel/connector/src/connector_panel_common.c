@@ -40,6 +40,8 @@ extern void kd_vo_set_pixclk(k_u32 div);
 extern void kd_vo_set_background(k_u32 rgb888);
 extern void kd_vo_enable(void);
 
+k_bool g_panel_init_status = K_FALSE;
+
 static inline k_u32 panel_calc_pixclk_div(k_u32 pclk_khz)
 {
     return (pclk_khz == 0) ? 0 : (VO_PIXEL_CLOCK_HZ / (pclk_khz * 1000)) - 1;
@@ -251,6 +253,8 @@ k_s32 panel_generic_power_on(struct panel_desc* desc)
         return -1;
     }
 
+    g_panel_init_status = K_FALSE;
+
     kd_vo_reset();
 
     /* Bus and panel initialization */
@@ -307,8 +311,10 @@ k_s32 panel_generic_power_on(struct panel_desc* desc)
         return -1;
     }
 
+    g_panel_init_status = K_TRUE;
     ret = desc->ops->init(desc);
     if (ret != 0) {
+        g_panel_init_status = K_FALSE;
         rt_kprintf("panel_generic_power_on: ops->init failed: %d\n", ret);
         return ret;
     }
@@ -357,6 +363,8 @@ k_s32 panel_generic_power_off(const struct panel_desc* desc)
     if (!desc) {
         return -1;
     }
+
+    g_panel_init_status = K_FALSE;
 
     /* Always disable backlight */
     panel_generic_backlight(desc, 0, 0);

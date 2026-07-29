@@ -398,6 +398,7 @@ k_s32 dsi_send_cmd_sequence(const struct panel_desc* desc, const k_u8* cmd_seq, 
     k_connector_cmd_slice* cmd;
 
     if ((NULL == cmd_seq) || (NULL == desc)) {
+        g_panel_init_status = K_FALSE;
         rt_kprintf("no init sequence set.\n");
         return -1;
     }
@@ -410,6 +411,7 @@ k_s32 dsi_send_cmd_sequence(const struct panel_desc* desc, const k_u8* cmd_seq, 
         cmd_remain = pcmd_end - pcmd;
 
         if (cmd->cmd_size > (cmd_remain - sizeof(k_connector_cmd_slice))) {
+            g_panel_init_status = K_FALSE;
             rt_kprintf("error cmd sequence. %d > %d\n", cmd->cmd_size, (cmd_remain - sizeof(k_connector_cmd_slice)));
             break;
         }
@@ -419,6 +421,7 @@ k_s32 dsi_send_cmd_sequence(const struct panel_desc* desc, const k_u8* cmd_seq, 
                 || (DSI_DCS_LONG_WRITE == cmd->cmd_type)) {
 
                 if (0x00 != dwc_dsi_dcs_write(cmd->cmd_data, cmd->cmd_size, desc->bus.dsi.vc_id)) {
+                    g_panel_init_status = K_FALSE;
                     rt_kprintf("dsi send cmd failed, but we treat it as non-fatal\n");
                     return 0;
                 }
@@ -426,10 +429,12 @@ k_s32 dsi_send_cmd_sequence(const struct panel_desc* desc, const k_u8* cmd_seq, 
                        || (DSI_GENERIC_SHORT_WRITE_2_PARAM == cmd->cmd_type) || (DSI_GENERIC_LONG_WRITE == cmd->cmd_type)) {
 
                 if (0x00 != dwc_dsi_generic_write(cmd->cmd_data, cmd->cmd_size, desc->bus.dsi.vc_id)) {
+                    g_panel_init_status = K_FALSE;
                     rt_kprintf("dsi send cmd failed, but we treat it as non-fatal\n");
                     return 0;
                 }
             } else {
+                g_panel_init_status = K_FALSE;
                 rt_kprintf("unsupport cmd type 0x%02X\n", cmd->cmd_type);
                 return -2;
             }
