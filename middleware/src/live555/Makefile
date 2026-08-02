@@ -10,7 +10,7 @@ ifneq ($(strip $(subdirs-y)),)
 
 $(subdirs-y):
 	@echo "[BUILD] mpp middleware live555 $@"
-	@$(MAKE) -C $@ all || exit$?;
+	@$(MAKE) -C $@ all
 endif
 
 # Define Dependencies (Sequential Order)
@@ -24,6 +24,6 @@ clean:
 	@if [ -n "$(subdirs-y)" ]; then \
 		for dir in $(subdirs-y); do \
 			echo "[CLEAN] mpp middleware live555 $$dir"; \
-			$(MAKE) -C $$dir clean || exit $?; \
+			$(MAKE) -C $$dir clean || exit $$?; \
 		done; \
 	fi

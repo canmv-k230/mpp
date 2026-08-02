@@ -9,7 +9,7 @@ clean:
 	@if [ -n "$(subdirs-y)" ]; then \
 		for dir in $(subdirs-y); do \
 			echo "[CLEAN] mpp kernel $$dir"; \
-			$(MAKE) -C $$dir clean || exit $?; \
+			$(MAKE) -C $$dir clean || exit $$?; \
 		done; \
 	fi
 	@echo "Make MPP Kernel clean done."
@@ -19,5 +19,5 @@ ifneq ($(strip $(subdirs-y)),)
 
 $(subdirs-y):
 	@echo "[BUILD] mpp kernel $@"
-	@$(MAKE) -C $@ all || exit $?;
+	@$(MAKE) -C $@ all
 endif

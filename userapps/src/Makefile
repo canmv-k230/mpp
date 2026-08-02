@@ -14,7 +14,7 @@ sensor: check_gen_isp_config_bin
 
 $(subdirs-y):
 	@echo "[BUILD] mpp userapps $@"
-	@$(MAKE) -C $@ all || exit $$?;
+	@$(MAKE) -C $@ all
 
 check_gen_isp_config_bin:
 	@if [ ! -x "$(GEN_ISP_CONFIG_BIN)" ]; then \
@@ -28,7 +28,7 @@ clean:
 	@if [ -n "$(subdirs-y)" ]; then \
 		for dir in $(subdirs-y); do \
 			echo "[CLEAN] mpp userapps $$dir"; \
-			$(MAKE) -C $$dir clean || exit $?; \
+			$(MAKE) -C $$dir clean || exit $$?; \
 		done; \
 	fi
 	@rm -rf lib/*.a

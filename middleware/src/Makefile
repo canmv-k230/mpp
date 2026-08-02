@@ -14,7 +14,7 @@ clean:
 	$(Q)rm -rf $(MPP_MIDDLEWARE_LIB_INSTALL_PATH)/*
 	@for dir in $(subdirs-y); do \
 		echo "[CLEAN] mpp middleware $$dir"; \
-		$(MAKE) -C $$dir clean || exit $?; \
+		$(MAKE) -C $$dir clean || exit $$?; \
 	done
 
 ifneq ($(strip $(subdirs-y)),)
@@ -22,12 +22,12 @@ ifneq ($(strip $(subdirs-y)),)
 
 $(subdirs-y):
 	@echo "[BUILD] mpp middleware $@"
-	@$(MAKE) -C $@ all || exit $?;
+	@$(MAKE) -C $@ all
 	@# Use shell conditional to check the target name during execution
 	@case "$@" in \
 		"ffmpeg/src") \
 			echo "[INSTALL] $@"; \
-			$(MAKE) -C $@ install || exit $?; \
+			$(MAKE) -C $@ install || exit $$?; \
 			;; \
 	esac
 
