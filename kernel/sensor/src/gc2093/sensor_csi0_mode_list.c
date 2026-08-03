@@ -254,6 +254,7 @@ static k_sensor_ae_info sensor_csi0_ae_info[] = {
             .max = 63.984375,
             .step = (1.0f/1024.0f),
         },
+        .cur_fps = 90,
     },
 };
 
@@ -355,7 +356,7 @@ static const k_sensor_mode sensor_csi0_mode_list[] = {
             .width = 1280,
             .height = 960,
         },
-        .fps = 60000,
+        .fps = 90000,
         .hdr_mode = SENSOR_MODE_LINEAR,
         .bit_width = 10,
         .bayer_pattern = BAYER_PAT_RGGB, //BAYER_PAT_RGGB,

@@ -28,7 +28,7 @@ static k_sensor_ae_info sensor_csi0_ae_info[] = {
             .max = 15.5,
             .step = (1.0f/1024.0f),
         },
-        .cur_fps = 30,
+        .cur_fps = 120,
     },
     {
         .frame_length = 0x486,
@@ -59,14 +59,14 @@ static k_sensor_ae_info sensor_csi0_ae_info[] = {
             .max = 15.5,
             .step = (1.0f/1024.0f),
         },
-        .cur_fps = 30,
+        .cur_fps = 240,
     },
 };
 
 static const k_sensor_mode sensor_csi0_mode_list[] = {
     {
         .index = 0,
-        .sensor_type = SC132GS_MIPI_CSI0_1080X1200_30FPS_10BIT_LINEAR,
+        .sensor_type = SC132GS_MIPI_CSI0_1080X1280_120FPS_10BIT_LINEAR,
         .size = {
             .bounds_width = 1080,
             .bounds_height = 1280,
@@ -75,13 +75,13 @@ static const k_sensor_mode sensor_csi0_mode_list[] = {
             .width = 1080,
             .height = 1280,
         },
-        .fps = 30000,
+        .fps = 120000,
         .hdr_mode = SENSOR_MODE_LINEAR,
         .bit_width = 10,
         .bayer_pattern = BAYER_PAT_BGGR,//BAYER_PAT_GRBG, //BAYER_PAT_RGGB,
         .mipi_info = {
             .csi_id = 0,
-            .mipi_lanes = 4,
+            .mipi_lanes = 2,
             .data_type = 0x2B,
         },
         .reg_list = sc132gs_mipi_2lane_1080x1280_120fps_init,
@@ -108,7 +108,7 @@ static const k_sensor_mode sensor_csi0_mode_list[] = {
     },
     {
         .index = 1,
-        .sensor_type = SC132GS_MIPI_CSI0_640X480_30FPS_10BIT_LINEAR,
+        .sensor_type = SC132GS_MIPI_CSI0_640X480_240FPS_10BIT_LINEAR,
         .size = {
             .bounds_width = 640,
             .bounds_height = 480,
@@ -117,13 +117,13 @@ static const k_sensor_mode sensor_csi0_mode_list[] = {
             .width = 640,
             .height = 480,
         },
-        .fps = 30000,
+        .fps = 240000,
         .hdr_mode = SENSOR_MODE_LINEAR,
         .bit_width = 10,
         .bayer_pattern = BAYER_PAT_BGGR,//BAYER_PAT_GRBG, //BAYER_PAT_RGGB,
         .mipi_info = {
             .csi_id = 0,
-            .mipi_lanes = 4,
+            .mipi_lanes = 2,
             .data_type = 0x2B,
         },
         .reg_list = sc132gs_mipi_2lane_640x480_init, 

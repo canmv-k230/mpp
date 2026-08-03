@@ -50,14 +50,14 @@ static k_sensor_ae_info sensor_csi0_ae_info[] = {
         .d_vs_gain.max = 1.0,
         .d_vs_gain.min = 1.0,
         .d_vs_gain.step = (1.0f/1024.0f),
-        .cur_fps = 3000,
+        .cur_fps = 25,
     },
 };
 
 static const k_sensor_mode sensor_csi0_mode_list[] = {
     {
         .index = 0,
-        .sensor_type = XS9950_MIPI_CSI0_1280X720_30FPS_YUV422,
+        .sensor_type = XS9950_MIPI_CSI0_1280X720_25FPS_YUV422,
         .size = {
             .bounds_width = 1280,
             .bounds_height = 720,
@@ -66,7 +66,7 @@ static const k_sensor_mode sensor_csi0_mode_list[] = {
             .width = 1280,
             .height = 720,
         },
-        .fps = 30000,
+        .fps = 25000,
         .hdr_mode = SENSOR_MODE_HDR_STITCH,
         .stitching_mode = SENSOR_STITCHING_3DOL,
         .bit_width = 8,

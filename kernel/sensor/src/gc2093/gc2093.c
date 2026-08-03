@@ -676,10 +676,9 @@ static k_s32 sensor_get_fps_impl(void *ctx, k_u32 *fps)
 {
     k_s32 ret = 0;
     struct sensor_driver_dev *dev = ctx;
-    (void)dev;
 
     pr_info("%s enter, %s\n", __func__, dev->sensor_name);
-    *fps = 30000;
+    *fps = dev->current_sensor_mode.fps;
 
     return ret;
 }

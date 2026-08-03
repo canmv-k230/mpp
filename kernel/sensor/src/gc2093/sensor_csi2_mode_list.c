@@ -255,6 +255,7 @@ static k_sensor_ae_info sensor_csi2_ae_info[] = {
             .max = 63.984375,
             .step = (1.0f/1024.0f),
         },
+        .cur_fps = 90,
     },
 };
 
@@ -392,12 +393,8 @@ static const k_sensor_mode sensor_csi2_mode_list[] = {
             {K_FALSE},
             {K_FALSE},
         },
-        // .reg_list = gc2093_mipi2lane_960p_90fps_mclk_24m_linear,
-        // .sensor_ae_info = &sensor_csi2_ae_info[6],
-
-        // now, we just support one gc2093
-        .reg_list = gc2093_mipi2lane_1080p_60fps_mclk_24m_linear,
-        .sensor_ae_info = &sensor_csi2_ae_info[5],
+        .reg_list = gc2093_mipi2lane_960p_90fps_mclk_24m_linear,
+        .sensor_ae_info = &sensor_csi2_ae_info[6],
 #endif
     },
     {

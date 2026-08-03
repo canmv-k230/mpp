@@ -1,6 +1,6 @@
 // sensor ae info
 static k_sensor_ae_info sensor_csi2_ae_info[] = {
-    /* 0: 2592x1944@10 */
+    /* 0: 2592x1944@15 */
     {
         .frame_length = 2051,
         .cur_frame_length = 2051,
@@ -48,7 +48,7 @@ static k_sensor_ae_info sensor_csi2_ae_info[] = {
             .max = 1.0,
             .step = (1.0f/1024.0f),
         },
-        .cur_fps = 10,
+        .cur_fps = 15,
     },
     /* 1: 1080P@30 */
     {
@@ -279,7 +279,7 @@ static k_sensor_ae_info sensor_csi2_ae_info[] = {
 static const k_sensor_mode sensor_csi2_mode_list[] = {
     {
         .index = 0,
-        .sensor_type = OV5647_MIPI_CSI2_2592x1944_10FPS_10BIT_LINEAR,
+        .sensor_type = OV5647_MIPI_CSI2_2592x1944_15FPS_10BIT_LINEAR,
         .size = {
             .bounds_width = 2592,
             .bounds_height = 1944,
@@ -288,7 +288,7 @@ static const k_sensor_mode sensor_csi2_mode_list[] = {
             .width = 2592,
             .height = 1944,
         },
-        .fps = 10000,
+        .fps = 15000,
         .hdr_mode = SENSOR_MODE_LINEAR,
         .bit_width = 10,
         .bayer_pattern = BAYER_PAT_GBRG,

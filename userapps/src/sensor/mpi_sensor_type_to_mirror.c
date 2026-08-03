@@ -13,19 +13,19 @@ struct sensor_type_mirror_t {
 #if defined(CONFIG_BOARD_K230_CANMV)
 static struct sensor_type_mirror_t type_mirror_tbl[] = {
 #if defined (CONFIG_MPP_ENABLE_SENSOR_OV5647)
-    {.type = OV5647_MIPI_CSI0_2592x1944_10FPS_10BIT_LINEAR, .mirror = 0},
+    {.type = OV5647_MIPI_CSI0_2592x1944_15FPS_10BIT_LINEAR, .mirror = 0},
     {.type = OV5647_MIPI_CSI0_1920X1080_30FPS_10BIT_LINEAR, .mirror = 0},
     {.type = OV5647_MIPI_CSI0_1280X960_45FPS_10BIT_LINEAR, .mirror = 0},
     {.type = OV5647_MIPI_CSI0_1280X720_60FPS_10BIT_LINEAR, .mirror = 0},
     {.type = OV5647_MIPI_CSI0_640x480_90FPS_10BIT_LINEAR, .mirror = 0},
 
-    {.type = OV5647_MIPI_CSI1_2592x1944_10FPS_10BIT_LINEAR, .mirror = 0},
+    {.type = OV5647_MIPI_CSI1_2592x1944_15FPS_10BIT_LINEAR, .mirror = 0},
     {.type = OV5647_MIPI_CSI1_1920X1080_30FPS_10BIT_LINEAR, .mirror = 0},
     {.type = OV5647_MIPI_CSI1_1280X960_45FPS_10BIT_LINEAR, .mirror = 0},
     {.type = OV5647_MIPI_CSI1_1280X720_60FPS_10BIT_LINEAR, .mirror = 0},
     {.type = OV5647_MIPI_CSI1_640x480_90FPS_10BIT_LINEAR, .mirror = 0},
 
-    {.type = OV5647_MIPI_CSI2_2592x1944_10FPS_10BIT_LINEAR, .mirror = 0},
+    {.type = OV5647_MIPI_CSI2_2592x1944_15FPS_10BIT_LINEAR, .mirror = 0},
     {.type = OV5647_MIPI_CSI2_1920X1080_30FPS_10BIT_LINEAR, .mirror = 0},
     {.type = OV5647_MIPI_CSI2_1280X960_45FPS_10BIT_LINEAR, .mirror = 0},
     {.type = OV5647_MIPI_CSI2_1280X720_60FPS_10BIT_LINEAR, .mirror = 0},
@@ -62,19 +62,19 @@ static struct sensor_type_mirror_t type_mirror_tbl[] = {
 #elif defined(CONFIG_BOARD_K230_CANMV_01STUDIO)
 static struct sensor_type_mirror_t type_mirror_tbl[] = {
 #if defined (CONFIG_MPP_ENABLE_SENSOR_OV5647)
-    {.type = OV5647_MIPI_CSI0_2592x1944_10FPS_10BIT_LINEAR, .mirror = 0},
+    {.type = OV5647_MIPI_CSI0_2592x1944_15FPS_10BIT_LINEAR, .mirror = 0},
     {.type = OV5647_MIPI_CSI0_1920X1080_30FPS_10BIT_LINEAR, .mirror = 0},
     {.type = OV5647_MIPI_CSI0_1280X960_45FPS_10BIT_LINEAR, .mirror = 0},
     {.type = OV5647_MIPI_CSI0_1280X720_60FPS_10BIT_LINEAR, .mirror = 0},
     {.type = OV5647_MIPI_CSI0_640x480_90FPS_10BIT_LINEAR, .mirror = 0},
 
-    {.type = OV5647_MIPI_CSI1_2592x1944_10FPS_10BIT_LINEAR, .mirror = 0},
+    {.type = OV5647_MIPI_CSI1_2592x1944_15FPS_10BIT_LINEAR, .mirror = 0},
     {.type = OV5647_MIPI_CSI1_1920X1080_30FPS_10BIT_LINEAR, .mirror = 0},
     {.type = OV5647_MIPI_CSI1_1280X960_45FPS_10BIT_LINEAR, .mirror = 0},
     {.type = OV5647_MIPI_CSI1_1280X720_60FPS_10BIT_LINEAR, .mirror = 0},
     {.type = OV5647_MIPI_CSI1_640x480_90FPS_10BIT_LINEAR, .mirror = 0},
 
-    {.type = OV5647_MIPI_CSI2_2592x1944_10FPS_10BIT_LINEAR, .mirror = 0},
+    {.type = OV5647_MIPI_CSI2_2592x1944_15FPS_10BIT_LINEAR, .mirror = 0},
     {.type = OV5647_MIPI_CSI2_1920X1080_30FPS_10BIT_LINEAR, .mirror = 0},
     {.type = OV5647_MIPI_CSI2_1280X960_45FPS_10BIT_LINEAR, .mirror = 0},
     {.type = OV5647_MIPI_CSI2_1280X720_60FPS_10BIT_LINEAR, .mirror = 0},
