@@ -159,6 +159,7 @@ extern k_s32 sensor_gc2093_probe(struct k_sensor_probe_cfg *cfg, struct sensor_d
 extern k_s32 sensor_ov5647_probe(struct k_sensor_probe_cfg *cfg, struct sensor_driver_dev *dev);
 extern k_s32 sensor_imx335_probe(struct k_sensor_probe_cfg *cfg, struct sensor_driver_dev *dev);
 extern k_s32 sensor_sc132gs_probe(struct k_sensor_probe_cfg *cfg, struct sensor_driver_dev *dev);
+extern k_s32 sensor_sc130gs_probe(struct k_sensor_probe_cfg *cfg, struct sensor_driver_dev *dev);
 extern k_s32 sensor_xs9950_probe(struct k_sensor_probe_cfg *cfg, struct sensor_driver_dev *dev);
 extern k_s32 sensor_bf3238_probe(struct k_sensor_probe_cfg *cfg, struct sensor_driver_dev *dev);
 extern k_s32 sensor_ov13850_probe(struct k_sensor_probe_cfg *cfg, struct sensor_driver_dev *dev);

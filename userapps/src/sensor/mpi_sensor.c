@@ -825,6 +825,71 @@ static const k_vicap_sensor_info sensor_info_list[] = {
 #endif // CONFIG_MPP_ENABLE_CSI_DEV_2
 #endif // CONFIG_MPP_ENABLE_SENSOR_SC132GS
 
+#if defined (CONFIG_MPP_ENABLE_SENSOR_SC130GS)
+#if defined (CONFIG_MPP_ENABLE_CSI_DEV_0)
+    {
+        "sc130gs_csi0",
+        "sc130gs-1280x1024",
+        1280,
+        1024,
+        VICAP_CSI0,
+        VICAP_MIPI_2LANE,
+        VICAP_SOURCE_CSI0,
+        K_FALSE,
+        VICAP_MIPI_PHY_1200M,
+        VICAP_CSI_DATA_TYPE_RAW10,
+        VICAP_LINERA_MODE,
+        VICAP_FLASH_DISABLE,
+        VICAP_VI_FIRST_FRAME_FS_TR0,
+        0,
+        90,
+        SC130GS_MIPI_CSI0_2LANE_1280X1024_90FPS_10BIT_LINEAR,
+    },
+#endif // CONFIG_MPP_ENABLE_CSI_DEV_0
+
+#if defined (CONFIG_MPP_ENABLE_CSI_DEV_1)
+    {
+        "sc130gs_csi1",
+        "sc130gs-1280x1024",
+        1280,
+        1024,
+        VICAP_CSI1,
+        VICAP_MIPI_2LANE,
+        VICAP_SOURCE_CSI1,
+        K_FALSE,
+        VICAP_MIPI_PHY_1200M,
+        VICAP_CSI_DATA_TYPE_RAW10,
+        VICAP_LINERA_MODE,
+        VICAP_FLASH_DISABLE,
+        VICAP_VI_FIRST_FRAME_FS_TR0,
+        0,
+        90,
+        SC130GS_MIPI_CSI1_2LANE_1280X1024_90FPS_10BIT_LINEAR,
+    },
+#endif // CONFIG_MPP_ENABLE_CSI_DEV_1
+
+#if defined (CONFIG_MPP_ENABLE_CSI_DEV_2)
+    {
+        "sc130gs_csi2",
+        "sc130gs-1280x1024",
+        1280,
+        1024,
+        VICAP_CSI2,
+        VICAP_MIPI_2LANE,
+        VICAP_SOURCE_CSI2,
+        K_FALSE,
+        VICAP_MIPI_PHY_1200M,
+        VICAP_CSI_DATA_TYPE_RAW10,
+        VICAP_LINERA_MODE,
+        VICAP_FLASH_DISABLE,
+        VICAP_VI_FIRST_FRAME_FS_TR0,
+        0,
+        90,
+        SC130GS_MIPI_CSI2_2LANE_1280X1024_90FPS_10BIT_LINEAR,
+    },
+#endif // CONFIG_MPP_ENABLE_CSI_DEV_2
+#endif // CONFIG_MPP_ENABLE_SENSOR_SC130GS
+
 #if defined (CONFIG_MPP_ENABLE_SENSOR_XS9950)
 #if defined (CONFIG_MPP_ENABLE_CSI_DEV_0)
     {

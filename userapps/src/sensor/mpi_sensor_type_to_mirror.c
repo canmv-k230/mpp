@@ -109,6 +109,11 @@ static struct sensor_type_mirror_t type_mirror_tbl[] = {
     {.type = IMX675_MIPI_CSI1_2LANE_RAW10_2592X1944_30FPS_LINEAR, .mirror = 0},
     {.type = IMX675_MIPI_CSI2_2LANE_RAW10_2592X1944_30FPS_LINEAR, .mirror = 0},
 #endif // CONFIG_MPP_ENABLE_SENSOR_IMX675
+#if defined (CONFIG_MPP_ENABLE_SENSOR_SC130GS)
+    {.type = SC130GS_MIPI_CSI0_2LANE_1280X1024_90FPS_10BIT_LINEAR, .mirror = 0},
+    {.type = SC130GS_MIPI_CSI1_2LANE_1280X1024_90FPS_10BIT_LINEAR, .mirror = 0},
+    {.type = SC130GS_MIPI_CSI2_2LANE_1280X1024_90FPS_10BIT_LINEAR, .mirror = 0},
+#endif // CONFIG_MPP_ENABLE_SENSOR_SC130GS
 };
 #elif defined(CONFIG_BOARD_K230_CANMV_DONGSHANPI)
 static struct sensor_type_mirror_t type_mirror_tbl[] = {

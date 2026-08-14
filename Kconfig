@@ -258,6 +258,28 @@ menu "MPP Configuration"
                     depends on MPP_ENABLE_CSI_DEV_2
             endif
 
+        menuconfig MPP_ENABLE_SENSOR_SC130GS
+            bool "Enable SC130GS"
+            default n
+
+            if MPP_ENABLE_SENSOR_SC130GS
+
+                config MPP_ENABLE_SENSOR_SC130GS_ON_CSI0_USE_CHIP_CLK
+                    bool "SC130GS On CSI0 Use CHIP MCLK"
+                    default n
+                    depends on MPP_ENABLE_CSI_DEV_0
+
+                config MPP_ENABLE_SENSOR_SC130GS_ON_CSI1_USE_CHIP_CLK
+                    bool "SC130GS On CSI1 Use CHIP MCLK"
+                    default n
+                    depends on MPP_ENABLE_CSI_DEV_1
+
+                config MPP_ENABLE_SENSOR_SC130GS_ON_CSI2_USE_CHIP_CLK
+                    bool "SC130GS On CSI2 Use CHIP MCLK"
+                    default n
+                    depends on MPP_ENABLE_CSI_DEV_2
+            endif
+
         menuconfig MPP_ENABLE_SENSOR_XS9950
             bool "Enable XS9950"
             default n
