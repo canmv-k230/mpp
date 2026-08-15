@@ -107,14 +107,15 @@ k_s32 kd_display_init_ex(k_connector_type type, k_u32 width, k_u32 height, k_gdm
 k_s32 kd_display_deinit(void)
 {
     k_s32 ret = K_SUCCESS;
-
     k_s32 connector_fd;
 
-    /* Power off the connector first — for SPI panels this stops the
-     * sw_bridge thread (which owns WBC internally) before we try to
-     * disable WBC/layers from the VO side.  Doing it the other way
-     * round would destroy WBC while sw_bridge is still running,
-     * causing the bridge thread to spin and starve the caller. */
+    if (!info_valid) {
+        return K_SUCCESS;
+    }
+
+    /* Power off the connector first.  SPI panels need this because sw_bridge
+     * owns WBC internally, and DSI/HDMI panels also shut their bus down more
+     * cleanly while VO still owns the scanout state. */
     connector_fd = kd_mpi_connector_open(curr_connector_info.connector_name);
     if (0 <= connector_fd) {
         ret = kd_mpi_connector_power_set(connector_fd, 0);
