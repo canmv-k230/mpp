@@ -1205,6 +1205,70 @@ static const k_vicap_sensor_info sensor_info_list[] = {
     },
 #endif
 #endif // CONFIG_MPP_ENABLE_SENSOR_IMX675
+
+#if defined(CONFIG_MPP_ENABLE_SENSOR_IMX290)
+#if defined(CONFIG_MPP_ENABLE_CSI_DEV_0)
+    {
+        "imx290_csi0",
+        "imx290-1920x1080",
+        1920,
+        1080,
+        VICAP_CSI0,
+        VICAP_MIPI_2LANE,
+        VICAP_SOURCE_CSI0,
+        K_FALSE,
+        VICAP_MIPI_PHY_1200M,
+        VICAP_CSI_DATA_TYPE_RAW12,
+        VICAP_LINERA_MODE,
+        VICAP_FLASH_DISABLE,
+        VICAP_VI_FIRST_FRAME_FS_TR0,
+        0,
+        30,
+        IMX290_MIPI_CSI0_2LANE_1920X1080_30FPS_12BIT_LINEAR,
+    },
+#endif
+#if defined(CONFIG_MPP_ENABLE_CSI_DEV_1)
+    {
+        "imx290_csi1",
+        "imx290-1920x1080",
+        1920,
+        1080,
+        VICAP_CSI1,
+        VICAP_MIPI_2LANE,
+        VICAP_SOURCE_CSI1,
+        K_FALSE,
+        VICAP_MIPI_PHY_1200M,
+        VICAP_CSI_DATA_TYPE_RAW12,
+        VICAP_LINERA_MODE,
+        VICAP_FLASH_DISABLE,
+        VICAP_VI_FIRST_FRAME_FS_TR0,
+        0,
+        30,
+        IMX290_MIPI_CSI1_2LANE_1920X1080_30FPS_12BIT_LINEAR,
+    },
+#endif
+#if defined(CONFIG_MPP_ENABLE_CSI_DEV_2)
+    {
+        "imx290_csi2",
+        "imx290-1920x1080",
+        1920,
+        1080,
+        VICAP_CSI2,
+        VICAP_MIPI_2LANE,
+        VICAP_SOURCE_CSI2,
+        K_FALSE,
+        VICAP_MIPI_PHY_1200M,
+        VICAP_CSI_DATA_TYPE_RAW12,
+        VICAP_LINERA_MODE,
+        VICAP_FLASH_DISABLE,
+        VICAP_VI_FIRST_FRAME_FS_TR0,
+        0,
+        30,
+        IMX290_MIPI_CSI2_2LANE_1920X1080_30FPS_12BIT_LINEAR,
+    },
+#endif
+#endif /* CONFIG_MPP_ENABLE_SENSOR_IMX290 */
+
     /* the end of table */
     {
         .sensor_name = NULL,
