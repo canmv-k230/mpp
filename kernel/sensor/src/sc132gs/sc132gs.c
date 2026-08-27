@@ -36,15 +36,42 @@
 
 /* Sensor private ************************************************************/
 /* Chip ID */
-#define SC123GS_CHIP_ID         (0x0132)
+#define SC132GS_CHIP_ID         (0x0132)
 
-/* Exposure control */
+/* Exposure: 0x3e00[3:0]/0x3e01/0x3e02, unit = line * 16 (low 4 bits fractional) */
+#define SC132GS_REG_EXP_H        (0x3e00)
+#define SC132GS_REG_EXP_M        (0x3e01)
+#define SC132GS_REG_EXP_L        (0x3e02)
 
-/* Analog gain control */
+/* Digital gain: 0x3e06 coarse, 0x3e07 fine (1x = coarse 0, fine 0x80) */
+#define SC132GS_REG_DGAIN_H      (0x3e06)
+#define SC132GS_REG_DGAIN_L      (0x3e07)
+
+/* Analog gain: 0x3e08 coarse, 0x3e09 fine (1x = coarse 0x03, fine 0x20) */
+#define SC132GS_REG_AGAIN_H      (0x3e08)
+#define SC132GS_REG_AGAIN_L      (0x3e09)
 
 #define SC132GS_MIN_GAIN_STEP    (1.0f/16.0f)
 #define SC132GS_POWER_DELAY_MS   CANMV_SENSOR_POWER_RESET_DELAY_MS
 #define SC132GS_POWER_STABLE_DELAY_MS  CANMV_SENSOR_POWER_STABLE_DELAY_MS
+#define SC132GS_SOFT_RESET_DELAY_MS    (20)
+#define SC132GS_PLL_LOCK_DELAY_MS      (20)
+
+/* Cap analog gain: 28.5x is too noisy. 8x uses 0x03/0x23/0x27 and 0x2f up to 8x. */
+#define SC132GS_MAX_AGAIN            (8.0f)
+
+/* 1080x1280 @ 120fps: HTS=0x02ee. AE uses VTS 0x0546; chip VTS is read back at init. */
+#define SC132GS_1080P_HTS            (0x02ee)
+#define SC132GS_1080P_VTS            (0x0546) /* 1350 */
+#define SC132GS_1080P_FPS            (120)
+#define SC132GS_1080P_ONE_LINE       (1.0f / ((float)SC132GS_1080P_FPS * (float)SC132GS_1080P_VTS))
+#define SC132GS_1080P_MAX_EXP_LINE   (SC132GS_1080P_VTS - 8)
+
+/* 640x480 @ 240fps: VTS=0x02a3 from sc132gs_mipi_2lane_640x480_init. */
+#define SC132GS_VGA_VTS              (0x02a3) /* 675 */
+#define SC132GS_VGA_FPS              (240)
+#define SC132GS_VGA_ONE_LINE         (1.0f / ((float)SC132GS_VGA_FPS * (float)SC132GS_VGA_VTS))
+#define SC132GS_VGA_MAX_EXP_LINE     (SC132GS_VGA_VTS - 8)
 
 /* Mirror/flip: reg 0x3221 — bit[2:1] mirror (00 off, 11 on), bit[6:5] flip (00 off, 11 on) */
 #define SC132GS_REG_MIRROR_FLIP     (0x3221)
@@ -133,6 +160,54 @@ static int _sensor_power_state_set(struct sensor_driver_dev *dev, k_s32 on, k_u3
     return 0;
 }
 
+/* Reverse of sensor_set_again_impl register mapping. */
+static float sc132gs_again_from_reg(k_u16 coarse, k_u16 fine)
+{
+    k_u32 again_x1000;
+    k_u32 fine_off;
+
+    if (fine < 0x20)
+        fine = 0x20;
+    if (fine > 0x3f)
+        fine = 0x3f;
+    fine_off = (k_u32)(fine - 0x20);
+
+    switch (coarse) {
+    case 0x03:
+        again_x1000 = 1000 + fine_off * 32;
+        break;
+    case 0x23:
+        again_x1000 = 1813 + fine_off * 56;
+        break;
+    case 0x27:
+        again_x1000 = 3568 + fine_off * 113;
+        break;
+    case 0x2f:
+        again_x1000 = 7250 + fine_off * 226;
+        break;
+    case 0x3f:
+        again_x1000 = 14500 + fine_off * 453;
+        break;
+    default:
+        again_x1000 = 1000;
+        break;
+    }
+
+    if (again_x1000 < 1000)
+        again_x1000 = 1000;
+
+    return (float)again_x1000 / 1000.0f;
+}
+
+static k_s32 sc132gs_write_exp_line(struct sensor_driver_dev *dev, k_u16 exp_line)
+{
+    k_u32 exp_hw = (k_u32)exp_line * 16u;
+    k_s32 ret = sensor_reg_write(&dev->i2c_info, SC132GS_REG_EXP_H, (exp_hw >> 16) & 0x0f);
+    ret |= sensor_reg_write(&dev->i2c_info, SC132GS_REG_EXP_M, (exp_hw >> 8) & 0xff);
+    ret |= sensor_reg_write(&dev->i2c_info, SC132GS_REG_EXP_L, exp_hw & 0xff);
+    return ret;
+}
+
 static k_s32 sensor_power_impl(void *ctx, k_s32 on)
 {
     k_s32 ret = 0;
@@ -192,8 +267,20 @@ static k_s32 sensor_init_impl(void *ctx, k_sensor_mode mode)
         return -1;
     }
 
-    // write sensor reg 
+    /*
+     * Soft reset (0x0103=1) often NACKs mid-transaction because the sensor
+     * resets during the I2C write. Treat that as success and wait to recover.
+     */
+    (void)sensor_reg_write(&dev->i2c_info, 0x0103, 0x01);
+    rt_thread_mdelay(SC132GS_SOFT_RESET_DELAY_MS);
+
     ret = sensor_reg_list_write(&dev->i2c_info, current_mode->reg_list);
+    if (ret) {
+        pr_err("%s, write reg list failed\n", __func__);
+        return -1;
+    }
+    rt_thread_mdelay(SC132GS_PLL_LOCK_DELAY_MS);
+    ret = sensor_reg_write(&dev->i2c_info, 0x0100, 0x00);
 
     {
         k_u16 r3221 = 0;
@@ -235,28 +322,56 @@ static k_s32 sensor_init_impl(void *ctx, k_sensor_mode mode)
     current_mode->sensor_again = 0;
     current_mode->et_line = 0;
 
-    // sensor custom init.
-    k_u16 again_h;
-    k_u16 again_l;
-    k_u16 exp_time_h, exp_time_l;
-    k_u16 exp_time;
-    float again = 0, dgain = 0;
+    {
+        k_u16 again_h = 0, again_l = 0;
+        k_u16 dgain_h = 0, dgain_l = 0;
+        k_u16 exp_m = 0, exp_l = 0;
+        k_u32 exp_reg = 0;
+        k_u16 exp_line = 0;
+        k_s32 r = 0;
+        float again = 1.0f;
+        float dgain = 1.0f;
 
-    //ret = sensor_reg_read(&dev->i2c_info, 0x3508, &again_h);
-    //ret = sensor_reg_read(&dev->i2c_info, 0x3509, &again_l);
-    again = 1.0 ;//(float)(again_l)/64.0f + again_h;
+        r = sensor_reg_read(&dev->i2c_info, SC132GS_REG_AGAIN_H, &again_h);
+        r |= sensor_reg_read(&dev->i2c_info, SC132GS_REG_AGAIN_L, &again_l);
+        if (r == 0)
+            again = sc132gs_again_from_reg(again_h, again_l);
 
-    dgain = 1.0;
-    current_mode->ae_info.cur_gain = again * dgain;
-    current_mode->ae_info.cur_long_gain = current_mode->ae_info.cur_gain;
-    current_mode->ae_info.cur_vs_gain = current_mode->ae_info.cur_gain;
+        r = sensor_reg_read(&dev->i2c_info, SC132GS_REG_DGAIN_H, &dgain_h);
+        r |= sensor_reg_read(&dev->i2c_info, SC132GS_REG_DGAIN_L, &dgain_l);
+        if (r == 0) {
+            if (dgain_l != 0)
+                dgain = ((float)((dgain_h & 0x0f) + 1)) * ((float)dgain_l / 128.0f);
+            if (dgain < 1.0f)
+                dgain = 1.0f;
+        }
 
-    // ret = sensor_reg_read(&dev->i2c_info, 0x3e00, &exp_time_lh);
-    // ret = sensor_reg_read(&dev->i2c_info, 0x3e01, &exp_time_h);
-    // ret = sensor_reg_read(&dev->i2c_info, 0x3e02, &exp_time_l);
-    exp_time = ((exp_time_h & 0xff) << 8) + exp_time_l;
+        current_mode->ae_info.cur_again = again;
+        current_mode->ae_info.cur_dgain = dgain;
+        current_mode->ae_info.cur_gain = again * dgain;
+        current_mode->ae_info.cur_long_gain = current_mode->ae_info.cur_gain;
+        current_mode->ae_info.cur_vs_gain = current_mode->ae_info.cur_gain;
+        current_mode->sensor_again = (k_u32)(again * 1000.0f + 0.5f);
 
-    current_mode->ae_info.cur_integration_time = current_mode->ae_info.one_line_exp_time *  exp_time;
+        r = sensor_reg_read(&dev->i2c_info, SC132GS_REG_EXP_M, &exp_m);
+        r |= sensor_reg_read(&dev->i2c_info, SC132GS_REG_EXP_L, &exp_l);
+        if (r == 0) {
+            /* 0x3e01/0x3e02; low 4 bits of 0x3e02 are fractional. */
+            exp_reg = ((exp_m & 0xff) << 8) | (exp_l & 0xff);
+            exp_line = (k_u16)(exp_reg / 16);
+            if (exp_line < 1) {
+                exp_line = 1;
+                (void)sc132gs_write_exp_line(dev, exp_line);
+            }
+        } else {
+            /* Read failed; 1 line is SW default only, do not poke HW. */
+            exp_line = 1;
+        }
+
+        current_mode->et_line = exp_line;
+        current_mode->ae_info.cur_integration_time =
+            (float)current_mode->et_line * current_mode->ae_info.one_line_exp_time;
+    }
 
     dev->init_flag = K_TRUE;
 
@@ -272,7 +387,7 @@ static k_s32 sensor_get_chip_id_impl(void *ctx, k_u32 *chip_id)
 
     ret = _sensor_read_chip_id_r(dev, chip_id);
 
-    if(chip_id && (SC123GS_CHIP_ID != *chip_id)) {
+    if(chip_id && (SC132GS_CHIP_ID != *chip_id)) {
         ret = -1;
         pr_err("%s, iic read chip id err \n", __func__);
     }
@@ -402,17 +517,28 @@ static k_s32 sensor_get_again_impl(void *ctx, k_sensor_gain *gain)
 static k_s32 sensor_set_again_impl(void *ctx, k_sensor_gain gain)
 {
     k_s32 ret = 0;
-    k_u32 again, dgain, total;
-    k_u8 i;
-    k_u32 coarse_again, fine_again, fine_again_reg, coarse_again_reg;
-    k_u32 a_gain;
+    k_u32 again;
+    k_u32 coarse_again = 0;
+    k_u32 fine_again_reg = 0;
 
     struct sensor_driver_dev *dev = ctx;
     k_sensor_mode *current_mode = &dev->current_sensor_mode;
 
     if (current_mode->hdr_mode == SENSOR_MODE_LINEAR) {
 
-        again = (k_u16)(gain.gain[SENSOR_LINEAR_PARAS] * 1000 + 0.5);
+        again = (k_u32)(gain.gain[SENSOR_LINEAR_PARAS] * 1000.0f + 0.5f);
+
+        {
+            k_u32 max_again = (k_u32)(current_mode->ae_info.a_gain.max * 1000.0f + 0.5f);
+
+            if (again < 1000)
+                again = 1000;
+            if (again > max_again)
+                again = max_again;
+        }
+
+        if (again == current_mode->sensor_again)
+            return 0;
 
         if((again >= 1000) && (again < (1.813 * 1000)))
         {
@@ -426,51 +552,42 @@ static k_s32 sensor_set_again_impl(void *ctx, k_sensor_gain gain)
             /*1.813~3.568x*/
             coarse_again = 0x23;
             fine_again_reg = 0x20 + (((again - 1813) / 56 ) + 0.5);
-            if (fine_again > 0x3f)
-			    fine_again = 0x3f;
+            if (fine_again_reg > 0x3f)
+                fine_again_reg = 0x3f;
         }
         else if((again >= (1000 * 3.568)) && (again < (7.250 * 1000))){
             /*3.568x~7.250x*/
             coarse_again = 0x27;
             fine_again_reg = 0x20 + (((again - 3568) / 113 ) + 0.5);
-            if (fine_again > 0x3f)
-			    fine_again = 0x3f;
+            if (fine_again_reg > 0x3f)
+                fine_again_reg = 0x3f;
         }
         else if((again >= (1000 * 7.250)) && (again < (14.5 * 1000))){
-            /*7.250x~14.5x*/
+            /* 7.250x~14.5x; with a_gain.max=8x this is only 7.25x~8x */
             coarse_again = 0x2f;
             fine_again_reg = 0x20 + (((again - 7250) / 226 ) + 0.5);
-            if (fine_again > 0x3f)
-			    fine_again = 0x3f;
+            if (fine_again_reg > 0x3f)
+                fine_again_reg = 0x3f;
         }
         else {
-            /*14.5x~28.547*/
+            /* 14.5x~28.547; unused while a_gain.max is 8x, kept if the cap is raised. */
             coarse_again = 0x3f;
             fine_again_reg = 0x20 + (((again - 14500) / 453 ) + 0.5);
-            if (fine_again > 0x3f)
-			    fine_again = 0x3f;
+            if (fine_again_reg > 0x3f)
+                fine_again_reg = 0x3f;
         }
 
-        // pr_err("again is %x current_mode->sensor_again is %x coarse_again is %x fine_again_reg is %x \n", again, current_mode->sensor_again, coarse_again, fine_again_reg); 
-
-        ret =  sensor_reg_write(&dev->i2c_info,0x3e08,coarse_again);
-        ret |=  sensor_reg_write(&dev->i2c_info,0x3e09,fine_again_reg);
-
-        // ret =  sensor_reg_write(&dev->i2c_info,0x3e08,0x3f);
-        // ret |=  sensor_reg_write(&dev->i2c_info,0x3e09,0x3f);
+        ret =  sensor_reg_write(&dev->i2c_info, SC132GS_REG_AGAIN_H, coarse_again);
+        ret |=  sensor_reg_write(&dev->i2c_info, SC132GS_REG_AGAIN_L, fine_again_reg);
+        if (ret)
+            return ret;
 
         current_mode->sensor_again = again;
-		
-		current_mode->ae_info.cur_again = (float)current_mode->sensor_again/1000.0f;
-		
+        current_mode->ae_info.cur_again = (float)current_mode->sensor_again/1000.0f;
+
     } else if (current_mode->hdr_mode == SENSOR_MODE_HDR_STITCH) {
         again = (k_u16)(gain.gain[SENSOR_LINEAR_PARAS] * 64 + 0.5);
-		if(current_mode->sensor_again !=again)
-        {
-
-		}
-
-		current_mode->ae_info.cur_again = (float)current_mode->sensor_again/64.0f;
+        current_mode->ae_info.cur_again = (float)current_mode->sensor_again/64.0f;
     } else {
         pr_err("%s, unsupport exposure frame.\n", __func__);
         return -1;
@@ -562,27 +679,19 @@ static k_s32 sensor_set_intg_time_impl(void *ctx, k_sensor_intg_time time)
     struct sensor_driver_dev *dev = ctx;
     k_sensor_mode *current_mode = &dev->current_sensor_mode;
 
-    k_u16 exp_reg = 0;
-    k_u16 exp_reg_l = 0;
-
     if (current_mode->hdr_mode == SENSOR_MODE_LINEAR) {
         integraion_time = time.intg_time[SENSOR_LINEAR_PARAS];
         exp_line = integraion_time / current_mode->ae_info.one_line_exp_time;
         exp_line = MIN(current_mode->ae_info.max_integraion_line, MAX(current_mode->ae_info.min_integraion_line, exp_line));
-        
-        ret = sensor_reg_read(&dev->i2c_info, 0x3e01, &exp_reg);
-        ret = sensor_reg_read(&dev->i2c_info, 0x3e02, &exp_reg_l);
 
-        // pr_err("current_mode->et_line is %d exp_line is %d exp_reg is %x exp_reg_l is %x \n", current_mode->et_line, exp_line, exp_reg, exp_reg_l);
-        // if (current_mode->et_line != exp_line)
-        // {
-            exp_line = exp_line * 16;
-
-             ret |= sensor_reg_write(&dev->i2c_info, 0x3e01, (exp_line >>8) & 0xff);
-             ret |= sensor_reg_write(&dev->i2c_info, 0x3e02, (exp_line & 0xff));
-            current_mode->et_line = exp_line / 16;
-	    // }
-	    current_mode->ae_info.cur_integration_time = (float)current_mode->et_line * current_mode->ae_info.one_line_exp_time;
+        if (current_mode->et_line != exp_line) {
+            ret = sc132gs_write_exp_line(dev, exp_line);
+            if (ret)
+                return ret;
+            current_mode->et_line = exp_line;
+        }
+        current_mode->ae_info.cur_integration_time =
+            (float)current_mode->et_line * current_mode->ae_info.one_line_exp_time;
     } else if (current_mode->hdr_mode == SENSOR_MODE_HDR_STITCH) {
         integraion_time = time.intg_time[SENSOR_DUAL_EXP_L_PARAS];
         exp_line = integraion_time / current_mode->ae_info.one_line_exp_time;
@@ -840,7 +949,7 @@ k_s32 sensor_sc132gs_probe(struct k_sensor_probe_cfg *cfg, struct sensor_driver_
     dev->i2c_info.reg_addr_size = SENSOR_REG_VALUE_16BIT;
     dev->i2c_info.reg_val_size = SENSOR_REG_VALUE_8BIT;
     dev->i2c_info.slave_addr = 0x30; /* SH-M100-GS0-V0 */
-    if((0x00 != _sensor_read_chip_id_r(dev, &chip_id)) || (SC123GS_CHIP_ID != chip_id)) {
+    if((0x00 != _sensor_read_chip_id_r(dev, &chip_id)) || (SC132GS_CHIP_ID != chip_id)) {
         // rt_kprintf("sc132gs read chip id failed, 0x%04x\n", chip_id);
         goto _on_failed;
     }

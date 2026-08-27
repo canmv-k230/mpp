@@ -237,23 +237,23 @@ menu "MPP Configuration"
             endif
 
         menuconfig MPP_ENABLE_SENSOR_SC132GS
-            bool "Enable SC123GS"
+            bool "Enable SC132GS"
             default n
 
             if MPP_ENABLE_SENSOR_SC132GS
 
                 config MPP_ENABLE_SENSOR_SC132GS_ON_CSI0_USE_CHIP_CLK
-                    bool "SC123GS On CSI0 Use CHIP MCLK"
+                    bool "SC132GS On CSI0 Use CHIP MCLK"
                     default n
                     depends on MPP_ENABLE_CSI_DEV_0
 
                 config MPP_ENABLE_SENSOR_SC132GS_ON_CSI1_USE_CHIP_CLK
-                    bool "SC123GS On CSI1 Use CHIP MCLK"
+                    bool "SC132GS On CSI1 Use CHIP MCLK"
                     default n
                     depends on MPP_ENABLE_CSI_DEV_1
 
                 config MPP_ENABLE_SENSOR_SC132GS_ON_CSI2_USE_CHIP_CLK
-                    bool "SC123GS On CSI2 Use CHIP MCLK"
+                    bool "SC132GS On CSI2 Use CHIP MCLK"
                     default n
                     depends on MPP_ENABLE_CSI_DEV_2
             endif

@@ -2,7 +2,7 @@
   "root": [
     {
       "classname": "AdaptiveAe",
-      "enable": true,
+      "enable": false,
       "semMode": 0,
       "antiFlikerMode": 1,
       "setPoint": 25,

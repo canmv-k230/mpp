@@ -13,7 +13,7 @@
  */
 static k_sensor_reg sc132gs_mipi_2lane_1080x1280_init[] =
 {
-    {0x0103, 0x01},
+    /* Soft reset 0x0103 is done in sensor_init_impl (may NACK). */
 	{0x0100, 0x00},
 
 	//PLL bypass
@@ -127,7 +127,7 @@ static k_sensor_reg sc132gs_mipi_2lane_1080x1280_init[] =
 
 static k_sensor_reg sc132gs_mipi_2lane_1080x1280_120fps_init[] =
 {
-    {0x0103,0x01},
+    /* Soft reset 0x0103 is done in sensor_init_impl (may NACK). */
     {0x0100,0x00},
     {0x36e9,0x80},
     {0x36f9,0x80},
@@ -138,15 +138,13 @@ static k_sensor_reg sc132gs_mipi_2lane_1080x1280_120fps_init[] =
     {0x3032,0x60},
     {0x3038,0x44},
     {0x3207,0x17},
-    {0x320c,0x02},
+    {0x320c,0x02},  /* HTS = 0x02ee */
     {0x320d,0xee},
+    {0x320e,0x05},  /* VTS = 0x0546 (1350) */
+    {0x320f,0x46},
     {0x3250,0xcc},
-
-    // {0x320e,0x05},      // 1480
-    // {0x320f,0xc8},
-
     {0x3251,0x02},
-    {0x3252,0x05},
+    {0x3252,0x05},  /* dummy = VTS - 5 = 0x0541 */
     {0x3253,0x41},
     {0x3254,0x05},
     {0x3255,0x3b},
@@ -227,15 +225,9 @@ static k_sensor_reg sc132gs_mipi_2lane_1080x1280_120fps_init[] =
     {0x5799,0x04},
     {0x36e9,0x24},
     {0x36f9,0x51},
-    {0x0100,0x01},
-
-    //[gain<2]
+    /* Stream on is applied in sensor_set_stream. Analog switch stays at 1x. */
     {0x33fa,0x01},
     {0x3317,0xf0},
-
-    //[gain>=2]
-    {0x33fa,0x02},
-    {0x3317,0x14},
 
     {REG_NULL, 0x00},
 };
@@ -260,7 +252,7 @@ mipiclk=0     //0:mipiclk continuous 1:mipiclk LP
 */
 static k_sensor_reg sc132gs_mipi_2lane_640x480_init[] =
 {
-    {0x0103,0x01},
+    /* Soft reset 0x0103 is done in sensor_init_impl (may NACK). */
     {0x0100,0x00},
     {0x36e9,0x80},
     {0x36f9,0x80},
