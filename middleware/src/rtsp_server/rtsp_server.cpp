@@ -6,6 +6,7 @@
 #include <atomic>
 #include <thread>
 #include <map>
+#include <set>
 
 #include "rtsp_server.h"
 #include "liveMedia.hh"
@@ -41,6 +42,8 @@ struct SessionInfo {
     StreamReplicator *g711_replicator = nullptr;
     // backchannel
     std::shared_ptr<IOnData> back_channel = nullptr;
+    // clients currently in PLAY, deduped by clientSessionId
+    std::set<unsigned> active_clients;
 };
 
 static std::mutex session_info_map_mutex_;
@@ -66,12 +69,13 @@ class KdRtspServer::Impl {
     Impl() {}
     ~Impl() { DeInit(); }
 
-    int Init(Port port = 8554, IOnBackChannel *back_channel = nullptr);
+    int Init(Port port = 8554, IOnBackChannel *back_channel = nullptr, IOnClientEvent *client_event = nullptr);
     void DeInit();
 
     int CreateSession(const std::string &session_name, const SessionAttr &session_attr);
     int DestroySession(const std::string &session_name);
     char* GetRtspUrl(const std::string &session_name);
+    size_t GetClientCount(const std::string &session_name);
     void Start();
     void Stop();
 
@@ -84,6 +88,7 @@ class KdRtspServer::Impl {
 
   private:
     void announceStream(ServerMediaSession* sms, char const* streamName);
+    void OnSubsessionStream(const std::string &session_name, unsigned clientSessionId, bool entering);
 
   private:
     TaskScheduler *scheduler_{nullptr};
@@ -92,9 +97,10 @@ class KdRtspServer::Impl {
     volatile char watchVariable_{0};
     std::thread server_loop_;
     IOnBackChannel *back_channel_{nullptr};
+    IOnClientEvent *client_event_{nullptr};
 };
 
-int KdRtspServer::Impl::Init(Port port, IOnBackChannel *back_channel) {
+int KdRtspServer::Impl::Init(Port port, IOnBackChannel *back_channel, IOnClientEvent *client_event) {
     if (rtspServer_) {
         return 0;
     }
@@ -121,6 +127,7 @@ int KdRtspServer::Impl::Init(Port port, IOnBackChannel *back_channel) {
         return -1;
     }
     back_channel_ = back_channel;
+    client_event_ = client_event;
     return 0;
 }
 
@@ -143,6 +150,7 @@ void KdRtspServer::Impl::DeInit() {
         scheduler_ = nullptr;
     }
     back_channel_ = nullptr;
+    client_event_ = nullptr;
 }
 
 int KdRtspServer::Impl::CreateSession(const std::string &session_name, const SessionAttr &session_attr) {
@@ -163,6 +171,10 @@ int KdRtspServer::Impl::CreateSession(const std::string &session_name, const Ses
 
     char const* descriptionString = "Session streamed by \"KdRTSPServer\"";
     ServerMediaSession *sms = nullptr;
+    LiveServerMediaSession::OnClientStreamFunc onClientStream =
+        [this, session_name](unsigned clientSessionId, bool entering) {
+            OnSubsessionStream(session_name, clientSessionId, entering);
+        };
 
     // create live-sources and replicators
     SessionInfo info;
@@ -201,17 +213,17 @@ int KdRtspServer::Impl::CreateSession(const std::string &session_name, const Ses
     sms = ServerMediaSession::createNew(*env_, session_name.c_str(), session_name.c_str(), descriptionString);
     if (!sms) goto err_exit;
     if (info.h26x_replicator) {
-        LiveServerMediaSession *h26xliveSubSession = LiveServerMediaSession::createNew(*env_, info.h26x_replicator);
+        LiveServerMediaSession *h26xliveSubSession = LiveServerMediaSession::createNew(*env_, info.h26x_replicator, onClientStream);
         sms->addSubsession(h26xliveSubSession);
     }
 
     if (info.jpeg_replicator) {
-        MjpegMediaSubsession *jpegliveSubSession = MjpegMediaSubsession::createNew(*env_, info.jpeg_replicator);
+        MjpegMediaSubsession *jpegliveSubSession = MjpegMediaSubsession::createNew(*env_, info.jpeg_replicator, onClientStream);
         sms->addSubsession(jpegliveSubSession);
     }
 
     if (info.g711_replicator) {
-        LiveServerMediaSession *g711liveSubSession = LiveServerMediaSession::createNew(*env_, info.g711_replicator);
+        LiveServerMediaSession *g711liveSubSession = LiveServerMediaSession::createNew(*env_, info.g711_replicator, onClientStream);
         std::cout << "g711liveSubSession" << std::endl;
         sms->addSubsession(g711liveSubSession);
     }
@@ -265,6 +277,43 @@ char* KdRtspServer::Impl::GetRtspUrl(const std::string &session_name) {
         return strdup(session_url_map_[session_name].c_str());
     }
     return nullptr;
+}
+
+size_t KdRtspServer::Impl::GetClientCount(const std::string &session_name) {
+    std::unique_lock<std::mutex> lck(session_info_map_mutex_);
+    auto iter = session_info_map_.find(session_name);
+    if (iter == session_info_map_.end()) {
+        return 0;
+    }
+    return iter->second.active_clients.size();
+}
+
+void KdRtspServer::Impl::OnSubsessionStream(const std::string &session_name, unsigned clientSessionId, bool entering) {
+    bool changed = false;
+    size_t count = 0;
+    {
+        std::unique_lock<std::mutex> lck(session_info_map_mutex_);
+        auto iter = session_info_map_.find(session_name);
+        if (iter == session_info_map_.end()) {
+            // session already destroyed; lagging client teardown is ignored
+            return;
+        }
+        auto &clients = iter->second.active_clients;
+        if (entering) {
+            changed = clients.insert(clientSessionId).second;
+        } else {
+            changed = clients.erase(clientSessionId) > 0;
+        }
+        count = clients.size();
+    }
+    if (!changed || !client_event_) {
+        return;
+    }
+    if (entering) {
+        client_event_->OnClientPlay(session_name, clientSessionId, count);
+    } else {
+        client_event_->OnClientLeave(session_name, clientSessionId, count);
+    }
 }
 
 void KdRtspServer::Impl::Start() {
@@ -361,8 +410,8 @@ int KdRtspServer::Impl::SendAudioData(const std::string &session_name, const uin
 KdRtspServer::KdRtspServer() : impl_(std::make_unique<Impl>()) {}
 KdRtspServer::~KdRtspServer() {}
 
-int KdRtspServer::Init(int port, IOnBackChannel *back_channel) {
-    return impl_->Init((Port)port, back_channel);
+int KdRtspServer::Init(int port, IOnBackChannel *back_channel, IOnClientEvent *client_event) {
+    return impl_->Init((Port)port, back_channel, client_event);
 }
 
 void KdRtspServer::DeInit() {
@@ -379,6 +428,10 @@ int KdRtspServer::DestroySession(const std::string &session_name) {
 
 char* KdRtspServer::GetRtspUrl(const std::string &session_name) {
     return impl_->GetRtspUrl(session_name);
+}
+
+size_t KdRtspServer::GetClientCount(const std::string &session_name) {
+    return impl_->GetClientCount(session_name);
 }
 
 void KdRtspServer::Start() {

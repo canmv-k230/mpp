@@ -25,17 +25,42 @@ class IOnBackChannel {
     virtual void OnBackChannelData(std::string &session_name, const uint8_t *data, size_t size, uint64_t timestamp) = 0;
 };
 
+// Client arrival/departure notifications.
+//
+// Both callbacks run synchronously on the live555 event loop thread (from the
+// subsession's startStream()/deleteStream()), NOT on the caller's thread. Do
+// not block, sleep or run anything slow in them, and do not call back into
+// KdRtspServer's blocking APIs — that stalls streaming for every client.
+// Hand the event to your own thread if you need to do real work.
+class IOnClientEvent {
+  public:
+    virtual ~IOnClientEvent() {}
+    // Fired once per client per session on PLAY (deduped across that
+    // session's subsessions). client_count includes this client.
+    virtual void OnClientPlay(const std::string &/*session_name*/, unsigned /*client_session_id*/, size_t /*client_count*/) {}
+    // Fired once per client per session when the stream is torn down: explicit
+    // TEARDOWN, disconnect, or RTCP liveness timeout. It also fires if live555
+    // reclaims the stream on an internal error while the client is still
+    // connected, so treat the count as "clients currently streaming", which
+    // may briefly read low, rather than an exact connection count.
+    virtual void OnClientLeave(const std::string &/*session_name*/, unsigned /*client_session_id*/, size_t /*client_count*/) {}
+};
+
 class KdRtspServer {
   public:
     KdRtspServer();
     ~KdRtspServer();
 
-    int Init(int port = 8554, IOnBackChannel *back_channel = nullptr);
+    int Init(int port = 8554, IOnBackChannel *back_channel = nullptr, IOnClientEvent *client_event = nullptr);
     void DeInit();
 
     int CreateSession(const std::string &session_name, const SessionAttr &session_attr);
     int DestroySession(const std::string &session_name);
     char* GetRtspUrl(const std::string &session_name);
+    // Number of clients currently streaming this session. Returns 0 both when
+    // nobody is streaming and when session_name does not exist; callers that
+    // need to tell those apart should track their own CreateSession() calls.
+    size_t GetClientCount(const std::string &session_name);
     void Start();
     void Stop();
 
