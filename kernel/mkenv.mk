@@ -21,6 +21,7 @@ RTSMART_CFLAGS := \
 	-I$(SDK_RTSMART_SRC_DIR)/rtsmart/kernel/rt-thread/components/libc/time \
 	-I$(SDK_RTSMART_SRC_DIR)/rtsmart/kernel/rt-thread/components/lwp \
 	-I$(SDK_RTSMART_SRC_DIR)/rtsmart/kernel/rt-thread/components/utilities/resource \
+	-I$(SDK_RTSMART_SRC_DIR)/rtsmart/kernel/rt-thread/components/utilities/ulog \
 	-I$(SDK_RTSMART_SRC_DIR)/rtsmart/kernel/rt-thread/components/lwp/arch/risc-v/rv64 \
 
 RTSMART_CDEFS := \
