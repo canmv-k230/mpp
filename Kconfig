@@ -219,7 +219,9 @@ menu "MPP Configuration"
                     bool "IMX335 Enable 4LANE Configure"
                     default n
                     help
-                        Default Only Enable 2LANE Configure
+                      Add CSI0 4-lane 2592x1944 modes. CSI0 aggregation borrows
+                      PHY1 (CSI1's PHY), so CSI1 must stay unused for ANY sensor
+                      while this is enabled — not only IMX335 on CSI1.
 
                 config MPP_SENSOR_IMX335_ON_CSI0_USE_CHIP_CLK
                     bool "IMX335 On CSI0 Use CHIP MCLK"
@@ -368,6 +370,14 @@ menu "MPP Configuration"
 
             if MPP_ENABLE_SENSOR_OV13850
 
+                config MPP_SENSOR_OV13850_ENABLE_4LANE_CONFIGURE
+                    bool "OV13850 Enable 4LANE Configure"
+                    default n
+                    help
+                      Add the 3840x2160 4-lane mode on CSI0 only. Aggregation
+                      borrows PHY1 (CSI1's PHY), so CSI1 must stay unused for
+                      ANY sensor while this is enabled — not only OV13850.
+
                 config MPP_SENSOR_OV13850_ON_CSI0_USE_CHIP_CLK
                     bool "OV13850 On CSI0 Use CHIP MCLK"
                     default n
@@ -376,7 +386,7 @@ menu "MPP Configuration"
                 config MPP_SENSOR_OV13850_ON_CSI1_USE_CHIP_CLK
                     bool "OV13850 On CSI1 Use CHIP MCLK"
                     default n
-                    depends on MPP_ENABLE_CSI_DEV_1
+                    depends on MPP_ENABLE_CSI_DEV_1 && !MPP_SENSOR_OV13850_ENABLE_4LANE_CONFIGURE
 
                 config MPP_SENSOR_OV13850_ON_CSI2_USE_CHIP_CLK
                     bool "OV13850 On CSI2 Use CHIP MCLK"

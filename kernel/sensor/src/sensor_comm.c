@@ -495,12 +495,12 @@ k_s32 sensor_priv_ioctl(struct sensor_driver_dev *dev, k_u32 cmd, void *args)
             }
 
             if (dev->sensor_func.sensor_set_again == NULL) {
-                rt_kprintf("%s (%s)sensor_get_again is null\n", __func__, dev->sensor_name);
+                rt_kprintf("%s (%s)sensor_set_again is null\n", __func__, dev->sensor_name);
                 return -1;
             }
             ret = dev->sensor_func.sensor_set_again(dev, gain);
             if (ret) {
-                rt_kprintf("%s (%s)sensor_get_again err\n", __func__, dev->sensor_name);
+                rt_kprintf("%s (%s)sensor_set_again err\n", __func__, dev->sensor_name);
                 return -1;
             }
 

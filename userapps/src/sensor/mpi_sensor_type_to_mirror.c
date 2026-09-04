@@ -100,6 +100,9 @@ static struct sensor_type_mirror_t type_mirror_tbl[] = {
 
 #if defined (CONFIG_MPP_ENABLE_SENSOR_OV13850)
     {.type = OV13850_MIPI_CSI0_3840x2160_7FPS_10BIT_LINEAR, .mirror = 0},
+#if defined (CONFIG_MPP_SENSOR_OV13850_ENABLE_4LANE_CONFIGURE)
+    {.type = OV13850_MIPI_CSI0_4LANE_3840X2160_27FPS_10BIT_LINEAR, .mirror = 0},
+#endif
     {.type = OV13850_MIPI_CSI1_3840x2160_7FPS_10BIT_LINEAR, .mirror = 0},
     {.type = OV13850_MIPI_CSI2_3840x2160_7FPS_10BIT_LINEAR, .mirror = 0},
 #endif // CONFIG_MPP_ENABLE_SENSOR_OV13850

@@ -258,8 +258,10 @@ static k_s32 sensor_init_impl(void *ctx, k_sensor_mode mode)
         return -1;
     }
 
+    const k_sensor_reg *reg_list = current_mode->reg_list;
+
     /* write mode table, then mirror/flip (gc2093 / ov5647 style) */
-    ret = sensor_reg_list_write(&dev->i2c_info, current_mode->reg_list);
+    ret = sensor_reg_list_write(&dev->i2c_info, reg_list);
     ret |= ov13850_apply_mirror_flip(dev, current_mode);
 
     //current_mode->sensor_again = 0;
@@ -744,8 +746,8 @@ k_s32 sensor_ov13850_probe(struct k_sensor_probe_cfg *cfg, struct sensor_driver_
         sensor_mode = &dev->sensor_mode_list[0];
     } else
 #endif // CONFIG_MPP_ENABLE_CSI_DEV_0
-#if defined (CONFIG_MPP_ENABLE_CSI_DEV_1) && !defined (CONFIG_MPP_SENSOR_ov13850_ENABLE_4LANE_CONFIGURE)
-    // if enable 4Lane configure support, will disable CSI1
+    /* CSI0 4-lane takes over PHY1, which is CSI1's, so the two are exclusive. */
+#if defined (CONFIG_MPP_ENABLE_CSI_DEV_1) && !defined (CONFIG_MPP_SENSOR_OV13850_ENABLE_4LANE_CONFIGURE)
     if(0x01 == cfg->csi_num) {
         dev->mode_count = sizeof(sensor_csi1_mode_list) / sizeof(sensor_csi1_mode_list[0]);
         dev->sensor_mode_list = &sensor_csi1_mode_list[0];

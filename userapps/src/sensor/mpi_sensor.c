@@ -1097,6 +1097,29 @@ static const k_vicap_sensor_info sensor_info_list[] = {
         7,
         OV13850_MIPI_CSI0_3840x2160_7FPS_10BIT_LINEAR,
     },
+#if defined(CONFIG_MPP_SENSOR_OV13850_ENABLE_4LANE_CONFIGURE)
+    {
+        "ov13850_csi0",
+        "ov13850-3840x2160",
+        3840,
+        2160,
+        VICAP_CSI0,
+        VICAP_MIPI_4LANE,
+        VICAP_SOURCE_CSI0,
+        K_TRUE,
+        /* The 4-lane table sends about 612 Mbps/lane, below the lowest band the
+         * PHY offers, so this takes the nearest one. 1200M was tried and does
+         * not decode a single packet. */
+        VICAP_MIPI_PHY_800M,
+        VICAP_CSI_DATA_TYPE_RAW10,
+        VICAP_LINERA_MODE,
+        VICAP_FLASH_DISABLE,
+        VICAP_VI_FIRST_FRAME_FS_TR0,
+        0,
+        27,
+        OV13850_MIPI_CSI0_4LANE_3840X2160_27FPS_10BIT_LINEAR,
+    },
+#endif // CONFIG_MPP_SENSOR_OV13850_ENABLE_4LANE_CONFIGURE
 #endif // CONFIG_MPP_ENABLE_CSI_DEV_0
 
 #if defined (CONFIG_MPP_ENABLE_CSI_DEV_1)
