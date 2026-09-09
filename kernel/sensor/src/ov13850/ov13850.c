@@ -262,6 +262,14 @@ static k_s32 sensor_init_impl(void *ctx, k_sensor_mode mode)
 
     /* write mode table, then mirror/flip (gc2093 / ov5647 style) */
     ret = sensor_reg_list_write(&dev->i2c_info, reg_list);
+#if defined(CONFIG_MPP_SENSOR_OV13850_ENABLE_4LANE_CONFIGURE)
+    if (type == OV13850_MIPI_CSI0_4LANE_1920X1080_60FPS_10BIT_LINEAR ||
+        type == OV13850_MIPI_CSI0_4LANE_2112X1568_60FPS_10BIT_LINEAR) {
+        /* Shared binned tables use 10 us/line. VTS=1667 gives 59.988 fps. */
+        ret |= sensor_reg_write(&dev->i2c_info, 0x380e, 0x06);
+        ret |= sensor_reg_write(&dev->i2c_info, 0x380f, 0x83);
+    }
+#endif
     ret |= ov13850_apply_mirror_flip(dev, current_mode);
 
     //current_mode->sensor_again = 0;
