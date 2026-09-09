@@ -1166,6 +1166,31 @@ static const k_vicap_sensor_info sensor_info_list[] = {
 
 #endif // CONFIG_MPP_ENABLE_SENSOR_OV13850
 
+#if defined (CONFIG_MPP_ENABLE_SENSOR_IMX415)
+#if defined (CONFIG_MPP_ENABLE_CSI_DEV_0)
+#if defined (CONFIG_MPP_SENSOR_IMX415_ENABLE_4LANE_CONFIGURE)
+    {
+        "imx415_csi0",
+        "imx415-3840x2160",
+        3840,
+        2160,
+        VICAP_CSI0,
+        VICAP_MIPI_4LANE,
+        VICAP_SOURCE_CSI0,
+        K_TRUE,
+        VICAP_MIPI_PHY_800M,
+        VICAP_CSI_DATA_TYPE_RAW10,
+        VICAP_LINERA_MODE,
+        VICAP_FLASH_DISABLE,
+        VICAP_VI_FIRST_FRAME_FS_TR0,
+        0,
+        30,
+        IMX415_MIPI_CSI0_4LANE_3840X2160_30FPS_10BIT_LINEAR,
+    },
+#endif // CONFIG_MPP_SENSOR_IMX415_ENABLE_4LANE_CONFIGURE
+#endif // CONFIG_MPP_ENABLE_CSI_DEV_0
+#endif // CONFIG_MPP_ENABLE_SENSOR_IMX415
+
 #if defined (CONFIG_MPP_ENABLE_SENSOR_IMX675)
 #if defined (CONFIG_MPP_ENABLE_CSI_DEV_0)
     {

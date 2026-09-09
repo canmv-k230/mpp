@@ -12,6 +12,7 @@ src-y := src/sensor_comm.c src/sensor_dev.c src/autofocus/sensor_autofocus.c
 src-$(CONFIG_MPP_ENABLE_SENSOR_GC2093) += src/gc2093/gc2093.c
 src-$(CONFIG_MPP_ENABLE_SENSOR_OV5647) += src/ov5647/ov5647.c
 src-$(CONFIG_MPP_ENABLE_SENSOR_IMX335) += src/imx335/imx335.c
+src-$(CONFIG_MPP_ENABLE_SENSOR_IMX415) += src/imx415/imx415.c
 src-$(CONFIG_MPP_ENABLE_SENSOR_IMX290) += src/imx290/imx290.c
 src-$(CONFIG_MPP_ENABLE_SENSOR_SC132GS) += src/sc132gs/sc132gs.c
 src-$(CONFIG_MPP_ENABLE_SENSOR_SC130GS) += src/sc130gs/sc130gs.c

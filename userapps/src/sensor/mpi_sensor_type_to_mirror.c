@@ -106,6 +106,11 @@ static struct sensor_type_mirror_t type_mirror_tbl[] = {
     {.type = OV13850_MIPI_CSI1_3840x2160_7FPS_10BIT_LINEAR, .mirror = 0},
     {.type = OV13850_MIPI_CSI2_3840x2160_7FPS_10BIT_LINEAR, .mirror = 0},
 #endif // CONFIG_MPP_ENABLE_SENSOR_OV13850
+#if defined (CONFIG_MPP_ENABLE_SENSOR_IMX415)
+#if defined (CONFIG_MPP_SENSOR_IMX415_ENABLE_4LANE_CONFIGURE)
+    {.type = IMX415_MIPI_CSI0_4LANE_3840X2160_30FPS_10BIT_LINEAR, .mirror = 0},
+#endif
+#endif // CONFIG_MPP_ENABLE_SENSOR_IMX415
 #if defined (CONFIG_MPP_ENABLE_SENSOR_IMX675)
     /* Module default orientation uses H+V reverse; NONE in driver maps to that. */
     {.type = IMX675_MIPI_CSI0_2LANE_RAW10_2592X1944_30FPS_LINEAR, .mirror = 0},
