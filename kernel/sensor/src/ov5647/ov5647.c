@@ -567,7 +567,8 @@ static k_s32 sensor_set_intg_time_impl(void *ctx, k_sensor_intg_time time)
     k_u32 height = current_mode->size.height;
 
     if((640 == width) && (480 == height)) {
-    	min_vts = 573;
+    	/* AE floor: 90fps min_vts=573; 60fps min_vts=860 */
+    	min_vts = (60000 == current_mode->fps) ? 860 : 573;
     } else if((1280 == width) && (720 == height)) {
     	min_vts = 851;
     } else if((1280 == width) && (960 == height)) {

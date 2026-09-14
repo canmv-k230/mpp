@@ -220,7 +220,8 @@ static k_sensor_ae_info sensor_csi1_ae_info[] = {
     },
     /* 4: VGA@90 */
     {
-        .frame_length = 1721,//30fps, 90fps:573,
+        /* max VTS ~30fps; AE min_vts=573 @90 via set_exp */
+        .frame_length = 1721,
         .cur_frame_length = 1721,
         .one_line_exp_time = 0.000019373,
         .gain_accuracy = 1024,
@@ -273,6 +274,63 @@ static k_sensor_ae_info sensor_csi1_ae_info[] = {
         .d_gain.step = (1.0f/1024.0f),
 
         .cur_fps = 90,
+    },
+    /* 5: VGA@60 — same AE timing base as CSI0/1/2 copies; AE min_vts=860.
+     * Intentionally duplicated across csi*_mode_list (existing style). */
+    {
+        .frame_length = 1721,
+        .cur_frame_length = 1721,
+        .one_line_exp_time = 0.000019373,
+        .gain_accuracy = 1024,
+
+        .min_gain = 1.0,
+        .max_gain = 24.0,//63.9375,
+
+        .int_time_delay_frame = 2,
+        .gain_delay_frame = 2,
+        .color_type = SENSOR_COLOR,    //color sensor
+
+        .integration_time_increment = 0.000019373,
+        .gain_increment = (1.0f/16.0f),
+
+        .max_long_integraion_line = 1721 - 12,
+        .min_long_integraion_line = 2,
+
+        .max_integraion_line = 1721 - 12,
+        .min_integraion_line = 2,
+
+        .max_long_integraion_time = 0.000019373 * (1721 - 12),
+        .min_long_integraion_time = 0.000019373 * 2,
+
+        .max_integraion_time = 0.000019373 * (1721 - 12),
+        .min_integraion_time = 0.000019373 * 2,
+
+        .cur_long_integration_time = 0.0,
+        .cur_integration_time = 0.0,
+
+        .cur_long_again = 0.0,
+        .cur_long_dgain = 0.0,
+
+        .cur_again = 0.0,
+        .cur_dgain = 0.0,
+
+        .a_long_gain.min = 1.0,
+        .a_long_gain.max = 8.0,
+        .a_long_gain.step = (1.0f/16.0f),
+
+        .a_gain.min = 1.0,
+        .a_gain.max = 24.0,//63.9375,
+        .a_gain.step = (1.0f/16.0f),
+
+        .d_long_gain.max = 1.0,
+        .d_long_gain.min = 1.0,
+        .d_long_gain.step = (1.0f/1024.0f),
+
+        .d_gain.max = 1.0,
+        .d_gain.min = 1.0,
+        .d_gain.step = (1.0f/1024.0f),
+
+        .cur_fps = 60,
     }
 };
 
@@ -298,7 +356,7 @@ static const k_sensor_mode sensor_csi1_mode_list[] = {
             .data_type = 0x2B,
         },
 #if defined (CONFIG_MPP_SENSOR_OV5647_ON_CSI1_USE_CHIP_CLK)
-        #error "TODO"
+        #error "OV5647 CSI1 chip-clk (CONFIG_MPP_SENSOR_OV5647_ON_CSI1_USE_CHIP_CLK) not supported yet; use board OSC / disable the option"
 #else
         .reg_list = ov5647_2592x1944_10bpp,
         .mclk_setting = {{K_FALSE}, {K_FALSE}, {K_FALSE}},
@@ -326,7 +384,7 @@ static const k_sensor_mode sensor_csi1_mode_list[] = {
             .data_type = 0x2B,
         },
 #if defined (CONFIG_MPP_SENSOR_OV5647_ON_CSI1_USE_CHIP_CLK)
-        #error "TODO"
+        #error "OV5647 CSI1 chip-clk (CONFIG_MPP_SENSOR_OV5647_ON_CSI1_USE_CHIP_CLK) not supported yet; use board OSC / disable the option"
 #else
         .reg_list = ov5647_mipi2lane_1080p_30fps_linear,
         .mclk_setting = {{K_FALSE}, {K_FALSE}, {K_FALSE}},
@@ -354,7 +412,7 @@ static const k_sensor_mode sensor_csi1_mode_list[] = {
             .data_type = 0x2B,
         },
 #if defined (CONFIG_MPP_SENSOR_OV5647_ON_CSI1_USE_CHIP_CLK)
-        #error "TODO"
+        #error "OV5647 CSI1 chip-clk (CONFIG_MPP_SENSOR_OV5647_ON_CSI1_USE_CHIP_CLK) not supported yet; use board OSC / disable the option"
 #else
         .reg_list = ov5647_1280x960p45_10bpp,
         .mclk_setting = {{K_FALSE}, {K_FALSE}, {K_FALSE}},
@@ -382,7 +440,7 @@ static const k_sensor_mode sensor_csi1_mode_list[] = {
             .data_type = 0x2B,
         },
 #if defined (CONFIG_MPP_SENSOR_OV5647_ON_CSI1_USE_CHIP_CLK)
-        #error "TODO"
+        #error "OV5647 CSI1 chip-clk (CONFIG_MPP_SENSOR_OV5647_ON_CSI1_USE_CHIP_CLK) not supported yet; use board OSC / disable the option"
 #else
         .reg_list = mode_1280x720_60fps,
         .mclk_setting = {{K_FALSE}, {K_FALSE}, {K_FALSE}},
@@ -410,11 +468,39 @@ static const k_sensor_mode sensor_csi1_mode_list[] = {
             .data_type = 0x2B,
         },
 #if defined (CONFIG_MPP_SENSOR_OV5647_ON_CSI1_USE_CHIP_CLK)
-        #error "TODO"
+        #error "OV5647 CSI1 chip-clk (CONFIG_MPP_SENSOR_OV5647_ON_CSI1_USE_CHIP_CLK) not supported yet; use board OSC / disable the option"
 #else
         .reg_list = ov5647_640x480_10bpp,
         .mclk_setting = {{K_FALSE}, {K_FALSE}, {K_FALSE}},
         .sensor_ae_info = &sensor_csi1_ae_info[4],
+#endif
+    },
+    {
+        .index = 5,
+        .sensor_type = OV5647_MIPI_CSI1_640x480_60FPS_10BIT_LINEAR,
+        .size = {
+            .bounds_width = 640,
+            .bounds_height = 480,
+            .top = 0,
+            .left = 0,
+            .width = 640,
+            .height = 480,
+        },
+        .fps = 60000,
+        .hdr_mode = SENSOR_MODE_LINEAR,
+        .bit_width = 10,
+        .bayer_pattern = BAYER_PAT_GBRG,
+        .mipi_info = {
+            .csi_id = 2,
+            .mipi_lanes = 2,
+            .data_type = 0x2B,
+        },
+#if defined (CONFIG_MPP_SENSOR_OV5647_ON_CSI1_USE_CHIP_CLK)
+        #error "OV5647 CSI1 chip-clk (CONFIG_MPP_SENSOR_OV5647_ON_CSI1_USE_CHIP_CLK) not supported yet; use board OSC / disable the option"
+#else
+        .reg_list = ov5647_640x480_60fps_10bpp,
+        .mclk_setting = {{K_FALSE}, {K_FALSE}, {K_FALSE}},
+        .sensor_ae_info = &sensor_csi1_ae_info[5],
 #endif
     },
 };
