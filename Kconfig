@@ -46,6 +46,22 @@ menu "MPP Configuration"
 
         comment "Sensor Hardware Configuration"
 
+        choice MPP_CSI0_LINK_MODE
+            prompt "CSI0 LANE NUM"
+            default MPP_CSI0_LINK_MODE_2LANE
+            help
+              4LANE aggregation on CSI0 borrows PHY1 (CSI1's PHY).
+              Selecting 4LANE hides Enable CSI1.
+              In 2LANE mode all per-sensor 4LANE options are hidden
+              and not compiled.
+
+            config MPP_CSI0_LINK_MODE_2LANE
+                bool "2LANE"
+
+            config MPP_CSI0_LINK_MODE_4LANE
+                bool "4LANE"
+        endchoice
+
         menuconfig MPP_ENABLE_CSI_DEV_0
             bool "Enable CSI0"
 
@@ -90,6 +106,7 @@ menu "MPP Configuration"
 
         menuconfig MPP_ENABLE_CSI_DEV_1
             bool "Enable CSI1"
+            depends on !MPP_CSI0_LINK_MODE_4LANE
 
             if MPP_ENABLE_CSI_DEV_1
                 config MPP_CSI_DEV1_POWER
@@ -217,11 +234,13 @@ menu "MPP Configuration"
 
                 config MPP_SENSOR_IMX335_ENABLE_4LANE_CONFIGURE
                     bool "IMX335 Enable 4LANE Configure"
-                    default n
+                    default y
+                    depends on MPP_CSI0_LINK_MODE_4LANE
                     help
-                      Add CSI0 4-lane 2592x1944 modes. CSI0 aggregation borrows
-                      PHY1 (CSI1's PHY), so CSI1 must stay unused for ANY sensor
-                      while this is enabled — not only IMX335 on CSI1.
+                      Add CSI0 4-lane 2592x1944 modes. Enabled by default when
+                      CSI0 link mode is 4LANE (CSI1 is forced off by that choice).
+                      Existing .config that explicitly set this to n stays n after
+                      upgrade; run make olddefconfig and confirm if needed.
 
                 config MPP_SENSOR_IMX335_ON_CSI0_USE_CHIP_CLK
                     bool "IMX335 On CSI0 Use CHIP MCLK"
@@ -241,16 +260,21 @@ menu "MPP Configuration"
         menuconfig MPP_ENABLE_SENSOR_IMX415
             bool "Enable IMX415"
             default n
+            depends on MPP_CSI0_LINK_MODE_4LANE
+            help
+              IMX415 is CSI0 4-lane only; available when CSI0 link mode is 4LANE.
 
             if MPP_ENABLE_SENSOR_IMX415
 
                 config MPP_SENSOR_IMX415_ENABLE_4LANE_CONFIGURE
                     bool "IMX415 Enable 4LANE Configure"
                     default y
+                    depends on MPP_CSI0_LINK_MODE_4LANE
                     help
-                      CSI0 4-lane 3840x2160@30fps only. CSI0 aggregation borrows
-                      PHY1 (CSI1's PHY), so CSI1 must stay unused for ANY sensor
-                      while this is enabled. CSI1/CSI2 modes are not supported.
+                      CSI0 4-lane 3840x2160@30fps. CSI1 is already disabled by
+                      the CSI0 4LANE link-mode choice.
+                      Existing .config that explicitly set this to n stays n after
+                      upgrade; run make olddefconfig and confirm if needed.
 
                 config MPP_SENSOR_IMX415_ON_CSI0_USE_CHIP_CLK
                     bool "IMX415 On CSI0 Use CHIP MCLK"
@@ -395,11 +419,13 @@ menu "MPP Configuration"
 
                 config MPP_SENSOR_OV13850_ENABLE_4LANE_CONFIGURE
                     bool "OV13850 Enable 4LANE Configure"
-                    default n
+                    default y
+                    depends on MPP_CSI0_LINK_MODE_4LANE
                     help
-                      Add the 3840x2160 4-lane mode on CSI0 only. Aggregation
-                      borrows PHY1 (CSI1's PHY), so CSI1 must stay unused for
-                      ANY sensor while this is enabled — not only OV13850.
+                      Add CSI0 4-lane modes. Enabled by default when CSI0
+                      link mode is 4LANE (CSI1 is forced off by that choice).
+                      Existing .config that explicitly set this to n stays n after
+                      upgrade; run make olddefconfig and confirm if needed.
 
                 config MPP_SENSOR_OV13850_ON_CSI0_USE_CHIP_CLK
                     bool "OV13850 On CSI0 Use CHIP MCLK"

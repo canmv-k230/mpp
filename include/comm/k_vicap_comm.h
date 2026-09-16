@@ -637,6 +637,25 @@ typedef struct {
 }k_vicap_adapt_id;
 
 
+/**
+ * @brief Preferred MIPI lane count when probing a sensor mode.
+ *
+ * Used by kd_mpi_sensor_adapt_get when 2LANE and 4LANE modes share the same
+ * resolution/fps.
+ * - PREF_ANY   (0): no lane filter (zero-init default); ties prefer 2LANE via sort
+ * - PREF_2LANE (1): match non-4LANE modes (1LANE and 2LANE)
+ * - PREF_4LANE (2): match 4LANE only
+ *
+ * Callers must zero-initialize k_vicap_probe_config (e.g. memset) before
+ * filling fields. Uninitialized lane_pref is undefined; adapt_get clamps
+ * out-of-range values to PREF_ANY.
+ */
+typedef enum {
+    VICAP_MIPI_LANE_PREF_ANY   = 0,
+    VICAP_MIPI_LANE_PREF_2LANE = 1,
+    VICAP_MIPI_LANE_PREF_4LANE = 2,
+} k_vicap_mipi_lane_pref;
+
 typedef struct {
     k_u32 csi_num;
     k_u32 width;
@@ -644,6 +663,7 @@ typedef struct {
     k_u32 fps;
     k_u32 mirror; /* default mirror setting */
     k_u8  sensor_name[32];
+    k_vicap_mipi_lane_pref lane_pref; /* 0=ANY; must memset struct */
 } k_vicap_probe_config;
 
 

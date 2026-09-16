@@ -254,10 +254,12 @@ static k_s32 kd_sample_sensor_auto_detect(k_vicap_sensor_type* sensor_type)
     k_vicap_probe_config probe_cfg;
     k_vicap_sensor_info sensor_info;
 
+    memset(&probe_cfg, 0, sizeof(probe_cfg));
     probe_cfg.csi_num = CONFIG_MPP_SENSOR_DEFAULT_CSI;
     probe_cfg.width = 1920;
     probe_cfg.height = 1080;
     probe_cfg.fps = 30;
+    probe_cfg.lane_pref = VICAP_MIPI_LANE_PREF_ANY;
 
     if(0x00 != kd_mpi_sensor_adapt_get(&probe_cfg, &sensor_info)) {
         printf("sample_vicap, can't probe sensor on %d, output %dx%d@%d\n", probe_cfg.csi_num, probe_cfg.width, probe_cfg.height, probe_cfg.fps);
@@ -310,10 +312,12 @@ int KdMedia::Impl::Init(const KdMediaInputConfig &config)
             k_vicap_probe_config probe_cfg;
             k_vicap_sensor_info sensor_info;
 
+            memset(&probe_cfg, 0, sizeof(probe_cfg));
             probe_cfg.csi_num = CONFIG_MPP_SENSOR_DEFAULT_CSI;
             probe_cfg.width = 1920;
             probe_cfg.height = 1080;
             probe_cfg.fps = 30;
+            probe_cfg.lane_pref = VICAP_MIPI_LANE_PREF_ANY;
 
             if(0x00 != kd_mpi_sensor_adapt_get(&probe_cfg, &sensor_info)) {
                 printf("sample_vicap, can't probe sensor on %d, output %dx%d@%d\n", probe_cfg.csi_num, probe_cfg.width, probe_cfg.height, probe_cfg.fps);

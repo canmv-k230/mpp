@@ -1151,6 +1151,52 @@ static const k_vicap_sensor_info sensor_info_list[] = {
         7,
         OV13850_MIPI_CSI0_3840x2160_7FPS_10BIT_LINEAR,
     },
+#endif // CONFIG_MPP_ENABLE_CSI_DEV_0
+
+#if defined (CONFIG_MPP_ENABLE_CSI_DEV_1)
+    {
+        "ov13850_csi1",
+        "ov13850-3840x2160",
+        3840,
+        2160,
+        VICAP_CSI1,
+        VICAP_MIPI_2LANE,
+        VICAP_SOURCE_CSI1,
+        K_TRUE,
+        VICAP_MIPI_PHY_800M,
+        VICAP_CSI_DATA_TYPE_RAW10,
+        VICAP_LINERA_MODE,
+        VICAP_FLASH_DISABLE,
+        VICAP_VI_FIRST_FRAME_FS_TR0,
+        0,
+        7,
+        OV13850_MIPI_CSI1_3840x2160_7FPS_10BIT_LINEAR,
+    },
+#endif // CONFIG_MPP_ENABLE_CSI_DEV_1
+
+#if defined (CONFIG_MPP_ENABLE_CSI_DEV_2)
+    {
+        "ov13850_csi2",
+        "ov13850-3840x2160",
+        3840,
+        2160,
+        VICAP_CSI2,
+        VICAP_MIPI_2LANE,
+        VICAP_SOURCE_CSI2,
+        K_TRUE,
+        VICAP_MIPI_PHY_800M,
+        VICAP_CSI_DATA_TYPE_RAW10,
+        VICAP_LINERA_MODE,
+        VICAP_FLASH_DISABLE,
+        VICAP_VI_FIRST_FRAME_FS_TR0,
+        0,
+        7,
+        OV13850_MIPI_CSI2_3840x2160_7FPS_10BIT_LINEAR,
+    },
+#endif // CONFIG_MPP_ENABLE_CSI_DEV_2
+
+/* Appended after CSI1/CSI2 so list order matches enum (4LANE does not shift CSI1/CSI2) */
+#if defined (CONFIG_MPP_ENABLE_CSI_DEV_0)
 #if defined(CONFIG_MPP_SENSOR_OV13850_ENABLE_4LANE_CONFIGURE)
     {
         "ov13850_csi0",
@@ -1251,49 +1297,6 @@ static const k_vicap_sensor_info sensor_info_list[] = {
     },
 #endif // CONFIG_MPP_SENSOR_OV13850_ENABLE_4LANE_CONFIGURE
 #endif // CONFIG_MPP_ENABLE_CSI_DEV_0
-
-#if defined (CONFIG_MPP_ENABLE_CSI_DEV_1)
-    {
-        "ov13850_csi1",
-        "ov13850-3840x2160",
-        3840,
-        2160,
-        VICAP_CSI1,
-        VICAP_MIPI_2LANE,
-        VICAP_SOURCE_CSI1,
-        K_TRUE,
-        VICAP_MIPI_PHY_800M,
-        VICAP_CSI_DATA_TYPE_RAW10,
-        VICAP_LINERA_MODE,
-        VICAP_FLASH_DISABLE,
-        VICAP_VI_FIRST_FRAME_FS_TR0,
-        0,
-        7,
-        OV13850_MIPI_CSI1_3840x2160_7FPS_10BIT_LINEAR,
-    },
-#endif // CONFIG_MPP_ENABLE_CSI_DEV_1
-
-#if defined (CONFIG_MPP_ENABLE_CSI_DEV_2)
-    {
-        "ov13850_csi2",
-        "ov13850-3840x2160",
-        3840,
-        2160,
-        VICAP_CSI2,
-        VICAP_MIPI_2LANE,
-        VICAP_SOURCE_CSI2,
-        K_TRUE,
-        VICAP_MIPI_PHY_800M,
-        VICAP_CSI_DATA_TYPE_RAW10,
-        VICAP_LINERA_MODE,
-        VICAP_FLASH_DISABLE,
-        VICAP_VI_FIRST_FRAME_FS_TR0,
-        0,
-        7,
-        OV13850_MIPI_CSI2_3840x2160_7FPS_10BIT_LINEAR,
-    },
-#endif // CONFIG_MPP_ENABLE_CSI_DEV_2
-
 #endif // CONFIG_MPP_ENABLE_SENSOR_OV13850
 
 #if defined (CONFIG_MPP_ENABLE_SENSOR_IMX415)
@@ -2215,7 +2218,23 @@ static int compare_sensor_info(const void *a, const void *b) {
         return sensorB->width - sensorA->width;
     }
     // If width is the same, compare height
-    return sensorB->height - sensorA->height;
+    if (sensorA->height != sensorB->height) {
+        return sensorB->height - sensorA->height;
+    }
+    /* Same WxH@fps: prefer 2LANE so ties match zero-init lane_pref=ANY. */
+    return (int)sensorA->mipi_lanes - (int)sensorB->mipi_lanes;
+}
+
+static int lane_pref_match(k_vicap_mipi_lane_pref pref, k_vicap_mipi_lanes lanes)
+{
+    if (pref == VICAP_MIPI_LANE_PREF_ANY)
+        return 1;
+    if (pref == VICAP_MIPI_LANE_PREF_4LANE)
+        return lanes == VICAP_MIPI_4LANE;
+    if (pref == VICAP_MIPI_LANE_PREF_2LANE)
+        return lanes != VICAP_MIPI_4LANE; /* keep 1LANE/2LANE */
+    /* Invalid / garbage: treat as ANY */
+    return 1;
 }
 
 extern k_u32 get_mirror_by_sensor_type(k_vicap_sensor_type type);
@@ -2237,6 +2256,7 @@ k_s32 kd_mpi_sensor_adapt_get(k_vicap_probe_config *config, k_vicap_sensor_info 
     k_vicap_sensor_info *p_info_list = NULL;
 
     const k_vicap_sensor_info *p_sensor_info = NULL;
+    k_vicap_mipi_lane_pref lane_pref;
 
     if (((void *)0 == config) || ((void *)0 == info)) {
         return 2;
@@ -2246,11 +2266,18 @@ k_s32 kd_mpi_sensor_adapt_get(k_vicap_probe_config *config, k_vicap_sensor_info 
     memset(&info_list[0], 0, sizeof(info_list));
 
     config_csi_num = config->csi_num + 1; // convert type
+    lane_pref = config->lane_pref;
+    if (lane_pref > VICAP_MIPI_LANE_PREF_4LANE)
+        lane_pref = VICAP_MIPI_LANE_PREF_ANY;
 
     for(int idx = 0; sensor_info_list[idx].sensor_name; idx++) {
         p_sensor_info = &sensor_info_list[idx];
 
         if(p_sensor_info->csi_num != config_csi_num) {
+            continue;
+        }
+
+        if (!lane_pref_match(lane_pref, p_sensor_info->mipi_lanes)) {
             continue;
         }
 
@@ -2329,7 +2356,11 @@ _on_success:
     snprintf((char *)config->sensor_name, sizeof(config->sensor_name), "%s", info->sensor_name);
     config->mirror = get_mirror_by_sensor_type(info->sensor_type);
 
-    printf("probe sensor type %d, mirror %d\n", info->sensor_type, config->mirror);
+    printf("probe sensor type %d, mirror %d, lanes=%s\n",
+           info->sensor_type, config->mirror,
+           (info->mipi_lanes == VICAP_MIPI_4LANE) ? "4" :
+           (info->mipi_lanes == VICAP_MIPI_2LANE) ? "2" :
+           (info->mipi_lanes == VICAP_MIPI_1LANE) ? "1" : "?");
 
     return 0;
 
