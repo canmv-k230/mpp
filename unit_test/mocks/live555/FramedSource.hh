@@ -8,6 +8,7 @@
 
 using EventTriggerId = unsigned;
 using TaskFunc = void(void*);
+using TaskToken = void*;
 
 class TaskScheduler {
   public:
@@ -26,6 +27,14 @@ class TaskScheduler {
 
     void deleteEventTrigger(EventTriggerId id) {
         triggers_.erase(id);
+    }
+
+    TaskToken scheduleDelayedTask(int64_t, TaskFunc*, void*) {
+        return reinterpret_cast<TaskToken>(1);
+    }
+
+    void unscheduleDelayedTask(TaskToken& task) {
+        task = nullptr;
     }
 
   private:
@@ -48,6 +57,7 @@ class FramedSource {
 
     UsageEnvironment& envir() { return env_; }
     bool isCurrentlyAwaitingData() const { return awaiting_data_; }
+    TaskToken& nextTask() { return next_task_; }
 
     void mockSetFrameBuffer(unsigned char* to, unsigned max_size) {
         fTo = to;
@@ -83,6 +93,7 @@ class FramedSource {
   private:
     bool awaiting_data_{false};
     unsigned after_getting_count_{0};
+    TaskToken next_task_{nullptr};
 };
 
 #endif

@@ -3,6 +3,44 @@
 #include "LiveServerMediaSession.h"
 #include "LiveFrameSource.h"
 
+namespace {
+
+class LiveH264VideoStreamDiscreteFramer : public H264VideoStreamDiscreteFramer {
+  public:
+    static LiveH264VideoStreamDiscreteFramer *createNew(UsageEnvironment &env, FramedSource *input_source) {
+        return new LiveH264VideoStreamDiscreteFramer(env, input_source);
+    }
+
+  protected:
+    LiveH264VideoStreamDiscreteFramer(UsageEnvironment &env, FramedSource *input_source)
+        : H264VideoStreamDiscreteFramer(env, input_source, False, False) {}
+
+    Boolean nalUnitEndsAccessUnit(u_int8_t nal_unit_type) override {
+        if (fDurationInMicroseconds == LiveFrameSource::kAccessUnitEnds) return True;
+        if (fDurationInMicroseconds == LiveFrameSource::kAccessUnitContinues) return False;
+        return H264or5VideoStreamDiscreteFramer::nalUnitEndsAccessUnit(nal_unit_type);
+    }
+};
+
+class LiveH265VideoStreamDiscreteFramer : public H265VideoStreamDiscreteFramer {
+  public:
+    static LiveH265VideoStreamDiscreteFramer *createNew(UsageEnvironment &env, FramedSource *input_source) {
+        return new LiveH265VideoStreamDiscreteFramer(env, input_source);
+    }
+
+  protected:
+    LiveH265VideoStreamDiscreteFramer(UsageEnvironment &env, FramedSource *input_source)
+        : H265VideoStreamDiscreteFramer(env, input_source, False, False) {}
+
+    Boolean nalUnitEndsAccessUnit(u_int8_t nal_unit_type) override {
+        if (fDurationInMicroseconds == LiveFrameSource::kAccessUnitEnds) return True;
+        if (fDurationInMicroseconds == LiveFrameSource::kAccessUnitContinues) return False;
+        return H264or5VideoStreamDiscreteFramer::nalUnitEndsAccessUnit(nal_unit_type);
+    }
+};
+
+}  // namespace
+
 LiveServerMediaSession *LiveServerMediaSession::createNew(UsageEnvironment &env, StreamReplicator *replicator,
                                                            OnClientStreamFunc onClientStream) {
     return new LiveServerMediaSession(env, replicator, std::move(onClientStream));
@@ -37,10 +75,10 @@ FramedSource *LiveServerMediaSession::createNewStreamSource(unsigned clientSessi
     EncodeType type = ((LiveFrameSource *)fReplicator->inputSource())->GetEncodeType();
     if (type == EncodeType::H264) {
         estBitrate = 20000;
-        return H264VideoStreamDiscreteFramer::createNew(envir(), fReplicator->createStreamReplica());
+        return LiveH264VideoStreamDiscreteFramer::createNew(envir(), fReplicator->createStreamReplica());
     } else if (type == EncodeType::H265) {
         estBitrate = 20000;
-        return H265VideoStreamDiscreteFramer::createNew(envir(), fReplicator->createStreamReplica());
+        return LiveH265VideoStreamDiscreteFramer::createNew(envir(), fReplicator->createStreamReplica());
     } else if (type == EncodeType::G711U) {
         estBitrate = 64;
         return fReplicator->createStreamReplica();

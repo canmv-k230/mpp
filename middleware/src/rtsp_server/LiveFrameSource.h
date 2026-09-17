@@ -39,6 +39,8 @@ class LiveFrameSource : public FramedSource {
       size_t size_{0};
       struct timeval timestamp_{0, 0};
       uint64_t access_unit_id_{0};
+      bool is_vcl_{false};
+      bool ends_access_unit_{false};
     };
 
     struct RawData {
@@ -62,8 +64,9 @@ class LiveFrameSource : public FramedSource {
     void deliverFrame();
 
     int getFrame();
-    void processFrame(std::shared_ptr<uint8_t> data, size_t size, const struct timeval &ref);
+    void processFrame(std::shared_ptr<uint8_t> data, size_t size, uint64_t timestamp);
     virtual std::list<FramePacket> parseFrame(std::shared_ptr<uint8_t> data, size_t size, const struct timeval &ref);
+    void markAccessUnitEnd(std::list<FramePacket> &packets);
     void queueFramePacket(FramePacket &packet);
     void queueFramePackets(std::list<FramePacket> &packets);
     void dropOldestAccessUnitLocked();
@@ -89,11 +92,15 @@ class LiveFrameSource : public FramedSource {
     std::atomic<bool> fConsumerActive{false};
     uint64_t fNextAccessUnitId{0};
     bool fHaveTimestampBase{false};
-    uint64_t fTimestampBaseInput{0};
     uint64_t fLastInputTimestamp{0};
     uint32_t fTimestampScaleToUs{0};
-    struct timeval fTimestampBaseTime{0, 0};
+    struct timeval fLastPresentationTime{0, 0};
+    uint64_t fLastFrameStepUs{33333};
     std::string fAuxLine;
+
+  public:
+    static constexpr unsigned kAccessUnitContinues = 1;
+    static constexpr unsigned kAccessUnitEnds = 2;
 };
 
 #endif  // _LIVEFRAMESOURCE_H

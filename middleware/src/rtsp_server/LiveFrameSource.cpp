@@ -75,25 +75,54 @@ int LiveFrameSource::getFrame() {
     }
     lck.unlock();
 
-    int frameSize = 0;
-    if (raw_data.buffer_ && raw_data.size_) {
-        struct timeval ref = presentationTimeFor(raw_data.timestamp_);
-        frameSize = raw_data.size_;
-        processFrame(raw_data.buffer_, frameSize, ref);
+    int frameSize = raw_data.size_;
+    if (!raw_data.buffer_ || raw_data.size_ == 0) {
+        return 0;
     }
+    processFrame(raw_data.buffer_, raw_data.size_, raw_data.timestamp_);
     return frameSize;
 }
 
-void LiveFrameSource::processFrame(std::shared_ptr<uint8_t> data, size_t size, const struct timeval &ref) {
-    std::list<FramePacket> packetList = this->parseFrame(data, size, ref);
+void LiveFrameSource::processFrame(std::shared_ptr<uint8_t> data, size_t size, uint64_t timestamp) {
+    const struct timeval unset_ref{0, 0};
+    std::list<FramePacket> packetList = this->parseFrame(data, size, unset_ref);
     if (packetList.empty()) {
         return;
     }
+
+    bool has_vcl = false;
+    for (const auto &packet : packetList) {
+        if (packet.is_vcl_) {
+            has_vcl = true;
+            break;
+        }
+    }
+
+    struct timeval ref;
+    if (has_vcl || (GetEncodeType() != EncodeType::H264 && GetEncodeType() != EncodeType::H265)) {
+        ref = presentationTimeFor(timestamp);
+    } else if (fHaveTimestampBase) {
+        ref = fLastPresentationTime;
+    } else {
+        gettimeofday(&ref, NULL);
+    }
+
     uint64_t access_unit_id = ++fNextAccessUnitId;
     for (auto &packet : packetList) {
         packet.access_unit_id_ = access_unit_id;
+        packet.timestamp_ = ref;
     }
+    markAccessUnitEnd(packetList);
     queueFramePackets(packetList);
+}
+
+void LiveFrameSource::markAccessUnitEnd(std::list<FramePacket> &packets) {
+    for (auto it = packets.rbegin(); it != packets.rend(); ++it) {
+        if (it->is_vcl_) {
+            it->ends_access_unit_ = true;
+            return;
+        }
+    }
 }
 
 void LiveFrameSource::queueFramePacket(LiveFrameSource::FramePacket &packet) {
@@ -187,31 +216,39 @@ struct timeval LiveFrameSource::presentationTimeFor(uint64_t timestamp) {
     gettimeofday(&now, NULL);
 
     if (timestamp == 0) {
+        fLastPresentationTime = now;
         return now;
     }
 
-    // Map valid caller timestamps onto wall-clock time. Repeated or stale
-    // values are placeholders in existing Python examples, so use arrival time.
-    if (!fHaveTimestampBase || timestamp <= fLastInputTimestamp) {
+    // Advance from the previous presentation time instead of mapping every PTS
+    // against an absolute base. Some encoders repeat or decrease PTS values at
+    // GOP boundaries; using the last valid interval keeps RTP monotonic without
+    // making later timestamps jump backward to catch up.
+    if (!fHaveTimestampBase) {
         fHaveTimestampBase = true;
-        fTimestampBaseInput = timestamp;
-        fTimestampBaseTime = now;
         fLastInputTimestamp = timestamp;
         fTimestampScaleToUs = 0;
+        fLastPresentationTime = now;
         return now;
     }
 
-    uint64_t step = timestamp - fLastInputTimestamp;
+    uint64_t step_us = fLastFrameStepUs;
+    if (timestamp > fLastInputTimestamp) {
+        uint64_t step = timestamp - fLastInputTimestamp;
+        if (fTimestampScaleToUs == 0) {
+            fTimestampScaleToUs = (step < 10000) ? 1000 : 1;
+        }
+        if (fTimestampScaleToUs == 1 || step <= (~(uint64_t)0) / 1000) {
+            uint64_t candidate_us = step * fTimestampScaleToUs;
+            if (candidate_us > 0 && candidate_us <= 1000000) {
+                step_us = candidate_us;
+                fLastFrameStepUs = candidate_us;
+            }
+        }
+    }
     fLastInputTimestamp = timestamp;
-    if (fTimestampScaleToUs == 0) {
-        fTimestampScaleToUs = (step < 10000) ? 1000 : 1;
-    }
-
-    uint64_t delta = timestamp - fTimestampBaseInput;
-    if (fTimestampScaleToUs == 1000 && delta > (~(uint64_t)0) / 1000) {
-        return now;
-    }
-    return addUsToTimeval(fTimestampBaseTime, delta * fTimestampScaleToUs);
+    fLastPresentationTime = addUsToTimeval(fLastPresentationTime, step_us);
+    return fLastPresentationTime;
 }
 
 
@@ -251,6 +288,10 @@ void LiveFrameSource::deliverFrame() {
                 fFrameSize = packet.size_;
             }
             fPresentationTime = packet.timestamp_;
+            if (GetEncodeType() == EncodeType::H264 || GetEncodeType() == EncodeType::H265) {
+                fDurationInMicroseconds = packet.ends_access_unit_
+                    ? kAccessUnitEnds : kAccessUnitContinues;
+            }
             memcpy(fTo, packet.buffer_.get() + packet.offset_, fFrameSize);
         }
 

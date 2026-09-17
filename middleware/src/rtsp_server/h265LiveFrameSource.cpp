@@ -99,6 +99,7 @@ H265LiveFrameSource::parseFrame(std::shared_ptr<uint8_t> data, size_t data_size,
             // std::cout << "H265 SDP-aux-line: " << fAuxLine.c_str() << std::endl;
         }
         FramePacket packet(data, buffer - data.get(), size, ref);
+        packet.is_vcl_ = nal_type <= 31;
         packetList.push_back(packet);
         buffer = this->extractFrame(&buffer[size], bufSize, size);
     }

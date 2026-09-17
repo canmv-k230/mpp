@@ -44,7 +44,8 @@ H264LiveFrameSource::parseFrame(std::shared_ptr<uint8_t> data, size_t data_size,
     size_t size = 0;
     uint8_t *buffer = this->extractFrame(data.get(), bufSize, size);
     while (buffer != NULL) {
-        switch (buffer[0] & 0x1F) {
+        uint8_t nal_type = buffer[0] & 0x1F;
+        switch (nal_type) {
             case 7:
                 fAuxLine.clear();
                 fSps.reset(), fPps.reset();
@@ -86,6 +87,7 @@ H264LiveFrameSource::parseFrame(std::shared_ptr<uint8_t> data, size_t data_size,
             // std::cout << "H264 SDP-aux-line: " << fAuxLine.c_str() << std::endl;
         }
         FramePacket packet(data, buffer - data.get(), size, ref);
+        packet.is_vcl_ = nal_type > 0 && nal_type <= 5;
         packetList.push_back(packet);
         buffer = this->extractFrame(&buffer[size], bufSize, size);
     }

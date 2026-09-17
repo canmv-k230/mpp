@@ -16,6 +16,8 @@ class H264Probe : public H264LiveFrameSource {
     H264Probe(UsageEnvironment& env, size_t q) : H264LiveFrameSource(env, q) {}
     using H264LiveFrameSource::extractFrame;
     using H264LiveFrameSource::parseFrame;
+    using H264LiveFrameSource::presentationTimeFor;
+    using H264LiveFrameSource::markAccessUnitEnd;
 };
 
 class H265Probe : public H265LiveFrameSource {
@@ -64,6 +66,50 @@ TEST(RtspServerH264Test, ExtractFrameHandlesMissingMarker) {
 
     EXPECT_EQ(out, nullptr);
     EXPECT_EQ(outsize, 0U);
+}
+
+TEST(RtspServerH264Test, EqualFramePtsRemainMonotonic) {
+    UsageEnvironment env;
+    H264Probe probe(env, 8);
+
+    const timeval first = probe.presentationTimeFor(1000000);
+    const timeval next = probe.presentationTimeFor(1033333);
+    const timeval same = probe.presentationTimeFor(1033333);
+    const timeval after_same = probe.presentationTimeFor(1066666);
+    const timeval decreasing = probe.presentationTimeFor(1000000);
+
+    const auto delta_us = [](const timeval& left, const timeval& right) {
+        return (left.tv_sec - right.tv_sec) * 1000000LL +
+               (left.tv_usec - right.tv_usec);
+    };
+    EXPECT_EQ(delta_us(next, first), 33333);
+    EXPECT_EQ(delta_us(same, next), 33333);
+    EXPECT_EQ(delta_us(after_same, same), 33333);
+    EXPECT_EQ(delta_us(decreasing, after_same), 33333);
+}
+
+TEST(RtspServerH264Test, MarksOnlyLastVclNalAsAccessUnitEnd) {
+    UsageEnvironment env;
+    H264Probe probe(env, 8);
+
+    const std::vector<uint8_t> first_slice = {0x00, 0x00, 0x00, 0x01, 0x65, 0x88, 0x84};
+    const std::vector<uint8_t> second_slice = {0x00, 0x00, 0x00, 0x01, 0x65, 0x44, 0x22};
+    auto first = make_shared_array<uint8_t>(first_slice.size());
+    auto second = make_shared_array<uint8_t>(second_slice.size());
+    std::copy(first_slice.begin(), first_slice.end(), first.get());
+    std::copy(second_slice.begin(), second_slice.end(), second.get());
+
+    const timeval ref{1, 2};
+    auto packets = probe.parseFrame(first, first_slice.size(), ref);
+    auto trailing_packets = probe.parseFrame(second, second_slice.size(), ref);
+    packets.splice(packets.end(), trailing_packets);
+    probe.markAccessUnitEnd(packets);
+
+    ASSERT_EQ(packets.size(), 2U);
+    auto it = packets.begin();
+    EXPECT_FALSE(it->ends_access_unit_);
+    ++it;
+    EXPECT_TRUE(it->ends_access_unit_);
 }
 
 TEST(RtspServerH265Test, ParseFrameExtractsVpsSpsPpsAndRepeatsForIdr) {

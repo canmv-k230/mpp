@@ -142,13 +142,15 @@ void H264or5VideoStreamDiscreteFramer
     saveCopyOfPPS(fTo, frameSize);
   }
 
+  // Make the source-provided duration visible to subclasses that use it as
+  // access-unit metadata while deciding whether to set the RTP marker bit.
+  fDurationInMicroseconds = durationInMicroseconds;
   fPictureEndMarker = nalUnitEndsAccessUnit(nal_unit_type);
 
   // Finally, complete delivery to the client:
   fFrameSize = fIncludeStartCodeInOutput ? (4+frameSize) : frameSize;
   fNumTruncatedBytes = numTruncatedBytes;
   fPresentationTime = presentationTime;
-  fDurationInMicroseconds = durationInMicroseconds;
   afterGetting(this);
 }
 
