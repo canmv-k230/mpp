@@ -8,6 +8,7 @@
 
 using EventTriggerId = unsigned;
 using TaskFunc = void(void*);
+using TaskToken = void*;
 
 class TaskScheduler {
   public:
@@ -28,7 +29,25 @@ class TaskScheduler {
         triggers_.erase(id);
     }
 
+    TaskToken scheduleDelayedTask(int64_t microseconds, TaskFunc* func, void* client_data) {
+        (void)microseconds;
+        if (!func) {
+            return nullptr;
+        }
+        return new ScheduledTask{func, client_data};
+    }
+
+    void unscheduleDelayedTask(TaskToken& task) {
+        delete static_cast<ScheduledTask*>(task);
+        task = nullptr;
+    }
+
   private:
+    struct ScheduledTask {
+        TaskFunc* func;
+        void* client_data;
+    };
+
     EventTriggerId next_id_{0};
     std::unordered_map<EventTriggerId, TaskFunc*> triggers_;
 };
@@ -44,7 +63,11 @@ class UsageEnvironment {
 class FramedSource {
   public:
     explicit FramedSource(UsageEnvironment& env) : env_(env) {}
-    virtual ~FramedSource() = default;
+    virtual ~FramedSource() {
+        if (next_task_) {
+            env_.taskScheduler().unscheduleDelayedTask(next_task_);
+        }
+    }
 
     UsageEnvironment& envir() { return env_; }
     bool isCurrentlyAwaitingData() const { return awaiting_data_; }
@@ -69,6 +92,7 @@ class FramedSource {
     }
 
   protected:
+    TaskToken& nextTask() { return next_task_; }
     virtual void doStopGettingFrames() { awaiting_data_ = false; }
 
   protected:
@@ -79,6 +103,7 @@ class FramedSource {
     unsigned fNumTruncatedBytes{0};
     unsigned fDurationInMicroseconds{0};
     struct timeval fPresentationTime{0, 0};
+    TaskToken next_task_{nullptr};
 
   private:
     bool awaiting_data_{false};

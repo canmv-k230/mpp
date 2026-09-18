@@ -25,8 +25,6 @@
 
 #include "rtthread.h"
 
-#if defined (CONFIG_MPP_ENABLE_CSI_DEV_0)
-
 #include "sensor_dev.h"
 #include "io.h"
 #include "drv_gpio.h"
@@ -804,8 +802,7 @@ k_s32 sensor_imx335_probe(struct k_sensor_probe_cfg *cfg, struct sensor_driver_d
         sensor_mode = &dev->sensor_mode_list[0];
     } else
 #endif // CONFIG_MPP_ENABLE_CSI_DEV_0
-#if defined (CONFIG_MPP_ENABLE_CSI_DEV_1) && !defined (CONFIG_MPP_SENSOR_IMX335_ENABLE_4LANE_CONFIGURE)
-    // if enable 4Lane configure support, will disable CSI1
+#if defined (CONFIG_MPP_ENABLE_CSI_DEV_1)
     if(0x01 == cfg->csi_num) {
         dev->mode_count = sizeof(sensor_csi1_mode_list) / sizeof(sensor_csi1_mode_list[0]);
         dev->sensor_mode_list = &sensor_csi1_mode_list[0];
@@ -870,5 +867,3 @@ _on_failed:
 
     return -1;
 }
-
-#endif // CONFIG_MPP_ENABLE_CSI_DEV_0

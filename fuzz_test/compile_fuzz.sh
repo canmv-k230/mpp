@@ -112,6 +112,7 @@ discover_gxx_compat_flags() {
         "/usr/include/c++/$gcc_version"
         "/usr/include/$triplet/c++/$gcc_version"
         "/usr/include/c++/$gcc_version/backward"
+        "$gcc_libdir/include"
     )
     local d
     for d in "${include_candidates[@]}"; do
@@ -229,6 +230,7 @@ COMMON_CFLAGS=(
     -Wall
     -Wextra
     -Wpedantic
+    "${FUZZ_STDLIB_INCLUDE_FLAGS[@]}"
     "${FUZZ_TOOLCHAIN_EXTRA_FLAGS[@]}"
 )
 

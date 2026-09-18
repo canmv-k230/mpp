@@ -25,8 +25,6 @@
 
 #include "rtthread.h"
 
-#if 1//defined (CONFIG_MPP_ENABLE_CSI_DEV_0)
-
 #include "sensor_dev.h"
 #include "io.h"
 #include "drv_gpio.h"
@@ -262,7 +260,8 @@ static k_s32 sensor_init_impl(void *ctx, k_sensor_mode mode)
 
     /* write mode table, then mirror/flip (gc2093 / ov5647 style) */
     ret = sensor_reg_list_write(&dev->i2c_info, reg_list);
-#if defined(CONFIG_MPP_SENSOR_OV13850_ENABLE_4LANE_CONFIGURE)
+    /* CSI0 4LANE enums exist only when CSI_DEV_0 is enabled (see k_sensor_comm.h) */
+#if defined(CONFIG_MPP_SENSOR_OV13850_ENABLE_4LANE_CONFIGURE) && defined(CONFIG_MPP_ENABLE_CSI_DEV_0)
     if (type == OV13850_MIPI_CSI0_4LANE_1920X1080_60FPS_10BIT_LINEAR ||
         type == OV13850_MIPI_CSI0_4LANE_2112X1568_60FPS_10BIT_LINEAR) {
         /* Shared binned tables use 10 us/line. VTS=1667 gives 59.988 fps. */
@@ -754,8 +753,7 @@ k_s32 sensor_ov13850_probe(struct k_sensor_probe_cfg *cfg, struct sensor_driver_
         sensor_mode = &dev->sensor_mode_list[0];
     } else
 #endif // CONFIG_MPP_ENABLE_CSI_DEV_0
-    /* CSI0 4-lane takes over PHY1, which is CSI1's, so the two are exclusive. */
-#if defined (CONFIG_MPP_ENABLE_CSI_DEV_1) && !defined (CONFIG_MPP_SENSOR_OV13850_ENABLE_4LANE_CONFIGURE)
+#if defined (CONFIG_MPP_ENABLE_CSI_DEV_1)
     if(0x01 == cfg->csi_num) {
         dev->mode_count = sizeof(sensor_csi1_mode_list) / sizeof(sensor_csi1_mode_list[0]);
         dev->sensor_mode_list = &sensor_csi1_mode_list[0];
@@ -822,5 +820,3 @@ _on_failed:
 
     return -1;
 }
-
-#endif // CONFIG_MPP_ENABLE_CSI_DEV_0

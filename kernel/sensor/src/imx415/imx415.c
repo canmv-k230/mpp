@@ -25,8 +25,6 @@
 
 #include "rtthread.h"
 
-#if defined (CONFIG_MPP_ENABLE_CSI_DEV_0)
-
 #include "sensor_dev.h"
 #include "io.h"
 #include "drv_gpio.h"
@@ -794,7 +792,7 @@ k_s32 sensor_imx415_probe(struct k_sensor_probe_cfg *cfg, struct sensor_driver_d
     k_u32 chip_id = 0;
     const k_sensor_mode *sensor_mode = NULL;
 
-    /* Only CSI0 4-lane is supported (aggregates PHY1; CSI1 must stay unused). */
+    /* IMX415 currently only has CSI0 4-lane modes in this driver. */
 #if defined (CONFIG_MPP_ENABLE_CSI_DEV_0)
     if(0x00 == cfg->csi_num) {
         dev->mode_count = sizeof(sensor_csi0_mode_list) / sizeof(sensor_csi0_mode_list[0]);
@@ -848,5 +846,3 @@ _on_failed:
 
     return -1;
 }
-
-#endif // CONFIG_MPP_ENABLE_CSI_DEV_0

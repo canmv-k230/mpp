@@ -8,8 +8,6 @@
 
 #include "rtthread.h"
 
-#if defined(CONFIG_MPP_ENABLE_SENSOR_IMX290)
-
 #include "sensor_dev.h"
 #include "io.h"
 #include "drv_gpio.h"
@@ -577,5 +575,3 @@ _on_failed:
     memset(dev, 0, sizeof(*dev));
     return -1;
 }
-
-#endif /* CONFIG_MPP_ENABLE_SENSOR_IMX290 */

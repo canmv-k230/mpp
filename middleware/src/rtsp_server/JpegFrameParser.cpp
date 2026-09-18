@@ -94,23 +94,34 @@ unsigned int JpegFrameParser::scanJpegMarker(const unsigned char* data,
                                              unsigned int size,
                                              unsigned int* offset)
 {
-    while ((data[(*offset)++] != START_MARKER) && ((*offset) < size));
- 
-    if ((*offset) >= size) {
-        return EOI_MARKER;
-    } else {
-        unsigned int marker;
- 
-        marker = data[*offset];
-        (*offset)++;
- 
-        return marker;
+    while (*offset < size) {
+        if (data[*offset] != START_MARKER) {
+            ++(*offset);
+            continue;
+        }
+
+        ++(*offset);
+        while (*offset < size && data[*offset] == START_MARKER) {
+            ++(*offset);
+        }
+        if (*offset >= size) {
+            return EOI_MARKER;
+        }
+        return data[(*offset)++];
     }
+
+    return EOI_MARKER;
 }
 
-static unsigned int _jpegHeaderSize(const unsigned char* data, unsigned int offset)
+static bool _jpegHeaderSize(const unsigned char* data, unsigned int size,
+                            unsigned int offset, unsigned int* length)
 {
-    return data[offset] << 8 | data[offset + 1];
+    if (offset > size || size - offset < 2) {
+        return false;
+    }
+    *length = (static_cast<unsigned int>(data[offset]) << 8) |
+        data[offset + 1];
+    return true;
 }
 
 int JpegFrameParser::readSOF(const unsigned char* data, unsigned int size,
@@ -125,12 +136,12 @@ int JpegFrameParser::readSOF(const unsigned char* data, unsigned int size,
     off = *offset;
  
     /* we need at least 17 bytes for the SOF */
-    if (off + 17 > size) goto wrong_size;
- 
-    sof_size = _jpegHeaderSize(data, off);
-    if (sof_size < 17) goto wrong_length;
- 
-    *offset += sof_size;
+    if (off > size || size - off < 17) goto wrong_size;
+
+    if (!_jpegHeaderSize(data, size, off, &sof_size) || sof_size < 17 ||
+        sof_size > size - off) goto wrong_length;
+
+    *offset = off + sof_size;
  
     /* skip size */
     off += 2;
@@ -212,29 +223,31 @@ unsigned int JpegFrameParser::readDQT(const unsigned char* data,
                                       unsigned int size,
                                       unsigned int offset)
 {
-    unsigned int quant_size, tab_size;
+    unsigned int quant_size, tab_size, segment_end;
     unsigned char prec;
     unsigned char id;
 
-    if (offset + 2 > size) goto too_small;
+    if (offset > size || size - offset < 2) goto too_small;
 
-    quant_size = _jpegHeaderSize(data, offset);
-    if (quant_size < 2) goto small_quant_size;
+    if (!_jpegHeaderSize(data, size, offset, &quant_size) || quant_size < 2) {
+        goto small_quant_size;
+    }
 
     /* clamp to available data */
-    if (offset + quant_size > size) {
+    if (quant_size > size - offset) {
         quant_size = size - offset;
     }
+    segment_end = offset + quant_size;
 
     offset += 2;
     quant_size -= 2;
 
     while (quant_size > 0) {
         /* not enough to read the id */
-        if (offset + 1 > size) break;
+        if (offset >= segment_end) break;
 
         id = data[offset] & 0x0f;
-        if (id == 15) goto invalid_id;
+        if (id > 1) goto invalid_id;
 
         prec = (data[offset] & 0xf0) >> 4;
         if (prec) {
@@ -246,7 +259,9 @@ unsigned int JpegFrameParser::readDQT(const unsigned char* data,
         }
 
         /* there is not enough for the table */
-        if (quant_size < tab_size + 1) goto no_table;
+        if (quant_size < tab_size + 1 || segment_end - offset < tab_size + 1) {
+            goto no_table;
+        }
 
         //LOGGY("Copy quantization table: %u\n", id);
         memcpy(&_qTables[id * tab_size], &data[offset + 1], tab_size);
@@ -257,7 +272,7 @@ unsigned int JpegFrameParser::readDQT(const unsigned char* data,
     }
 
 done:
-    return offset + quant_size;
+    return segment_end;
 
     /* ERRORS */
 too_small:
@@ -285,12 +300,12 @@ int JpegFrameParser::readDRI(const unsigned char* data,
     off = *offset;
 
     /* we need at least 4 bytes for the DRI */
-    if (off + 4 > size) goto wrong_size;
+    if (off > size || size - off < 4) goto wrong_size;
 
-    dri_size = _jpegHeaderSize(data, off);
-    if (dri_size < 4) goto wrong_length;
+    if (!_jpegHeaderSize(data, size, off, &dri_size) || dri_size < 4 ||
+        dri_size > size - off) goto wrong_length;
 
-    *offset += dri_size;
+    *offset = off + dri_size;
     off += 2;
 
     _restartInterval = (data[off] << 8) | data[off + 1];
@@ -301,7 +316,7 @@ wrong_size:
     return -1;
 
 wrong_length:
-    *offset += dri_size;
+    *offset = off;
     return -1;
 }
 
@@ -329,7 +344,11 @@ int JpegFrameParser::parse(unsigned char* data, unsigned int size)
         case JFIF_MARKER:
         case CMT_MARKER:
         case DHT_MARKER:
-            offset += _jpegHeaderSize(data, offset);
+            if (!_jpegHeaderSize(data, size, offset, &jpeg_header_size) ||
+                jpeg_header_size < 2 || jpeg_header_size > size - offset) {
+                goto invalid_format;
+            }
+            offset += jpeg_header_size;
             break;
         case SOF_MARKER:
             if (readSOF(data, size, &offset) != 0) {
@@ -343,8 +362,12 @@ int JpegFrameParser::parse(unsigned char* data, unsigned int size)
             dqtFound = 1;
             break;
         case SOS_MARKER:
+            if (!_jpegHeaderSize(data, size, offset, &jpeg_header_size) ||
+                jpeg_header_size < 2 || jpeg_header_size > size - offset) {
+                goto invalid_format;
+            }
             sosFound = 1;
-            jpeg_header_size = offset + _jpegHeaderSize(data, offset);
+            jpeg_header_size += offset;
             break;
         case EOI_MARKER:
             /* EOI reached before SOS!? */

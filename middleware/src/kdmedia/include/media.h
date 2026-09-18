@@ -58,7 +58,11 @@ class KdMedia {
     KdMedia();
     ~KdMedia();
     int DetectSensor(k_vicap_sensor_type* sensor_type);
+    int DetectSensor(k_vicap_sensor_type* sensor_type,
+                     k_vicap_mipi_lane_pref lane_pref);
     int Init(const KdMediaInputConfig &config);
+    int Init(const KdMediaInputConfig &config,
+             k_vicap_mipi_lane_pref lane_pref);
     int Init();
     int Deinit();
 

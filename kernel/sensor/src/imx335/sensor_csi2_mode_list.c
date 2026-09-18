@@ -162,51 +162,6 @@ static const k_sensor_mode sensor_csi2_mode_list[] = {
         .sensor_ae_info = &sensor_csi2_ae_info[0],
 #endif
     },
-#if defined (CONFIG_MPP_SENSOR_IMX335_ENABLE_4LANE_CONFIGURE)
-    {
-        .index = 2,
-        .sensor_type = IMX335_MIPI_CSI2_4LANE_2592X1944_30FPS_12BIT_LINEAR,
-        .size = {
-            .bounds_width = 2592,
-            .bounds_height = 1944,
-            .top = 0,
-            .left = 0,
-            .width = 2592,
-            .height = 1944,
-        },
-        .fps = 30000,
-        .hdr_mode = SENSOR_MODE_LINEAR,
-        .bit_width = 12,
-        .bayer_pattern = BAYER_PAT_RGGB,
-        .mipi_info = {
-            .csi_id = 0,
-            .mipi_lanes = 4,
-            .data_type = 0x2C,
-        },
-#if defined (CONFIG_MPP_SENSOR_IMX335_ON_CSI2_USE_CHIP_CLK)
-        .reg_list = imx335_mipi_4lane_raw12_2592x1944_30fps_mclk_74_25_regs,
-        .mclk_setting = {
-            {
-                .mclk_setting_en = K_TRUE,
-                .setting.id = CONFIG_MPP_CSI_DEV2_MCLK_NUM,
-                .setting.mclk_sel = SENSOR_PLL1_CLK_DIV4,
-                .setting.mclk_div = 8,
-            },
-            {K_FALSE},
-            {K_FALSE},
-        },
-        .sensor_ae_info = &sensor_csi2_ae_info[0],
-#else
-        .reg_list = imx335_mipi_4lane_raw12_2592x1944_30fps_mclk_24m_regs,
-        .mclk_setting = {
-            {K_FALSE},
-            {K_FALSE},
-            {K_FALSE},
-        },
-        .sensor_ae_info = &sensor_csi2_ae_info[0],
-#endif
-    },
-#endif // CONFIG_MPP_SENSOR_IMX335_ENABLE_4LANE_CONFIGURE
 };
 
 #if defined (CONFIG_MPP_SENSOR_IMX335_ON_CSI2_USE_CHIP_CLK)

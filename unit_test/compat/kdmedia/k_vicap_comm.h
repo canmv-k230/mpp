@@ -8,4 +8,10 @@ enum k_vicap_sensor_type {
     SENSOR_TYPE_MAX = 1024,
 };
 
+typedef enum {
+    VICAP_MIPI_LANE_PREF_ANY = 0,
+    VICAP_MIPI_LANE_PREF_2LANE = 1,
+    VICAP_MIPI_LANE_PREF_4LANE = 2,
+} k_vicap_mipi_lane_pref;
+
 #endif

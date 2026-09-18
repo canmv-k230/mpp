@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <cstddef>
 #include <type_traits>
 
 #include "media.h"
@@ -43,8 +44,35 @@ TEST(KdmediaApiTest, VdecParamsDefaultsAreExpected) {
 }
 
 TEST(KdmediaApiTest, PublicInterfacesAndCopySemantics) {
+    using LegacyDetectSensor = int (KdMedia::*)(k_vicap_sensor_type*);
+    using ExtendedDetectSensor = int (KdMedia::*)(k_vicap_sensor_type*,
+                                                  k_vicap_mipi_lane_pref);
+    using LegacyInit = int (KdMedia::*)(const KdMediaInputConfig&);
+    using ExtendedInit = int (KdMedia::*)(const KdMediaInputConfig&,
+                                          k_vicap_mipi_lane_pref);
+
     static_assert(!std::is_copy_constructible<KdMedia>::value, "KdMedia should be non-copyable");
     static_assert(!std::is_copy_assignable<KdMedia>::value, "KdMedia should be non-copy-assignable");
+    static_assert(std::is_same<
+                      decltype(static_cast<LegacyDetectSensor>(&KdMedia::DetectSensor)),
+                      LegacyDetectSensor>::value,
+                  "legacy DetectSensor overload must remain available");
+    static_assert(std::is_same<
+                      decltype(static_cast<ExtendedDetectSensor>(&KdMedia::DetectSensor)),
+                      ExtendedDetectSensor>::value,
+                  "extended DetectSensor overload must remain available");
+    static_assert(std::is_same<
+                      decltype(static_cast<LegacyInit>(&KdMedia::Init)),
+                      LegacyInit>::value,
+                  "legacy Init overload must remain available");
+    static_assert(std::is_same<
+                      decltype(static_cast<ExtendedInit>(&KdMedia::Init)),
+                      ExtendedInit>::value,
+                  "extended Init overload must remain available");
+    static_assert(offsetof(KdMediaInputConfig, sensor_num) == 8,
+                  "KdMediaInputConfig ABI changed before sensor_num");
+    static_assert(sizeof(KdMediaInputConfig) == 40,
+                  "KdMediaInputConfig ABI changed");
 
     MockAEncData aenc;
     MockVEncData venc;

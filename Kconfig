@@ -50,8 +50,9 @@ menu "MPP Configuration"
             prompt "CSI0 LANE NUM"
             default MPP_CSI0_LINK_MODE_2LANE
             help
-              4LANE aggregation on CSI0 borrows PHY1 (CSI1's PHY).
-              Selecting 4LANE hides Enable CSI1.
+              CSI0 4LANE uses PHY0 and PHY1, while CSI1 also uses PHY1.
+              Both drivers may be built for runtime selection, but VICAP
+              rejects initializing CSI0 4LANE and CSI1 at the same time.
               In 2LANE mode all per-sensor 4LANE options are hidden
               and not compiled.
 
@@ -106,7 +107,9 @@ menu "MPP Configuration"
 
         menuconfig MPP_ENABLE_CSI_DEV_1
             bool "Enable CSI1"
-            depends on !MPP_CSI0_LINK_MODE_4LANE
+            help
+              CSI1 may be built together with CSI0 4LANE, but the two paths
+              cannot be initialized concurrently because both use PHY1.
 
             if MPP_ENABLE_CSI_DEV_1
                 config MPP_CSI_DEV1_POWER
@@ -238,7 +241,7 @@ menu "MPP Configuration"
                     depends on MPP_CSI0_LINK_MODE_4LANE
                     help
                       Add CSI0 4-lane 2592x1944 modes. Enabled by default when
-                      CSI0 link mode is 4LANE (CSI1 is forced off by that choice).
+                      CSI0 link mode is 4LANE.
                       Existing .config that explicitly set this to n stays n after
                       upgrade; run make olddefconfig and confirm if needed.
 
@@ -249,7 +252,7 @@ menu "MPP Configuration"
                 config MPP_SENSOR_IMX335_ON_CSI1_USE_CHIP_CLK
                     bool "IMX335 On CSI1 Use CHIP MCLK"
                     default n
-                    depends on MPP_ENABLE_CSI_DEV_1 && !MPP_SENSOR_IMX335_ENABLE_4LANE_CONFIGURE
+                    depends on MPP_ENABLE_CSI_DEV_1
 
                 config MPP_SENSOR_IMX335_ON_CSI2_USE_CHIP_CLK
                     bool "IMX335 On CSI2 Use CHIP MCLK"
@@ -271,8 +274,7 @@ menu "MPP Configuration"
                     default y
                     depends on MPP_CSI0_LINK_MODE_4LANE
                     help
-                      CSI0 4-lane 3840x2160@30fps. CSI1 is already disabled by
-                      the CSI0 4LANE link-mode choice.
+                      CSI0 4-lane 3840x2160@30fps.
                       Existing .config that explicitly set this to n stays n after
                       upgrade; run make olddefconfig and confirm if needed.
 
@@ -423,7 +425,7 @@ menu "MPP Configuration"
                     depends on MPP_CSI0_LINK_MODE_4LANE
                     help
                       Add CSI0 4-lane modes. Enabled by default when CSI0
-                      link mode is 4LANE (CSI1 is forced off by that choice).
+                      link mode is 4LANE.
                       Existing .config that explicitly set this to n stays n after
                       upgrade; run make olddefconfig and confirm if needed.
 
@@ -435,7 +437,7 @@ menu "MPP Configuration"
                 config MPP_SENSOR_OV13850_ON_CSI1_USE_CHIP_CLK
                     bool "OV13850 On CSI1 Use CHIP MCLK"
                     default n
-                    depends on MPP_ENABLE_CSI_DEV_1 && !MPP_SENSOR_OV13850_ENABLE_4LANE_CONFIGURE
+                    depends on MPP_ENABLE_CSI_DEV_1
 
                 config MPP_SENSOR_OV13850_ON_CSI2_USE_CHIP_CLK
                     bool "OV13850 On CSI2 Use CHIP MCLK"

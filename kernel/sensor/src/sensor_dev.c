@@ -252,17 +252,11 @@ static const struct sensor_type_name sth_table[] = {
 #if defined (CONFIG_MPP_ENABLE_CSI_DEV_1)
     SENSOR_TYPE_NAME(IMX335_MIPI_CSI1_2LANE_1920X1080_30FPS_12BIT_LINEAR),
     SENSOR_TYPE_NAME(IMX335_MIPI_CSI1_2LANE_2592X1944_30FPS_12BIT_LINEAR),
-#if defined (CONFIG_MPP_SENSOR_IMX335_ENABLE_4LANE_CONFIGURE)
-    SENSOR_TYPE_NAME(IMX335_MIPI_CSI1_4LANE_2592X1944_30FPS_12BIT_LINEAR),
-#endif // CONFIG_MPP_SENSOR_IMX335_ENABLE_4LANE_CONFIGURE
 #endif // CONFIG_MPP_ENABLE_CSI_DEV_1
 
 #if defined (CONFIG_MPP_ENABLE_CSI_DEV_2)
     SENSOR_TYPE_NAME(IMX335_MIPI_CSI2_2LANE_1920X1080_30FPS_12BIT_LINEAR),
     SENSOR_TYPE_NAME(IMX335_MIPI_CSI2_2LANE_2592X1944_30FPS_12BIT_LINEAR),
-#if defined (CONFIG_MPP_SENSOR_IMX335_ENABLE_4LANE_CONFIGURE)
-    SENSOR_TYPE_NAME(IMX335_MIPI_CSI2_4LANE_2592X1944_30FPS_12BIT_LINEAR),
-#endif // CONFIG_MPP_SENSOR_IMX335_ENABLE_4LANE_CONFIGURE
 #endif // CONFIG_MPP_ENABLE_CSI_DEV_2
 #endif // CONFIG_MPP_ENABLE_SENSOR_IMX335
 
@@ -434,20 +428,129 @@ static const struct sensor_type_name sth_table[] = {
     {__UINT32_MAX__, "UNKNOWN"},
 };
 
+static const char *sensor_type_name(k_vicap_sensor_type type)
+{
+    for (size_t i = 0; i < sizeof(sth_table) / sizeof(sth_table[0]); i++) {
+        if (sth_table[i].type == type) {
+            return sth_table[i].name;
+        }
+    }
+
+    return "UNKNOWN";
+}
+
+static k_u32 sensor_mode_fps(const k_sensor_mode *mode)
+{
+    /* Sensor mode tables store FPS in milli-FPS, while shell output uses FPS. */
+    return mode->fps >= 1000 ? mode->fps / 1000 : mode->fps;
+}
+
+static int sensor_mode_type_seen(const struct sensor_driver_dev *dev,
+                                 k_u32 mode_index,
+                                 k_vicap_sensor_type type)
+{
+    for (k_u32 i = 0; i < mode_index; i++) {
+        if (dev->sensor_mode_list[i].sensor_type == type) {
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
+static const k_sensor_mode *find_detected_sensor_mode(k_vicap_sensor_type type,
+                                                      k_u32 *csi_num)
+{
+    for (k_u32 csi = 0; csi < 3; csi++) {
+        const struct sensor_driver_dev *dev = &g_sensor_drv[csi];
+
+        if ((dev->sensor_func.sensor_init == NULL) ||
+            (dev->sensor_mode_list == NULL)) {
+            continue;
+        }
+
+        for (k_u32 i = 0; i < dev->mode_count; i++) {
+            if (dev->sensor_mode_list[i].sensor_type == type) {
+                if (csi_num != NULL) {
+                    *csi_num = csi;
+                }
+                return &dev->sensor_mode_list[i];
+            }
+        }
+    }
+
+    return NULL;
+}
+
 static void list_sensor(k_s32 argc, char** argv)
 {
     (void)argc;
     (void)argv;
 
-#if defined(CONFIG_MPP_CSI0_LINK_MODE_4LANE)
-    rt_kprintf("CSI0 link mode: 4LANE (CSI1 disabled)\n");
-#else
-    rt_kprintf("CSI0 link mode: 2LANE\n");
-#endif
-    rt_kprintf("Sensor Type List:\n");
+    rt_kprintf("Detected Sensor Drivers:\n");
 
-    for(size_t i = 0; i < sizeof(sth_table) / sizeof(sth_table[0]); i++) {
-        rt_kprintf("%17d -> %s\n", sth_table[i].type, sth_table[i].name);
+    for (k_u32 csi = 0; csi < 3; csi++) {
+        const struct sensor_driver_dev *dev = &g_sensor_drv[csi];
+
+        if (dev->sensor_func.sensor_init == NULL) {
+            rt_kprintf("CSI%u: no sensor driver detected\n", csi);
+            continue;
+        }
+
+        if ((dev->sensor_mode_list == NULL) || (dev->mode_count == 0)) {
+            rt_kprintf("CSI%u: %s (driver detected, no mode list)\n",
+                       csi, dev->sensor_name);
+            continue;
+        }
+
+        rt_kprintf("CSI%u: %s (%u supported modes)\n",
+                   csi, dev->sensor_name, dev->mode_count);
+        rt_kprintf("  Sensor Type List:\n");
+
+        for (k_u32 i = 0; i < dev->mode_count; i++) {
+            const k_sensor_mode *mode = &dev->sensor_mode_list[i];
+
+            if (sensor_mode_type_seen(dev, i, mode->sensor_type)) {
+                continue;
+            }
+
+            rt_kprintf("    %17d -> %s (%ux%u@%u, %u lanes)\n",
+                       mode->sensor_type,
+                       sensor_type_name(mode->sensor_type),
+                       mode->size.width,
+                       mode->size.height,
+                       sensor_mode_fps(mode),
+                       mode->mipi_info.mipi_lanes);
+        }
+    }
+
+    rt_kprintf("\nAll Configured Sensor Types:\n");
+    rt_kprintf("  [SUPPORTED] means the mode is present in a detected driver;\n");
+    rt_kprintf("  [NOT DETECTED] means it is configured but not detected on this board.\n");
+
+    for (size_t i = 0; i < sizeof(sth_table) / sizeof(sth_table[0]); i++) {
+        k_u32 csi;
+        const k_sensor_mode *mode;
+
+        if (sth_table[i].type == __UINT32_MAX__) {
+            continue;
+        }
+
+        mode = find_detected_sensor_mode(sth_table[i].type, &csi);
+        if (mode != NULL) {
+            rt_kprintf("  [SUPPORTED]    CSI%u %17d -> %s (%ux%u@%u, %u lanes)\n",
+                       csi,
+                       sth_table[i].type,
+                       sth_table[i].name,
+                       mode->size.width,
+                       mode->size.height,
+                       sensor_mode_fps(mode),
+                       mode->mipi_info.mipi_lanes);
+        } else {
+            rt_kprintf("  [NOT DETECTED] %17d -> %s\n",
+                       sth_table[i].type,
+                       sth_table[i].name);
+        }
     }
 
     return;

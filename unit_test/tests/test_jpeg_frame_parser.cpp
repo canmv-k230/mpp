@@ -79,6 +79,12 @@ TEST(JpegFrameParserTest, RejectInvalidFrameWithoutMandatoryMarkers) {
     EXPECT_EQ(parser.parse(invalid.data(), static_cast<unsigned int>(invalid.size())), -1);
 }
 
+TEST(JpegFrameParserTest, RejectTruncatedScanMarkerWithoutReadingPastInput) {
+    std::vector<unsigned char> truncated {0xFF, 0xD8, 0xFF, 0xDA, 0x00, 0x02, 0xFF};
+    JpegFrameParser parser;
+    EXPECT_EQ(parser.parse(truncated.data(), static_cast<unsigned int>(truncated.size())), -1);
+}
+
 TEST(JpegFrameParserTest, CopyAndAssignPreserveParsedState) {
     auto frame = BuildMinimalValidJpeg();
     JpegFrameParser parser;
