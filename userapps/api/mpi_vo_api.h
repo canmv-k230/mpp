@@ -84,6 +84,20 @@ k_s32 kd_mpi_vo_disable_layer(k_vo_layer_id layer_id);
 
 k_s32 kd_mpi_vo_insert_frame(k_vo_layer_id layer_id, const k_video_frame_info* vf_info);
 
+/** Wait until this layer no longer holds the frame, including its pending slot.
+ * timeout_ms: 0 checks without waiting, -1 waits indefinitely, >0 is a deadline
+ * in milliseconds, including time spent waiting for other VO operations.
+ * Finite waits use RT-Thread tick resolution and must fit its timer range;
+ * scheduling can delay return. Out-of-range timeouts return EINVAL.
+ * Returns 0 on release, or -1 with errno set. Errors include EBUSY (still held
+ * or control lock busy), ETIMEDOUT, EINTR, EINVAL (invalid arguments), ENODEV
+ * (VO device unavailable), and EIO (other wait failures).
+ * The caller must retain the VB block and prevent concurrent resubmission.
+ * This does not wait for users of the same block on other layers/modules.
+ */
+k_s32 kd_mpi_vo_wait_frame_release(k_vo_layer_id layer_id, const k_video_frame_info* frame,
+                                  k_s32 timeout_ms);
+
 k_s32 kd_mpi_vo_set_wbc_attr(k_vo_wbc_attr* attr);
 
 k_s32 kd_mpi_vo_enable_wbc(void);

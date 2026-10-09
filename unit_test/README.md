@@ -38,3 +38,16 @@ cd mpp/middleware/src/unit_test
 `compile_run.sh` builds and runs:
 - `all_tests` (core + kdmedia + rtsp_server + rtsp_pusher + API tests)
 - `rtsp_client_tests` (separate binary to avoid symbol clashes with rtsp_server `LiveFrameSource`)
+
+## VO Timeout Boundaries
+
+From the MPP repository root, run:
+
+```bash
+python3 -B unit_test/tests/test_vo_wait_timeout.py
+```
+
+This compiles the production timeout conversion with UndefinedBehaviorSanitizer
+at five tick frequencies. It checks nonblocking and infinite waits, tick
+rounding, invalid negative values, and both sides of the timer limit. It does
+not emulate interrupts or replace the board frame-release tests.

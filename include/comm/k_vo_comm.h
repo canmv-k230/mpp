@@ -95,7 +95,7 @@ typedef struct {
     k_gdma_rotation_e func; // Rotation angle or mirroring mode (handled by GDMA)
     k_u8              global_alpha; // Transparency level (0: fully transparent, 255: fully opaque)
     k_u8              rot_buf_nr; // Number of rotation buffers; 2 is recommended for performance/stability
-    k_u8              rot_buf_bpp; // Bits per pixel for rot-buffer; 0 to auto-calculate, 4 for dynamic format switching
+    k_u8              rot_buf_bpp; // Bytes per pixel for rot-buffer; 0 to auto-calculate, 4 for dynamic format switching
 } k_vo_layer_attr;
 
 struct vo_disp_layer_mix_priority_t {
