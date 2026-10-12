@@ -23,6 +23,9 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include "rtthread.h"
+#include <drv_gpio.h>
+
 #include "connector_panel.h"
 
 #include "k_autoconf_comm.h"
@@ -150,10 +153,29 @@ static int ili9806_init(const struct panel_desc* desc)
     return dsi_send_cmd_sequence(desc, init_cmds, sizeof(init_cmds), K_FALSE);
 }
 
+static int ili9806_power_off(const struct panel_desc* desc)
+{
+    const k_u8 display_off[] = { 0x28 };
+    const k_u8 sleep_in[] = { 0x10 };
+    int ret;
+
+    ret = dwc_dsi_dcs_write(display_off, sizeof(display_off), desc->bus.dsi.vc_id);
+    rt_thread_mdelay(5);
+    if (dwc_dsi_dcs_write(sleep_in, sizeof(sleep_in), desc->bus.dsi.vc_id) != 0 && ret == 0) {
+        ret = -1;
+    }
+    if (desc->gpio.reset_pin >= 0) {
+        kd_pin_mode(desc->gpio.reset_pin, GPIO_DM_OUTPUT);
+        kd_pin_write(desc->gpio.reset_pin,
+                     desc->gpio.reset_active_low ? GPIO_PV_LOW : GPIO_PV_HIGH);
+    }
+    return ret;
+}
+
 static const struct panel_ops ili9806_ops = {
     .reset        = panel_generic_reset,
     .init         = ili9806_init,
-    .power_off    = NULL,
+    .power_off    = ili9806_power_off,
     .read_chip_id = dsi_read_chip_id,
 };
 

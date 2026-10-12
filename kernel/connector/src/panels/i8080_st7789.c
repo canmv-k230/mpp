@@ -24,6 +24,7 @@
  */
 
 #include <rtthread.h>
+#include <drv_gpio.h>
 
 #include "connector_panel.h"
 #include "k_autoconf_comm.h"
@@ -105,6 +106,11 @@ static int st7789_i8080_power_off(const struct panel_desc* desc)
     i8080_cmd(desc, 0x10, NULL, 0);
     rt_thread_mdelay(120);
 
+    if (desc->gpio.reset_pin >= 0) {
+        kd_pin_mode(desc->gpio.reset_pin, GPIO_DM_OUTPUT);
+        kd_pin_write(desc->gpio.reset_pin,
+                     desc->gpio.reset_active_low ? GPIO_PV_LOW : GPIO_PV_HIGH);
+    }
     return 0;
 }
 

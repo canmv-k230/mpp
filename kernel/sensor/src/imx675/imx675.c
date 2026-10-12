@@ -778,6 +778,7 @@ k_s32 sensor_imx675_probe(struct k_sensor_probe_cfg* cfg, struct sensor_driver_d
 {
     k_u32                chip_id     = 0;
     const k_sensor_mode* sensor_mode = NULL;
+    k_bool               mclk_acquired = K_FALSE;
 
 #if defined(CONFIG_MPP_ENABLE_CSI_DEV_0)
     if (0x00 == cfg->csi_num) {
@@ -814,7 +815,9 @@ k_s32 sensor_imx675_probe(struct k_sensor_probe_cfg* cfg, struct sensor_driver_d
     strncpy(dev->i2c_info.i2c_name, cfg->i2c_name, sizeof(dev->i2c_info.i2c_name) - 1);
     memcpy(&dev->sensor_func, &sensor_functions, sizeof(k_sensor_function));
 
-    sensor_set_mclk(&sensor_mode->mclk_setting[0]);
+    if (sensor_set_mclk(&sensor_mode->mclk_setting[0]) != K_SUCCESS)
+        goto _on_failed;
+    mclk_acquired = K_TRUE;
     snprintf(dev->sensor_name, sizeof(dev->sensor_name), "imx675_csi%d", cfg->csi_num);
 
     _sensor_power_state_set(dev, 1, 1);
@@ -835,10 +838,15 @@ k_s32 sensor_imx675_probe(struct k_sensor_probe_cfg* cfg, struct sensor_driver_d
     }
 
     sensor_autofocus_dev_probe(dev);
+    if (sensor_probe_power_off(dev, &sensor_mode->mclk_setting[0]) != K_SUCCESS)
+        goto _on_failed;
+    mclk_acquired = K_FALSE;
 
     return 0;
 
 _on_failed:
+    if (mclk_acquired)
+        (void)sensor_probe_power_off(dev, &sensor_mode->mclk_setting[0]);
     memset(dev, 0, sizeof(*dev));
     return -1;
 }

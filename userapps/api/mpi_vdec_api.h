@@ -188,7 +188,7 @@ k_s32 kd_mpi_vdec_set_downscale(k_u32 chn_num, const k_vdec_downscale *downscale
  * @retval 0 success
  * @retval "not 0" see err code
  * @see K_ERR_CODE_E
- * @note It can be set on the fly
+ * @note Attach the pool before creating the channel.
  */
 k_s32 kd_mpi_vdec_attach_vb_pool(k_u32 chn_num, k_u32 pool_id);
 
@@ -200,7 +200,7 @@ k_s32 kd_mpi_vdec_attach_vb_pool(k_u32 chn_num, k_u32 pool_id);
  * @retval 0 success
  * @retval "not 0" see err code
  * @see K_ERR_CODE_E
- * @note It can be set on the fly
+ * @note Stop and destroy the channel before detaching the pool.
  */
 k_s32 kd_mpi_vdec_detach_vb_pool(k_u32 chn_num);
 
@@ -209,4 +209,3 @@ k_s32 kd_mpi_vdec_detach_vb_pool(k_u32 chn_num);
 }
 #endif /* __cplusplus */
 #endif
-

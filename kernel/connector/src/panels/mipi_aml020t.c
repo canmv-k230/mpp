@@ -87,7 +87,6 @@ static int aml020t_init(const struct panel_desc* desc)
 static const struct panel_ops aml020t_ops = {
     .reset        = panel_generic_reset,
     .init         = aml020t_init,
-    .power_off    = NULL,
     // .read_chip_id = dsi_read_chip_id,
 };
 

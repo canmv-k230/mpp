@@ -778,6 +778,7 @@ k_s32 sensor_sc130gs_probe(struct k_sensor_probe_cfg *cfg, struct sensor_driver_
     k_s32 ret = 0;
     k_u32 chip_id = 0;
     const k_sensor_mode *sensor_mode = NULL;
+    k_bool mclk_acquired = K_FALSE;
 
 #if defined (CONFIG_MPP_ENABLE_CSI_DEV_0)
     if(0x00 == cfg->csi_num) {
@@ -822,7 +823,9 @@ k_s32 sensor_sc130gs_probe(struct k_sensor_probe_cfg *cfg, struct sensor_driver_
     memcpy(&dev->sensor_func, &sensor_functions, sizeof(k_sensor_function));
 
     /* probe sensor */
-    sensor_set_mclk(&sensor_mode->mclk_setting[0]);
+    if (sensor_set_mclk(&sensor_mode->mclk_setting[0]) != K_SUCCESS)
+        goto _on_failed;
+    mclk_acquired = K_TRUE;
 
     /** NEW SENSOR MODIFY START */
     snprintf(dev->sensor_name, sizeof(dev->sensor_name), "sc130gs_csi%d", cfg->csi_num);
@@ -841,11 +844,16 @@ k_s32 sensor_sc130gs_probe(struct k_sensor_probe_cfg *cfg, struct sensor_driver_
     }
 
     sensor_autofocus_dev_probe(dev);
+    if (sensor_probe_power_off(dev, &sensor_mode->mclk_setting[0]) != K_SUCCESS)
+        goto _on_failed;
+    mclk_acquired = K_FALSE;
     /** NEW SENSOR MODIFY END */
 
     return 0;
 
 _on_failed:
+    if (mclk_acquired)
+        (void)sensor_probe_power_off(dev, &sensor_mode->mclk_setting[0]);
     memset(dev, 0, sizeof(*dev));
 
     return -1;

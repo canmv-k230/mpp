@@ -28,26 +28,82 @@
 #include "k_sensor_ioctl.h"
 #include "k_sensor_comm.h"
 
-void sensor_set_mclk(const k_sensor_mclk_setting *setting)
+k_s32 sensor_set_mclk(const k_sensor_mclk_setting *setting)
 {
     extern k_s32 vicap_set_mclk(k_vicap_mclk *mclk);
 
     k_vicap_mclk mclk;
+    k_s32 ret;
 
     for (k_s32 idx = 0; idx < SENSOR_MCLK_MAX - 1; idx++) {
         const k_sensor_mclk *sensor_mclk = &setting[idx].setting;
 
+        if (!setting[idx].mclk_setting_en)
+            continue;
+
         mclk.id = (k_vicap_mclk_id)sensor_mclk->id;
         mclk.mclk_div = sensor_mclk->mclk_div;
         mclk.mclk_sel = (k_vicap_mclk_sel)sensor_mclk->mclk_sel;
+        mclk.mclk_en = 1;
 
-        if(setting[idx].mclk_setting_en) {
-            mclk.mclk_en = 1;
-        } else {
-            mclk.mclk_en = 0;
+        ret = vicap_set_mclk(&mclk);
+        if (ret != K_SUCCESS) {
+            /* roll back the mclks already enabled in this call */
+            for (k_s32 j = 0; j < idx; j++) {
+                if (!setting[j].mclk_setting_en)
+                    continue;
+                mclk.id = (k_vicap_mclk_id)setting[j].setting.id;
+                mclk.mclk_en = 0;
+                (void)vicap_set_mclk(&mclk);
+            }
+            return ret;
         }
-        vicap_set_mclk(&mclk);
     }
+
+    return K_SUCCESS;
+}
+
+k_s32 sensor_put_mclk(const k_sensor_mclk_setting *setting)
+{
+    extern k_s32 vicap_set_mclk(k_vicap_mclk *mclk);
+
+    k_vicap_mclk mclk;
+    k_s32 first_ret = K_SUCCESS;
+
+    for (k_s32 idx = 0; idx < SENSOR_MCLK_MAX - 1; idx++) {
+        const k_sensor_mclk *sensor_mclk = &setting[idx].setting;
+
+        if (!setting[idx].mclk_setting_en)
+            continue;
+
+        mclk.id = (k_vicap_mclk_id)sensor_mclk->id;
+        mclk.mclk_div = sensor_mclk->mclk_div;
+        mclk.mclk_sel = (k_vicap_mclk_sel)sensor_mclk->mclk_sel;
+        mclk.mclk_en = 0;
+
+        k_s32 ret = vicap_set_mclk(&mclk);
+        if (ret != K_SUCCESS && first_ret == K_SUCCESS)
+            first_ret = ret;
+    }
+
+    return first_ret;
+}
+
+k_s32 sensor_probe_power_off(struct sensor_driver_dev *dev,
+    const k_sensor_mclk_setting *setting)
+{
+    k_s32 power_ret;
+    k_s32 mclk_ret;
+
+    if (dev == NULL || setting == NULL || dev->sensor_func.sensor_power == NULL)
+        return K_FAILED;
+
+    power_ret = dev->sensor_func.sensor_power(dev, K_FALSE);
+    mclk_ret = sensor_put_mclk(setting);
+    if (mclk_ret != K_SUCCESS)
+        rt_kprintf("%s: failed to release probe mclk\n", dev->sensor_name);
+
+    return power_ret != K_SUCCESS ? power_ret : mclk_ret;
 }
 
 k_s32 sensor_reg_read(k_sensor_i2c_info *i2c_info, k_u16 reg_addr, k_u16 *buf)

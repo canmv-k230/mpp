@@ -741,7 +741,8 @@ k_s32 sensor_xs9950_probe(struct k_sensor_probe_cfg *cfg, struct sensor_driver_d
     memcpy(&dev->sensor_func, &sensor_functions, sizeof(k_sensor_function));
 
     /* probe sensor */
-    sensor_set_mclk(&sensor_mode->mclk_setting[0]);
+    if (sensor_set_mclk(&sensor_mode->mclk_setting[0]) != K_SUCCESS)
+        goto _on_failed;
 
     /** NEW SENSOR MODIFY START */
     snprintf(dev->sensor_name, sizeof(dev->sensor_name), "xs9950_csi%d", cfg->csi_num);
@@ -756,10 +757,14 @@ k_s32 sensor_xs9950_probe(struct k_sensor_probe_cfg *cfg, struct sensor_driver_d
     dev->i2c_info.slave_addr = 0x30;
     if((0x00 != _sensor_read_chip_id_r(dev, &chip_id)) || (XS9950_CHIP_ID != chip_id)) {
         // rt_kprintf("xs9950 read chip id failed, 0x%04x\n", chip_id);
+        sensor_put_mclk(&sensor_mode->mclk_setting[0]);
         goto _on_failed;
     }
 
     sensor_autofocus_dev_probe(dev);
+
+    if (sensor_probe_power_off(dev, &sensor_mode->mclk_setting[0]) != K_SUCCESS)
+        goto _on_failed;
     /** NEW SENSOR MODIFY END */
 
     return 0;

@@ -23,6 +23,9 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include "rtthread.h"
+#include <drv_gpio.h>
+
 #include "connector_panel.h"
 
 #include "k_autoconf_comm.h"
@@ -59,10 +62,26 @@ static int jd9852_init(const struct panel_desc* desc)
     return dsi_send_cmd_sequence(desc, init_cmds, sizeof(init_cmds), K_FALSE);
 }
 
+static int jd9852_power_off(const struct panel_desc* desc)
+{
+    const k_u8 sleep_in[] = { 0x10 };
+    int ret;
+
+    /* JD9852 power-off flow uses SLPIN directly. */
+    ret = dwc_dsi_dcs_write(sleep_in, sizeof(sleep_in), desc->bus.dsi.vc_id);
+    rt_thread_mdelay(120);
+    if (desc->gpio.reset_pin >= 0) {
+        kd_pin_mode(desc->gpio.reset_pin, GPIO_DM_OUTPUT);
+        kd_pin_write(desc->gpio.reset_pin,
+                     desc->gpio.reset_active_low ? GPIO_PV_LOW : GPIO_PV_HIGH);
+    }
+    return ret;
+}
+
 static const struct panel_ops jd9852_ops = {
     .reset        = panel_generic_reset,
     .init         = jd9852_init,
-    .power_off    = NULL,
+    .power_off    = jd9852_power_off,
     .read_chip_id = NULL, /* JD9852 does not support DCS reads */
 };
 

@@ -29,6 +29,7 @@
 
 static int              info_valid          = 0;
 static k_connector_info curr_connector_info = {};
+static k_s32            curr_connector_fd   = -1;
 
 k_s32 kd_display_init_ex(k_connector_type type, k_u32 width, k_u32 height, k_gdma_rotation_e rotate, k_u8 fps)
 {
@@ -36,6 +37,10 @@ k_s32 kd_display_init_ex(k_connector_type type, k_u32 width, k_u32 height, k_gdm
     k_s32             connector_fd;
     k_connector_info  connector_info;
     k_gdma_rotation_e _rotate = rotate;
+
+    if (info_valid || curr_connector_fd >= 0) {
+        return K_ERR_VO_BUSY;
+    }
 
     memset(&connector_info, 0, sizeof(connector_info));
     ret = kd_mpi_get_connector_info(type, &connector_info);
@@ -82,11 +87,10 @@ k_s32 kd_display_init_ex(k_connector_type type, k_u32 width, k_u32 height, k_gdm
     ret = kd_mpi_connector_power_set(connector_fd, 1);
     if (K_SUCCESS != ret) {
         printf("[fw_display]:: kd_mpi_connector_power_set failed, ret=%d\n", ret);
+        (void)kd_mpi_connector_power_set(connector_fd, 0);
         kd_mpi_connector_close(connector_fd);
         return ret;
     }
-
-    kd_mpi_connector_close(connector_fd);
 
     // Configure VO hardware device attributes (Rotation)
     k_vo_dev_attr dev_attr;
@@ -95,10 +99,13 @@ k_s32 kd_display_init_ex(k_connector_type type, k_u32 width, k_u32 height, k_gdm
 
     if (0x00 != (ret = kd_mpi_vo_set_dev_attr(&dev_attr))) {
         printf("[fw_display]:: kd_mpi_vo_set_dev_attr failed, ret=%d\n", ret);
+        (void)kd_mpi_connector_power_set(connector_fd, 0);
+        kd_mpi_connector_close(connector_fd);
         return ret;
     }
 
     info_valid = 1;
+    curr_connector_fd = connector_fd;
     memcpy(&curr_connector_info, &connector_info, sizeof(curr_connector_info));
 
     return K_SUCCESS;
@@ -116,13 +123,14 @@ k_s32 kd_display_deinit(void)
     /* Power off the connector first.  SPI panels need this because sw_bridge
      * owns WBC internally, and DSI/HDMI panels also shut their bus down more
      * cleanly while VO still owns the scanout state. */
-    connector_fd = kd_mpi_connector_open(curr_connector_info.connector_name);
+    connector_fd = curr_connector_fd;
     if (0 <= connector_fd) {
         ret = kd_mpi_connector_power_set(connector_fd, 0);
         if (K_SUCCESS != ret) {
             printf("[fw_display]:: kd_mpi_connector_power_set failed, ret=%d\n", ret);
         }
         kd_mpi_connector_close(connector_fd);
+        curr_connector_fd = -1;
     } else {
         ret = K_FAILED;
     }

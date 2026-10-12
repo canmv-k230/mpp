@@ -110,6 +110,11 @@ private:
     bool ai_started_{false};
 
     k_u32 venc_chn_id_{0};
+    bool venc_fd_acquired_{false};
+    bool venc_chn_requested_{false};
+    bool venc_pool_attached_{false};
+    bool venc_chn_created_{false};
+    bool venc_started_{false};
     pthread_t venc_tid_;
     bool start_get_video_stream_{false};
 
@@ -987,13 +992,13 @@ int KdMedia::Impl::CreateVencVBPool()
 
 int KdMedia::Impl::DestroyVencVBPool()
 {
-    k_s32 ret;
-
     if (venc_attach_pool_id_ != VB_INVALID_POOLID){
-        ret = kd_mpi_vb_destory_pool(venc_attach_pool_id_);
+        k_s32 ret = kd_mpi_vb_destory_pool(venc_attach_pool_id_);
+        if (ret != K_SUCCESS)
+            return ret;
         venc_attach_pool_id_ = VB_INVALID_POOLID;
     }
-    return 0;
+    return K_SUCCESS;
 }
 
 static k_s32 kd_sample_vicap_set_chn_attr(k_vicap_chn_set_info chn_info)
@@ -1085,11 +1090,39 @@ int KdMedia::Impl::CreateVcapVEnc(IOnVEncData *on_venc_data)
     {
         return 0;
     }
+    if (venc_fd_acquired_ || venc_chn_requested_)
+        return -1;
     on_venc_data_ = on_venc_data;
 
-    CreateVencVBPool();
+    int ret = kd_mpi_venc_acquire_fd();
+    if (ret != K_SUCCESS)
+    {
+        return -1;
+    }
+    venc_fd_acquired_ = true;
 
-    kd_mpi_venc_attach_vb_pool(venc_chn_id_,venc_attach_pool_id_);
+    ret = kd_mpi_venc_request_chn(&venc_chn_id_);
+    if (ret != K_SUCCESS)
+    {
+        (void)kd_mpi_venc_release_fd();
+        venc_fd_acquired_ = false;
+        return -1;
+    }
+    venc_chn_requested_ = true;
+
+    if (CreateVencVBPool() != 0)
+    {
+        (void)DestroyVcapVEnc();
+        return -1;
+    }
+
+    ret = kd_mpi_venc_attach_vb_pool(venc_chn_id_,venc_attach_pool_id_);
+    if (ret != K_SUCCESS)
+    {
+        (void)DestroyVcapVEnc();
+        return -1;
+    }
+    venc_pool_attached_ = true;
 
     k_venc_chn_attr chn_attr;
     memset(&chn_attr, 0, sizeof(chn_attr));
@@ -1118,12 +1151,14 @@ int KdMedia::Impl::CreateVcapVEnc(IOnVEncData *on_venc_data)
         chn_attr.rc_attr.mjpeg_fixqp.q_factor = 45;
     }
 
-    int ret = kd_sample_venc_init(venc_chn_id_, &chn_attr);
+    ret = kd_sample_venc_init(venc_chn_id_, &chn_attr);
     if (ret != K_SUCCESS)
     {
         std::cout << "kd_sample_venc_init error." << std::endl;
+        (void)DestroyVcapVEnc();
         return -1;
     }
+    venc_chn_created_ = true;
 
     if (config_.video_type != KdMediaVideoType::kVideoTypeMjpeg)
     {
@@ -1131,6 +1166,7 @@ int KdMedia::Impl::CreateVcapVEnc(IOnVEncData *on_venc_data)
         if (ret != K_SUCCESS)
         {
             std::cout << "kd_mpi_venc_enable_idr error." << std::endl;
+            DestroyVcapVEnc();
             return -1;
         }
     }
@@ -1142,6 +1178,7 @@ int KdMedia::Impl::CreateVcapVEnc(IOnVEncData *on_venc_data)
     if (ret != K_SUCCESS)
     {
         printf("kd_mpi_vicap_get_sensor_info failed, %x.\n", ret);
+        DestroyVcapVEnc();
         return -1;
     }
 
@@ -1160,7 +1197,7 @@ int KdMedia::Impl::CreateVcapVEnc(IOnVEncData *on_venc_data)
     vi_chn_attr_info.buffer_num = 6;
     vi_chn_attr_info.alignment = 12;
     vi_chn_attr_info.fps = 30;
-    vi_chn_attr_info.vicap_chn = (k_vicap_chn)venc_chn_id_;
+    vi_chn_attr_info.vicap_chn = vi_chn_id_;
     if (!vcap_dev_info_.dw_en)
         vi_chn_attr_info.buf_size = VI_ALIGN_UP(VI_ALIGN_UP(config_.venc_width, 16) * config_.venc_height * 3 / 2, 0x1000);
     else
@@ -1170,6 +1207,7 @@ int KdMedia::Impl::CreateVcapVEnc(IOnVEncData *on_venc_data)
     if (ret != K_SUCCESS)
     {
         printf("vicap chn %d set attr failed, %x.\n", venc_chn_id_, ret);
+        DestroyVcapVEnc();
         return -1;
     }
 
@@ -1178,14 +1216,50 @@ int KdMedia::Impl::CreateVcapVEnc(IOnVEncData *on_venc_data)
 
 int KdMedia::Impl::DestroyVcapVEnc()
 {
+    k_s32 ret;
+
     if (!config_.video_valid)
     {
         return 0;
     }
-    kd_mpi_venc_detach_vb_pool(venc_chn_id_);
-    kd_mpi_venc_destroy_chn(venc_chn_id_);
+    if (venc_started_)
+    {
+        ret = kd_mpi_venc_stop_chn(venc_chn_id_);
+        if (ret != K_SUCCESS)
+            return -1;
+        venc_started_ = false;
+    }
 
-    DestroyVencVBPool();
+    if (venc_pool_attached_)
+    {
+        ret = kd_mpi_venc_detach_vb_pool(venc_chn_id_);
+        if (ret != K_SUCCESS)
+            return -1;
+        venc_pool_attached_ = false;
+    }
+    if (venc_chn_created_)
+    {
+        ret = kd_mpi_venc_destroy_chn(venc_chn_id_);
+        if (ret != K_SUCCESS)
+            return -1;
+        venc_chn_created_ = false;
+    }
+    if (DestroyVencVBPool() != K_SUCCESS)
+        return -1;
+    if (venc_chn_requested_)
+    {
+        ret = kd_mpi_venc_release_chn(venc_chn_id_);
+        if (ret != K_SUCCESS)
+            return -1;
+        venc_chn_requested_ = false;
+    }
+    if (venc_fd_acquired_)
+    {
+        ret = kd_mpi_venc_release_fd();
+        venc_fd_acquired_ = false;
+        if (ret != K_SUCCESS)
+            return -1;
+    }
     return 0;
 }
 
@@ -1286,6 +1360,9 @@ void *KdMedia::Impl::venc_stream_threads(void *arg)
     return NULL;
 }
 
+static k_s32 kd_sample_venc_unbind_vi(k_s32 src_dev, k_s32 src_chn,
+                                      k_s32 chn_num);
+
 int KdMedia::Impl::StartVcapVEnc()
 {
     if (!config_.video_valid)
@@ -1293,15 +1370,39 @@ int KdMedia::Impl::StartVcapVEnc()
         return 0;
     }
 
-    kd_mpi_venc_start_chn(venc_chn_id_);
+    k_s32 ret = kd_mpi_venc_start_chn(venc_chn_id_);
+    if (ret != K_SUCCESS)
+        return -1;
+    venc_started_ = true;
     if (!start_get_video_stream_)
     {
         start_get_video_stream_ = true;
-        pthread_create(&venc_tid_, NULL, venc_stream_threads, this);
+        ret = pthread_create(&venc_tid_, NULL, venc_stream_threads, this);
+        if (ret != 0)
+        {
+            start_get_video_stream_ = false;
+            (void)kd_mpi_venc_stop_chn(venc_chn_id_);
+            venc_started_ = false;
+            return -1;
+        }
     }
-    kd_sample_venc_bind_vi(vi_dev_id_, vi_chn_id_, venc_chn_id_);
-    kd_sample_vicap_start(vi_dev_id_);
+    ret = kd_sample_venc_bind_vi(vi_dev_id_, vi_chn_id_, venc_chn_id_);
+    if (ret != K_SUCCESS)
+        goto start_failed;
+    ret = kd_sample_vicap_start(vi_dev_id_);
+    if (ret != K_SUCCESS)
+    {
+        (void)kd_sample_venc_unbind_vi(vi_dev_id_, vi_chn_id_, venc_chn_id_);
+        goto start_failed;
+    }
     return 0;
+
+start_failed:
+    start_get_video_stream_ = false;
+    pthread_join(venc_tid_, NULL);
+    (void)kd_mpi_venc_stop_chn(venc_chn_id_);
+    venc_started_ = false;
+    return -1;
 }
 
 static k_s32 kd_sample_venc_unbind_vi(k_s32 src_dev, k_s32 src_chn, k_s32 chn_num)
@@ -1345,6 +1446,9 @@ static k_s32 kd_sample_vicap_stop(k_vicap_dev vicap_dev)
 
 int KdMedia::Impl::StopVcapVEnc()
 {
+    k_s32 first_error = K_SUCCESS;
+    k_s32 ret;
+
     if (!config_.video_valid)
     {
         return 0;
@@ -1356,12 +1460,23 @@ int KdMedia::Impl::StopVcapVEnc()
         pthread_join(venc_tid_, NULL);
     }
     // unbind all
-    kd_sample_venc_unbind_vi(vi_dev_id_, vi_chn_id_, venc_chn_id_);
+    ret = kd_sample_venc_unbind_vi(vi_dev_id_, vi_chn_id_, venc_chn_id_);
+    if (ret != K_SUCCESS)
+        first_error = ret;
     // stop vcap
-    kd_sample_vicap_stop(vi_dev_id_);
+    ret = kd_sample_vicap_stop(vi_dev_id_);
+    if (ret != K_SUCCESS && first_error == K_SUCCESS)
+        first_error = ret;
     // stop all encoders
-    kd_mpi_venc_stop_chn(venc_chn_id_);
-    return 0;
+    if (venc_started_)
+    {
+        ret = kd_mpi_venc_stop_chn(venc_chn_id_);
+        if (ret == K_SUCCESS)
+            venc_started_ = false;
+        else if (first_error == K_SUCCESS)
+            first_error = ret;
+    }
+    return first_error == K_SUCCESS ? 0 : -1;
 }
 
 int KdMedia::Impl::CreateVdecVo(const VdecInitParams &params)
@@ -1430,8 +1545,8 @@ int KdMedia::Impl::DestroyVDecVo()
         printf("KdMedia::DestroyVDecVo() : stop first!!!\n");
         return -1;
     }
-    kd_mpi_vdec_detach_vb_pool(vdec_chn_id_);
     kd_mpi_vdec_destroy_chn(vdec_chn_id_);
+    kd_mpi_vdec_detach_vb_pool(vdec_chn_id_);
     vo_layer_deinit();
     vo_deinit();
     DestroyVdecVBPool();

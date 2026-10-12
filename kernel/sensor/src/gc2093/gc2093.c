@@ -871,7 +871,12 @@ k_s32 sensor_gc2093_probe(struct k_sensor_probe_cfg *cfg, struct sensor_driver_d
     memcpy(&dev->sensor_func, &sensor_functions, sizeof(k_sensor_function));
 
     /* probe sensor */
-    sensor_set_mclk(&sensor_mode->mclk_setting[0]);
+    ret = sensor_set_mclk(&sensor_mode->mclk_setting[0]);
+    if (ret != K_SUCCESS) {
+        rt_kprintf("gc2093 csi%d: MCLK setup failed: %d\n",
+            cfg->csi_num, ret);
+        goto _on_failed;
+    }
 
     /** NEW SENSOR MODIFY START */
     snprintf(dev->sensor_name, sizeof(dev->sensor_name), "gc2093_csi%d", cfg->csi_num);
@@ -884,17 +889,24 @@ k_s32 sensor_gc2093_probe(struct k_sensor_probe_cfg *cfg, struct sensor_driver_d
     dev->i2c_info.reg_addr_size = SENSOR_REG_VALUE_16BIT;
     dev->i2c_info.reg_val_size = SENSOR_REG_VALUE_8BIT;
     dev->i2c_info.slave_addr = (0x6E >> 1); /* TYS-K230-200W-V2 */
-    if((0x00 != _sensor_read_chip_id_r(dev, &chip_id)) || (GC2093_CHIP_ID != chip_id)) {
+    ret = _sensor_read_chip_id_r(dev, &chip_id);
+    if ((ret != 0x00) || (GC2093_CHIP_ID != chip_id)) {
         _sensor_power_state_set(dev, 1, 1);
 
         dev->i2c_info.slave_addr = (0xFC >> 1); /* TYS-2093-V31 */
-        if((0x00 != _sensor_read_chip_id_r(dev, &chip_id)) || (GC2093_CHIP_ID != chip_id)) {
-            // rt_kprintf("gc2093 read chip id failed, 0x%04x\n", chip_id);
+        ret = _sensor_read_chip_id_r(dev, &chip_id);
+        if ((ret != 0x00) || (GC2093_CHIP_ID != chip_id)) {
+            sensor_put_mclk(&sensor_mode->mclk_setting[0]);
             goto _on_failed;
         }
     }
 
     sensor_autofocus_dev_probe(dev);
+
+    /* Probe only needs MCLK long enough to identify the sensor.  Leave both
+     * the sensor and its clock off until the VICAP user actually opens it. */
+    if (sensor_probe_power_off(dev, &sensor_mode->mclk_setting[0]) != K_SUCCESS)
+        goto _on_failed;
     /** NEW SENSOR MODIFY END */
 
     return 0;

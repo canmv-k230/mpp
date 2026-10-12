@@ -66,7 +66,8 @@ extern k_s32             vo_wbc_set_attr(wbc_drv_t* wbc_drv, k_vo_wbc_attr* attr
 extern wbc_subscriber_t* vo_wbc_subscribe(wbc_drv_t* wbc_drv);
 extern void              vo_wbc_unsubscribe(wbc_drv_t* wbc_drv, wbc_subscriber_t* sub);
 extern k_s32 vo_wbc_dump_frame(wbc_drv_t* wbc_drv, wbc_subscriber_t* sub, k_video_frame_info* info, k_u32 timeout_ms);
-extern k_s32 vo_wbc_dump_release(wbc_drv_t* wbc_drv, const k_video_frame_info* vf_info);
+extern k_s32 vo_wbc_dump_release(wbc_drv_t* wbc_drv, wbc_subscriber_t* sub,
+                                 const k_video_frame_info* vf_info);
 
 /* Singleton bridge context */
 static struct {
@@ -182,7 +183,7 @@ static void sw_bridge_thread_entry(void* param)
             uint64_t conv_ms = cpu_ticks_ms() - conv_start;
 #endif
 
-            vo_wbc_dump_release(g_bridge.wbc, &frame);
+            vo_wbc_dump_release(g_bridge.wbc, g_bridge.subscriber, &frame);
 
             if (ret != 0) {
                 rt_kprintf("sw_bridge: conversion failed\n");

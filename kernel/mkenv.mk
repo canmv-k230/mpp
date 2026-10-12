@@ -32,8 +32,10 @@ BSP_CFLGAS := \
 	-I$(SDK_RTSMART_SRC_DIR)/rtsmart/kernel/bsp/maix3 \
 	-I$(SDK_RTSMART_SRC_DIR)/rtsmart/kernel/bsp/maix3/board \
 	-I$(SDK_RTSMART_SRC_DIR)/rtsmart/kernel/bsp/maix3/drivers/interdrv/sysctl/sysctl_boot \
+	-I$(SDK_RTSMART_SRC_DIR)/rtsmart/kernel/bsp/maix3/drivers/interdrv/sysctl/sysctl_clock \
 	-I$(SDK_RTSMART_SRC_DIR)/rtsmart/kernel/bsp/maix3/drivers/interdrv/sysctl/sysctl_power \
 	-I$(SDK_RTSMART_SRC_DIR)/rtsmart/kernel/bsp/maix3/drivers/interdrv/sysctl/sysctl_reset \
+	-I$(SDK_RTSMART_SRC_DIR)/rtsmart/kernel/bsp/maix3/drivers/interdrv/k230_pm \
 	-I$(SDK_RTSMART_SRC_DIR)/rtsmart/kernel/bsp/maix3/drivers/interdrv/tsensor \
 	-I$(SDK_RTSMART_SRC_DIR)/rtsmart/kernel/bsp/maix3/drivers/interdrv/gpio \
 	-I$(SDK_RTSMART_SRC_DIR)/rtsmart/kernel/bsp/maix3/drivers/interdrv/fpioa \

@@ -23,6 +23,7 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 #include "rtthread.h"
+#include <drv_gpio.h>
 
 #include "connector_panel.h"
 
@@ -110,18 +111,21 @@ static int hx8399_init(const struct panel_desc* desc)
 
 static int hx8399_power_off(const struct panel_desc* desc)
 {
-    (void)desc;
+    const k_u8 display_off[] = { 0x28 };
+    const k_u8 sleep_in[] = { 0x10 };
+    int ret;
 
-    // // Display Off
-    // uint8_t display_off[] = { 0x28 };
-    // dwc_dsi_dcs_write(display_off, 1);
-    // rt_thread_mdelay(10); // Wait for the command to take effect
-
-    // // Sleep In
-    // uint8_t sleep_in[] = { 0x10 };
-    // dwc_dsi_dcs_write(sleep_in, 1);
-
-    return 0;
+    ret = dwc_dsi_dcs_write(display_off, sizeof(display_off), desc->bus.dsi.vc_id);
+    if (dwc_dsi_dcs_write(sleep_in, sizeof(sleep_in), desc->bus.dsi.vc_id) != 0 && ret == 0) {
+        ret = -1;
+    }
+    rt_thread_mdelay(120);
+    if (desc->gpio.reset_pin >= 0) {
+        kd_pin_mode(desc->gpio.reset_pin, GPIO_DM_OUTPUT);
+        kd_pin_write(desc->gpio.reset_pin,
+                     desc->gpio.reset_active_low ? GPIO_PV_LOW : GPIO_PV_HIGH);
+    }
+    return ret;
 }
 
 static const struct panel_ops hx8399_ops = {

@@ -144,7 +144,10 @@ struct sensor_driver_dev {
 
 extern struct sensor_driver_dev g_sensor_drv[3];
 
-void sensor_set_mclk(const k_sensor_mclk_setting *setting);
+k_s32 sensor_set_mclk(const k_sensor_mclk_setting *setting);
+k_s32 sensor_put_mclk(const k_sensor_mclk_setting *setting);
+k_s32 sensor_probe_power_off(struct sensor_driver_dev *dev,
+    const k_sensor_mclk_setting *setting);
 
 k_s32 sensor_reg_read(k_sensor_i2c_info *i2c_info, k_u16 reg_addr, k_u16 *buf);
 k_s32 sensor_reg_write(k_sensor_i2c_info *i2c_info, k_u16 reg_addr, k_u16 reg_val);

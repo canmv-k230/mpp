@@ -1,4 +1,4 @@
-subdirs-y := sensor connector pm uvc framework
+subdirs-y := sensor connector uvc framework
 
 GEN_ISP_CONFIG_BIN := $(abspath ../../tools/gen_isp_config_bin)
 

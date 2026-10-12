@@ -32,7 +32,7 @@
 #include "dfs_poll.h"
 #include "dfs_posix.h"
 
-#include "sysctl_pwr.h"
+#include "k230_pm.h"
 
 #include "k_connector_comm.h"
 #include "k_connector_ioctl.h"
@@ -43,8 +43,11 @@
 /* Global connector device state */
 static struct {
     struct rt_device         device;
+    struct rt_mutex          lock;
+    struct dfs_fd*           owner;
     const struct panel_desc* selected_panel;
     k_bool                   panel_initialized;
+    k_bool                   disp_pm_acquired;
 } g_connector_dev;
 
 extern struct panel_drv mipi_hx8399_drv;
@@ -156,17 +159,51 @@ static const struct panel_desc* find_panel_by_type(k_connector_type type, const 
 static k_s32 connector_dev_open(struct dfs_fd* file)
 {
     (void)file;
-
-    sysctl_pwr_up(SYSCTL_PD_DISP);
-
     return 0;
+}
+
+static k_s32 connector_release_pm_locked(void)
+{
+    k_s32 ret;
+
+    if (!g_connector_dev.disp_pm_acquired)
+        return 0;
+
+    ret = k230_pm_put(K230_PM_DEV_DISP);
+    if (ret == 0)
+        g_connector_dev.disp_pm_acquired = K_FALSE;
+    return ret;
 }
 
 static k_s32 connector_dev_close(struct dfs_fd* file)
 {
-    (void)file;
+    k_s32 ret = 0;
+    k_s32 pm_ret;
 
-    return 0;
+    rt_mutex_take(&g_connector_dev.lock, RT_WAITING_FOREVER);
+    if (g_connector_dev.owner == file) {
+        if (g_connector_dev.panel_initialized &&
+            g_connector_dev.selected_panel) {
+            ret = panel_generic_power_off(g_connector_dev.selected_panel);
+            if (ret == 0) {
+                g_connector_dev.panel_initialized = K_FALSE;
+                g_connector_dev.selected_panel = NULL;
+            }
+        }
+
+        if (!g_connector_dev.panel_initialized) {
+            pm_ret = connector_release_pm_locked();
+            if (ret == 0)
+                ret = pm_ret;
+        }
+
+        /* A closing file cannot remain the owner. A later INIT can retry
+         * cleanup if panel power-off failed. */
+        g_connector_dev.owner = NULL;
+    }
+    rt_mutex_release(&g_connector_dev.lock);
+
+    return ret;
 }
 
 static k_s32 connector_dev_ioctl(struct dfs_fd* file, k_s32 cmd, void* args)
@@ -215,14 +252,6 @@ static k_s32 connector_dev_ioctl(struct dfs_fd* file, k_s32 cmd, void* args)
         k_connector_init_params  params;
         const struct panel_desc* panel = NULL;
 
-        /* Auto-cleanup stale session (e.g. previous app killed by Ctrl+C) */
-        if (g_connector_dev.panel_initialized && g_connector_dev.selected_panel) {
-            rt_kprintf("connector: auto power-off stale session before re-init\n");
-            panel_generic_power_off(g_connector_dev.selected_panel);
-            g_connector_dev.panel_initialized = K_FALSE;
-            g_connector_dev.selected_panel = NULL;
-        }
-
         if (sizeof(params) != lwp_get_from_user(&params, args, sizeof(params))) {
             rt_kprintf("%s:%d lwp_get_from_user err\n", __func__, __LINE__);
             return -1;
@@ -254,29 +283,90 @@ static k_s32 connector_dev_ioctl(struct dfs_fd* file, k_s32 cmd, void* args)
             return -1;
         }
 #endif
+
+        rt_mutex_take(&g_connector_dev.lock, RT_WAITING_FOREVER);
+        if (g_connector_dev.owner && g_connector_dev.owner != file) {
+            rt_mutex_release(&g_connector_dev.lock);
+            return -EBUSY;
+        }
+
+        if (!g_connector_dev.disp_pm_acquired) {
+            ret = k230_pm_get(K230_PM_DEV_DISP);
+            if (ret != 0) {
+                rt_kprintf("%s: DISP runtime PM get failed: %d\n",
+                           __func__, ret);
+                rt_mutex_release(&g_connector_dev.lock);
+                return ret;
+            }
+            g_connector_dev.disp_pm_acquired = K_TRUE;
+        }
+
+        /* Auto-cleanup a stale logical panel session before re-init. */
+        if (g_connector_dev.panel_initialized && g_connector_dev.selected_panel) {
+            rt_kprintf("connector: auto power-off stale session before re-init\n");
+            ret = panel_generic_power_off(g_connector_dev.selected_panel);
+            if (ret != 0)
+                goto panel_init_failed_stale;
+            g_connector_dev.panel_initialized = K_FALSE;
+            g_connector_dev.selected_panel = NULL;
+        }
+
         g_connector_dev.selected_panel = panel;
 
         ret = panel_generic_power_on(panel);
         if (ret != 0) {
+            k_s32 cleanup_ret;
+
             rt_kprintf("%s: panel_generic_power_on failed: %d\n", __func__, ret);
+            cleanup_ret = panel_generic_power_off(panel);
+            if (cleanup_ret != 0) {
+                rt_kprintf("%s: partial panel cleanup failed: %d\n",
+                           __func__, cleanup_ret);
+                g_connector_dev.panel_initialized = K_TRUE;
+                g_connector_dev.owner = file;
+                rt_mutex_release(&g_connector_dev.lock);
+                return ret;
+            }
             g_connector_dev.selected_panel = NULL;
-            return ret;
+            goto panel_init_failed;
         }
 
         g_connector_dev.panel_initialized = K_TRUE;
+        g_connector_dev.owner = file;
+        rt_mutex_release(&g_connector_dev.lock);
         break;
+
+panel_init_failed:
+        g_connector_dev.owner = NULL;
+        (void)connector_release_pm_locked();
+        rt_mutex_release(&g_connector_dev.lock);
+        return ret;
+
+panel_init_failed_stale:
+        /* Keep DISP powered so a later INIT can retry the failed panel-off. */
+        g_connector_dev.owner = NULL;
+        rt_mutex_release(&g_connector_dev.lock);
+        return ret;
     }
 
     case KD_IOC_CONNECTOR_SET_PANEL_POWER_OFF: {
         k_s32 power_on;
-
-        if (!g_connector_dev.selected_panel) {
-            rt_kprintf("%s: no panel selected (call INIT first)\n", __func__);
-            return -1;
-        }
+        k_s32 pm_ret;
 
         if (sizeof(power_on) != lwp_get_from_user(&power_on, args, sizeof(power_on))) {
             rt_kprintf("%s:%d lwp_get_from_user err\n", __func__, __LINE__);
+            return -1;
+        }
+
+        rt_mutex_take(&g_connector_dev.lock, RT_WAITING_FOREVER);
+        if (g_connector_dev.owner != file) {
+            rt_mutex_release(&g_connector_dev.lock);
+            return -EPERM;
+        }
+
+        if (!g_connector_dev.selected_panel) {
+            rt_kprintf("%s: no panel selected (call INIT first)\n", __func__);
+            rt_mutex_release(&g_connector_dev.lock);
             return -1;
         }
 
@@ -287,18 +377,31 @@ static k_s32 connector_dev_ioctl(struct dfs_fd* file, k_s32 cmd, void* args)
             /* Power off */
             ret = panel_generic_power_off(g_connector_dev.selected_panel);
 
-            g_connector_dev.panel_initialized = K_FALSE;
-
-            g_connector_dev.selected_panel = NULL;
+            if (ret == 0) {
+                g_connector_dev.panel_initialized = K_FALSE;
+                g_connector_dev.selected_panel = NULL;
+                g_connector_dev.owner = NULL;
+                pm_ret = connector_release_pm_locked();
+                if (pm_ret != 0)
+                    ret = pm_ret;
+            }
         }
+        rt_mutex_release(&g_connector_dev.lock);
         break;
     }
 
     case KD_IOC_CONNECTOR_GET_PAENL_ID: {
         k_u32 id = 0;
 
+        rt_mutex_take(&g_connector_dev.lock, RT_WAITING_FOREVER);
+        if (g_connector_dev.owner != file) {
+            rt_mutex_release(&g_connector_dev.lock);
+            return -EPERM;
+        }
+
         if (!g_connector_dev.selected_panel) {
             rt_kprintf("%s: no panel selected (call INIT first)\n", __func__);
+            rt_mutex_release(&g_connector_dev.lock);
             return -1;
         }
 
@@ -308,9 +411,11 @@ static k_s32 connector_dev_ioctl(struct dfs_fd* file, k_s32 cmd, void* args)
 
         if (0x00 != lwp_put_to_user_ex(args, &id, sizeof(id))) {
             rt_kprintf("%s:%d lwp_put_to_user err\n", __func__, __LINE__);
+            rt_mutex_release(&g_connector_dev.lock);
             return -EFAULT;
         }
 
+        rt_mutex_release(&g_connector_dev.lock);
         ret = 0;
         break;
     }
@@ -318,20 +423,27 @@ static k_s32 connector_dev_ioctl(struct dfs_fd* file, k_s32 cmd, void* args)
     case KD_IOC_CONNECTOR_SET_PANEL_BACKLIGHT: {
         k_connector_backlight_attr attr;
 
-        if (!g_connector_dev.panel_initialized) {
-            rt_kprintf("%s: panel not initialized\n", __func__);
-            return -ENODEV;
-        }
-
         if (sizeof(attr) != lwp_get_from_user(&attr, args, sizeof(attr))) {
             rt_kprintf("%s:%d lwp_get_from_user err\n", __func__, __LINE__);
             return -EFAULT;
+        }
+
+        rt_mutex_take(&g_connector_dev.lock, RT_WAITING_FOREVER);
+        if (g_connector_dev.owner != file) {
+            rt_mutex_release(&g_connector_dev.lock);
+            return -EPERM;
+        }
+        if (!g_connector_dev.panel_initialized) {
+            rt_kprintf("%s: panel not initialized\n", __func__);
+            rt_mutex_release(&g_connector_dev.lock);
+            return -ENODEV;
         }
 
         ret = panel_generic_backlight(g_connector_dev.selected_panel, attr.mode, attr.duty);
         if (ret != 0) {
             rt_kprintf("%s: panel_generic_backlight failed: %d\n", __func__, ret);
         }
+        rt_mutex_release(&g_connector_dev.lock);
         break;
     }
 
@@ -356,9 +468,14 @@ k_s32 connector_device_init(void)
 
     rt_memset(&g_connector_dev, 0, sizeof(g_connector_dev));
 
+    ret = rt_mutex_init(&g_connector_dev.lock, "conn_lk", RT_IPC_FLAG_PRIO);
+    if (ret != RT_EOK)
+        return ret;
+
     ret = rt_device_register(&g_connector_dev.device, "connector", RT_DEVICE_FLAG_RDWR);
     if (ret) {
         rt_kprintf("connector: failed to register device\n");
+        rt_mutex_detach(&g_connector_dev.lock);
         return ret;
     }
 

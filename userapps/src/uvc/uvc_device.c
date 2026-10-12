@@ -51,7 +51,7 @@ static int uvc_device_ioctl(int cmd, void* data)
 
 int uvc_device_init(void)
 {
-    if (0 < video_dev_fd) {
+    if (0 <= video_dev_fd) {
         return 0;
     }
 
@@ -71,7 +71,7 @@ void uvc_device_deinit(void)
     }
 
     close(video_dev_fd);
-    video_dev_fd = 1;
+    video_dev_fd = -1;
 }
 
 int uvc_device_create_buffer_pool(uint32_t buffer_size, uint32_t buffer_count)

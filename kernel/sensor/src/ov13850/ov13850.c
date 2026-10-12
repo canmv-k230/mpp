@@ -789,7 +789,8 @@ k_s32 sensor_ov13850_probe(struct k_sensor_probe_cfg *cfg, struct sensor_driver_
     memcpy(&dev->sensor_func, &sensor_functions, sizeof(k_sensor_function));
 
     /* probe sensor */
-    sensor_set_mclk(&sensor_mode->mclk_setting[0]);
+    if (sensor_set_mclk(&sensor_mode->mclk_setting[0]) != K_SUCCESS)
+        goto _on_failed;
 
     /** NEW SENSOR MODIFY START */
     snprintf(dev->sensor_name, sizeof(dev->sensor_name), "ov13850_csi%d", cfg->csi_num);
@@ -803,6 +804,7 @@ k_s32 sensor_ov13850_probe(struct k_sensor_probe_cfg *cfg, struct sensor_driver_
     dev->i2c_info.slave_addr = 0x10;//0x36
     if((0x00 != _sensor_read_chip_id_r(dev, &chip_id))/* || (OV13850_CHIP_ID != chip_id) */) {
         // rt_kprintf("ov13850 read chip id failed, 0x%04x\n", chip_id);
+        sensor_put_mclk(&sensor_mode->mclk_setting[0]);
         goto _on_failed;
     }
 
@@ -811,6 +813,9 @@ k_s32 sensor_ov13850_probe(struct k_sensor_probe_cfg *cfg, struct sensor_driver_
     }
 
     sensor_autofocus_dev_probe(dev);
+
+    if (sensor_probe_power_off(dev, &sensor_mode->mclk_setting[0]) != K_SUCCESS)
+        goto _on_failed;
     /** NEW SENSOR MODIFY END */
 
     return 0;

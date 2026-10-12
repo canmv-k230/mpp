@@ -154,16 +154,41 @@ k_s32 kd_mpi_venc_release_stream(k_u32 chn_num, k_venc_stream *stream);
 k_s32 kd_mpi_venc_query_status(k_u32 chn_num, k_venc_chn_status *status);
 
 /**
- * @brief close venc handle
+ * @brief Hold the process-wide VENC handle for a component lifetime
  *
  * @return k_s32
  * @retval 0 success
  * @retval "not 0" see err code
+ * @note Pair every successful call with kd_mpi_venc_release_fd(). The device
+ *       remains open until the last holder releases it.
+ */
+k_s32 kd_mpi_venc_acquire_fd(void);
+
+/**
+ * @brief Release a VENC handle acquired with kd_mpi_venc_acquire_fd()
+ *
+ * @return k_s32
+ * @retval 0 success
+ * @retval "not 0" see err code
+ * @note The last release closes the process-wide VENC and 2D handles after
+ *       any in-flight MPI operation completes.
+ */
+k_s32 kd_mpi_venc_release_fd(void);
+
+/**
+ * @brief Close lazily opened VENC handles when no component holds them
+ *
+ * @return k_s32
+ * @retval 0 success
+ * @retval K_ERR_VENC_BUSY an explicit handle holder is still active
+ * @retval "not 0" see err code
  * @see K_ERR_CODE_E
- * @note close venc device
+ * @note Prefer acquire/release for components which can coexist in one
+ *       process. If an MPI operation is in flight, closing is deferred until
+ *       it completes. Calling this again while already closed succeeds.
  *
  */
-k_s32 kd_mpi_venc_close_fd();
+k_s32 kd_mpi_venc_close_fd(void);
 
 
 /**

@@ -78,7 +78,6 @@ static int nt35516_init(const struct panel_desc* desc)
 static const struct panel_ops nt35516_ops = {
     .reset        = panel_generic_reset,
     .init         = nt35516_init,
-    .power_off    = NULL,
     .read_chip_id = dsi_read_chip_id,
 };
 
