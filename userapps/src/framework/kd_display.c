@@ -87,7 +87,7 @@ k_s32 kd_display_init_ex(k_connector_type type, k_u32 width, k_u32 height, k_gdm
     ret = kd_mpi_connector_power_set(connector_fd, 1);
     if (K_SUCCESS != ret) {
         printf("[fw_display]:: kd_mpi_connector_power_set failed, ret=%d\n", ret);
-        (void)kd_mpi_connector_power_set(connector_fd, 0);
+        (void)kd_mpi_connector_deinit(connector_fd);
         kd_mpi_connector_close(connector_fd);
         return ret;
     }
@@ -99,7 +99,7 @@ k_s32 kd_display_init_ex(k_connector_type type, k_u32 width, k_u32 height, k_gdm
 
     if (0x00 != (ret = kd_mpi_vo_set_dev_attr(&dev_attr))) {
         printf("[fw_display]:: kd_mpi_vo_set_dev_attr failed, ret=%d\n", ret);
-        (void)kd_mpi_connector_power_set(connector_fd, 0);
+        (void)kd_mpi_connector_deinit(connector_fd);
         kd_mpi_connector_close(connector_fd);
         return ret;
     }
@@ -125,9 +125,9 @@ k_s32 kd_display_deinit(void)
      * cleanly while VO still owns the scanout state. */
     connector_fd = curr_connector_fd;
     if (0 <= connector_fd) {
-        ret = kd_mpi_connector_power_set(connector_fd, 0);
+        ret = kd_mpi_connector_deinit(connector_fd);
         if (K_SUCCESS != ret) {
-            printf("[fw_display]:: kd_mpi_connector_power_set failed, ret=%d\n", ret);
+            printf("[fw_display]:: kd_mpi_connector_deinit failed, ret=%d\n", ret);
         }
         kd_mpi_connector_close(connector_fd);
         curr_connector_fd = -1;

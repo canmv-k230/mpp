@@ -52,7 +52,12 @@ k_s32 kd_mpi_connector_close(k_s32 fd);
 
 k_s32 kd_mpi_connector_init(k_s32 fd, k_connector_info info);
 
+/* Legacy API: true enables the backlight; false fully shuts down the connector. */
 k_s32 kd_mpi_connector_power_set(k_s32 fd, k_bool on);
+
+k_s32 kd_mpi_connector_deinit(k_s32 fd);
+
+k_s32 kd_mpi_connector_set_backlight(k_s32 fd, k_connector_backlight_attr attr);
 
 k_s32 kd_mpi_connector_id_get(k_s32 fd, k_u32 *id);
 

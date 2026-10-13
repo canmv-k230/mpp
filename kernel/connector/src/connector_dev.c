@@ -40,14 +40,21 @@
 #include "connector_bus_dsi.h"
 #include "connector_panel.h"
 
-/* Global connector device state */
+enum connector_state {
+    CONNECTOR_STATE_OFF = 0,
+    CONNECTOR_STATE_STARTING,
+    CONNECTOR_STATE_ON,
+    CONNECTOR_STATE_CLEANUP_REQUIRED,
+};
+
+/* Connector state is device-global and independent of control descriptors. */
 static struct {
     struct rt_device         device;
     struct rt_mutex          lock;
-    struct dfs_fd*           owner;
+    struct panel_desc        active_panel;
     const struct panel_desc* selected_panel;
-    k_bool                   panel_initialized;
     k_bool                   disp_pm_acquired;
+    enum connector_state     state;
 } g_connector_dev;
 
 extern struct panel_drv mipi_hx8399_drv;
@@ -175,35 +182,50 @@ static k_s32 connector_release_pm_locked(void)
     return ret;
 }
 
-static k_s32 connector_dev_close(struct dfs_fd* file)
+static k_s32 connector_power_off_panel_locked(void)
 {
-    k_s32 ret = 0;
-    k_s32 pm_ret;
+    k_s32 ret;
 
-    rt_mutex_take(&g_connector_dev.lock, RT_WAITING_FOREVER);
-    if (g_connector_dev.owner == file) {
-        if (g_connector_dev.panel_initialized &&
-            g_connector_dev.selected_panel) {
-            ret = panel_generic_power_off(g_connector_dev.selected_panel);
-            if (ret == 0) {
-                g_connector_dev.panel_initialized = K_FALSE;
-                g_connector_dev.selected_panel = NULL;
-            }
-        }
+    if (!g_connector_dev.selected_panel)
+        return 0;
 
-        if (!g_connector_dev.panel_initialized) {
-            pm_ret = connector_release_pm_locked();
-            if (ret == 0)
-                ret = pm_ret;
-        }
-
-        /* A closing file cannot remain the owner. A later INIT can retry
-         * cleanup if panel power-off failed. */
-        g_connector_dev.owner = NULL;
-    }
-    rt_mutex_release(&g_connector_dev.lock);
+    ret = panel_generic_power_off(g_connector_dev.selected_panel);
+    /* Power-off completes applicable teardown even when a panel callback
+     * fails. The old descriptor is therefore not safe to retry. */
+    g_connector_dev.selected_panel = NULL;
+    if (ret != 0)
+        g_connector_dev.state = CONNECTOR_STATE_CLEANUP_REQUIRED;
 
     return ret;
+}
+
+static k_s32 connector_shutdown_locked(void)
+{
+    k_s32 panel_ret;
+    k_s32 pm_ret;
+
+    panel_ret = connector_power_off_panel_locked();
+    pm_ret = connector_release_pm_locked();
+
+    if (!g_connector_dev.selected_panel && !g_connector_dev.disp_pm_acquired)
+        g_connector_dev.state = CONNECTOR_STATE_OFF;
+    else
+        g_connector_dev.state = CONNECTOR_STATE_CLEANUP_REQUIRED;
+
+    return panel_ret != 0 ? panel_ret : pm_ret;
+}
+
+static k_s32 connector_dev_close(struct dfs_fd* file)
+{
+    (void)file;
+
+    /*
+     * Connector configuration is device-global and historically survives
+     * closing the control descriptor. Existing applications initialize the
+     * panel and immediately close this fd while VO keeps scanning out.
+     * Power-down is therefore explicit through SET_PANEL_POWER_OFF.
+     */
+    return 0;
 }
 
 static k_s32 connector_dev_ioctl(struct dfs_fd* file, k_s32 cmd, void* args)
@@ -248,7 +270,7 @@ static k_s32 connector_dev_ioctl(struct dfs_fd* file, k_s32 cmd, void* args)
         break;
     }
 
-    case KD_IOC_CONNECTOR_SET_PAENL_INIT: {
+    case KD_IOC_CONNECTOR_SET_PANEL_INIT: {
         k_connector_init_params  params;
         const struct panel_desc* panel = NULL;
 
@@ -285,11 +307,6 @@ static k_s32 connector_dev_ioctl(struct dfs_fd* file, k_s32 cmd, void* args)
 #endif
 
         rt_mutex_take(&g_connector_dev.lock, RT_WAITING_FOREVER);
-        if (g_connector_dev.owner && g_connector_dev.owner != file) {
-            rt_mutex_release(&g_connector_dev.lock);
-            return -EBUSY;
-        }
-
         if (!g_connector_dev.disp_pm_acquired) {
             ret = k230_pm_get(K230_PM_DEV_DISP);
             if (ret != 0) {
@@ -301,57 +318,42 @@ static k_s32 connector_dev_ioctl(struct dfs_fd* file, k_s32 cmd, void* args)
             g_connector_dev.disp_pm_acquired = K_TRUE;
         }
 
-        /* Auto-cleanup a stale logical panel session before re-init. */
-        if (g_connector_dev.panel_initialized && g_connector_dev.selected_panel) {
+        /* Re-init replaces the current device-global configuration. Keep the
+         * display PM reference while switching panels. */
+        if (g_connector_dev.selected_panel) {
             rt_kprintf("connector: auto power-off stale session before re-init\n");
-            ret = panel_generic_power_off(g_connector_dev.selected_panel);
-            if (ret != 0)
-                goto panel_init_failed_stale;
-            g_connector_dev.panel_initialized = K_FALSE;
-            g_connector_dev.selected_panel = NULL;
+            ret = connector_power_off_panel_locked();
+            if (ret != 0) {
+                rt_mutex_release(&g_connector_dev.lock);
+                return ret;
+            }
         }
 
-        g_connector_dev.selected_panel = panel;
+        rt_memcpy(&g_connector_dev.active_panel, panel, sizeof(g_connector_dev.active_panel));
+        g_connector_dev.selected_panel = &g_connector_dev.active_panel;
+        g_connector_dev.state = CONNECTOR_STATE_STARTING;
 
-        ret = panel_generic_power_on(panel);
+        ret = panel_generic_power_on(&g_connector_dev.active_panel);
         if (ret != 0) {
             k_s32 cleanup_ret;
 
             rt_kprintf("%s: panel_generic_power_on failed: %d\n", __func__, ret);
-            cleanup_ret = panel_generic_power_off(panel);
+            cleanup_ret = connector_shutdown_locked();
             if (cleanup_ret != 0) {
                 rt_kprintf("%s: partial panel cleanup failed: %d\n",
                            __func__, cleanup_ret);
-                g_connector_dev.panel_initialized = K_TRUE;
-                g_connector_dev.owner = file;
-                rt_mutex_release(&g_connector_dev.lock);
-                return ret;
             }
-            g_connector_dev.selected_panel = NULL;
-            goto panel_init_failed;
+            rt_mutex_release(&g_connector_dev.lock);
+            return ret;
         }
 
-        g_connector_dev.panel_initialized = K_TRUE;
-        g_connector_dev.owner = file;
+        g_connector_dev.state = CONNECTOR_STATE_ON;
         rt_mutex_release(&g_connector_dev.lock);
         break;
-
-panel_init_failed:
-        g_connector_dev.owner = NULL;
-        (void)connector_release_pm_locked();
-        rt_mutex_release(&g_connector_dev.lock);
-        return ret;
-
-panel_init_failed_stale:
-        /* Keep DISP powered so a later INIT can retry the failed panel-off. */
-        g_connector_dev.owner = NULL;
-        rt_mutex_release(&g_connector_dev.lock);
-        return ret;
     }
 
     case KD_IOC_CONNECTOR_SET_PANEL_POWER_OFF: {
         k_s32 power_on;
-        k_s32 pm_ret;
 
         if (sizeof(power_on) != lwp_get_from_user(&power_on, args, sizeof(power_on))) {
             rt_kprintf("%s:%d lwp_get_from_user err\n", __func__, __LINE__);
@@ -359,47 +361,32 @@ panel_init_failed_stale:
         }
 
         rt_mutex_take(&g_connector_dev.lock, RT_WAITING_FOREVER);
-        if (g_connector_dev.owner != file) {
-            rt_mutex_release(&g_connector_dev.lock);
-            return -EPERM;
-        }
-
-        if (!g_connector_dev.selected_panel) {
-            rt_kprintf("%s: no panel selected (call INIT first)\n", __func__);
-            rt_mutex_release(&g_connector_dev.lock);
-            return -1;
-        }
-
         if (power_on) {
-            /* Backlight on, just for old style compatiable. */
-            panel_generic_backlight(g_connector_dev.selected_panel, 1, 0);
-        } else {
-            /* Power off */
-            ret = panel_generic_power_off(g_connector_dev.selected_panel);
-
-            if (ret == 0) {
-                g_connector_dev.panel_initialized = K_FALSE;
-                g_connector_dev.selected_panel = NULL;
-                g_connector_dev.owner = NULL;
-                pm_ret = connector_release_pm_locked();
-                if (pm_ret != 0)
-                    ret = pm_ret;
+            /* Legacy ABI: true enables the backlight after INIT. */
+            if (g_connector_dev.state != CONNECTOR_STATE_ON ||
+                !g_connector_dev.selected_panel) {
+                ret = -ENODEV;
+            } else {
+                /* Preserve the legacy success result for panels without a
+                 * controllable backlight. The dedicated backlight ioctl
+                 * reports hardware errors to new callers. */
+                (void)panel_generic_backlight(g_connector_dev.selected_panel, 1, 0);
+                ret = 0;
             }
+        } else {
+            /* Explicit shutdown is idempotent and retries a failed PM put. */
+            ret = connector_shutdown_locked();
         }
         rt_mutex_release(&g_connector_dev.lock);
         break;
     }
 
-    case KD_IOC_CONNECTOR_GET_PAENL_ID: {
+    case KD_IOC_CONNECTOR_GET_PANEL_ID: {
         k_u32 id = 0;
 
         rt_mutex_take(&g_connector_dev.lock, RT_WAITING_FOREVER);
-        if (g_connector_dev.owner != file) {
-            rt_mutex_release(&g_connector_dev.lock);
-            return -EPERM;
-        }
-
-        if (!g_connector_dev.selected_panel) {
+        if (g_connector_dev.state != CONNECTOR_STATE_ON ||
+            !g_connector_dev.selected_panel) {
             rt_kprintf("%s: no panel selected (call INIT first)\n", __func__);
             rt_mutex_release(&g_connector_dev.lock);
             return -1;
@@ -429,11 +416,8 @@ panel_init_failed_stale:
         }
 
         rt_mutex_take(&g_connector_dev.lock, RT_WAITING_FOREVER);
-        if (g_connector_dev.owner != file) {
-            rt_mutex_release(&g_connector_dev.lock);
-            return -EPERM;
-        }
-        if (!g_connector_dev.panel_initialized) {
+        if (g_connector_dev.state != CONNECTOR_STATE_ON ||
+            !g_connector_dev.selected_panel) {
             rt_kprintf("%s: panel not initialized\n", __func__);
             rt_mutex_release(&g_connector_dev.lock);
             return -ENODEV;

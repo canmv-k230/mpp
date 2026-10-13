@@ -36,8 +36,7 @@ k_s32 kd_mpi_connector_close(k_s32 fd)
         return -1;
     }
 
-    close(fd);
-    return 0;
+    return close(fd);
 }
 
 k_s32 kd_mpi_get_connector_info(k_connector_type connector_type, k_connector_info* connector_info)
@@ -85,7 +84,7 @@ k_s32 kd_mpi_connector_init(k_s32 fd, k_connector_info info)
         init_params.virtual_fps = info.timing.pclk_khz;
     }
 
-    ret = ioctl(fd, KD_IOC_CONNECTOR_SET_PAENL_INIT, &init_params);
+    ret = ioctl(fd, KD_IOC_CONNECTOR_SET_PANEL_INIT, &init_params);
     if (ret != 0) {
         pr_err("%s, error(%d)\n", __func__, ret);
         return K_ERR_VO_NOT_SUPPORT;
@@ -112,6 +111,29 @@ k_s32 kd_mpi_connector_power_set(k_s32 fd, k_bool on)
     return ret;
 }
 
+k_s32 kd_mpi_connector_deinit(k_s32 fd)
+{
+    return kd_mpi_connector_power_set(fd, K_FALSE);
+}
+
+k_s32 kd_mpi_connector_set_backlight(k_s32 fd, k_connector_backlight_attr attr)
+{
+    k_s32 ret;
+
+    if (fd < 0) {
+        pr_err("%s, invalid fd\n", __func__);
+        return -1;
+    }
+
+    ret = ioctl(fd, KD_IOC_CONNECTOR_SET_PANEL_BACKLIGHT, &attr);
+    if (ret != 0) {
+        pr_err("%s, error(%d)\n", __func__, ret);
+        return K_ERR_VO_NOT_SUPPORT;
+    }
+
+    return ret;
+}
+
 k_s32 kd_mpi_connector_id_get(k_s32 fd, k_u32 *id)
 {
     k_s32 ret;
@@ -126,7 +148,7 @@ k_s32 kd_mpi_connector_id_get(k_s32 fd, k_u32 *id)
         return K_ERR_VO_NULL_PTR;
     }
 
-    ret = ioctl(fd, KD_IOC_CONNECTOR_GET_PAENL_ID, id);
+    ret = ioctl(fd, KD_IOC_CONNECTOR_GET_PANEL_ID, id);
     if (ret != 0) {
         pr_err("%s, error(%d)\n", __func__, ret);
         return K_ERR_VO_NOT_SUPPORT;

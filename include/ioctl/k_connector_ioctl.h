@@ -65,6 +65,11 @@ typedef struct {
 #define KD_IOC_CONNECTOR_SET_PANEL_POWER_OFF        _IOW(K_IOC_TYPE_SENSOR, KD_IOC_NR_CONNECTOR_SET_PANEL_POWER_OFF, k_s32)
 #define KD_IOC_CONNECTOR_SET_PANEL_BACKLIGHT        _IOW(K_IOC_TYPE_SENSOR, KD_IOC_NR_CONNECTOR_SET_PANEL_BACKLIGHT, k_connector_backlight_attr)
 
+/* Correctly spelled source aliases. Keep the legacy names and command values. */
+#define KD_IOC_NR_CONNECTOR_GET_PANEL_ID             KD_IOC_NR_CONNECTOR_GET_PAENL_ID
+#define KD_IOC_CONNECTOR_SET_PANEL_INIT              KD_IOC_CONNECTOR_SET_PAENL_INIT
+#define KD_IOC_CONNECTOR_GET_PANEL_ID                KD_IOC_CONNECTOR_GET_PAENL_ID
+
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */

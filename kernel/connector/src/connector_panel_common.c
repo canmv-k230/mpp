@@ -42,6 +42,15 @@ extern void kd_vo_enable(void);
 
 k_bool g_panel_init_status = K_FALSE;
 
+enum panel_power_phase {
+    PANEL_POWER_OFF = 0,
+    PANEL_POWER_BUS_INIT_ATTEMPTED,
+    PANEL_POWER_PANEL_INIT_ATTEMPTED,
+    PANEL_POWER_ON,
+};
+
+static enum panel_power_phase g_panel_power_phase = PANEL_POWER_OFF;
+
 static inline k_u32 panel_calc_pixclk_div(k_u32 pclk_khz)
 {
     return (pclk_khz == 0) ? 0 : (VO_PIXEL_CLOCK_HZ / (pclk_khz * 1000)) - 1;
@@ -254,6 +263,7 @@ k_s32 panel_generic_power_on(struct panel_desc* desc)
     }
 
     g_panel_init_status = K_FALSE;
+    g_panel_power_phase = PANEL_POWER_OFF;
 
     kd_vo_reset();
 
@@ -297,6 +307,7 @@ k_s32 panel_generic_power_on(struct panel_desc* desc)
         kd_vo_set_pixclk(pixclk_div);
     }
 
+    g_panel_power_phase = PANEL_POWER_BUS_INIT_ATTEMPTED;
     if (desc->bus_ops->init) {
         ret = desc->bus_ops->init(desc);
         if (ret != 0) {
@@ -311,6 +322,7 @@ k_s32 panel_generic_power_on(struct panel_desc* desc)
         return -1;
     }
 
+    g_panel_power_phase = PANEL_POWER_PANEL_INIT_ATTEMPTED;
     g_panel_init_status = K_TRUE;
     ret = desc->ops->init(desc);
     if (ret != 0) {
@@ -344,6 +356,7 @@ k_s32 panel_generic_power_on(struct panel_desc* desc)
         }
     }
 
+    g_panel_power_phase = PANEL_POWER_ON;
     return 0;
 }
 
@@ -351,19 +364,22 @@ k_s32 panel_generic_power_on(struct panel_desc* desc)
  * panel_generic_power_off - Generic panel power-off sequence
  * @desc: Panel descriptor containing optional custom_power_off callback
  *
- * Executes panel power-off sequence:
- * - If custom_power_off defined, calls it
- * - Otherwise disables backlight
+ * Disables the resources reached by the most recent power-on attempt. The
+ * panel callback is skipped when initialization failed before panel commands
+ * were attempted, while a partially initialized bus is still disabled.
  */
 k_s32 panel_generic_power_off(const struct panel_desc* desc)
 {
-    k_s32 ret       = 0;
-    k_s32 first_err = 0;
+    enum panel_power_phase phase;
+    k_s32                  ret       = 0;
+    k_s32                  first_err = 0;
 
     if (!desc) {
         return -1;
     }
 
+    phase = g_panel_power_phase;
+    g_panel_power_phase = PANEL_POWER_OFF;
     g_panel_init_status = K_FALSE;
 
     /* Always disable backlight */
@@ -374,10 +390,8 @@ k_s32 panel_generic_power_off(const struct panel_desc* desc)
         sw_bridge_stop();
     }
 
-    /* If panel has custom power-off, use it.
-     * Log errors but ALWAYS continue to bus disable — never leave
-     * bus hardware in an initialized state. */
-    if (desc->ops && desc->ops->power_off) {
+    /* Log panel errors but continue to bus teardown. */
+    if (phase >= PANEL_POWER_PANEL_INIT_ATTEMPTED && desc->ops && desc->ops->power_off) {
         ret = desc->ops->power_off(desc);
         if (ret != 0) {
             rt_kprintf("panel_generic_power_off: ops->power_off failed: %d\n", ret);
@@ -385,8 +399,8 @@ k_s32 panel_generic_power_off(const struct panel_desc* desc)
         }
     }
 
-    /* Always disable bus hardware regardless of panel power-off result */
-    if (desc->bus_ops && desc->bus_ops->disable) {
+    /* Disable an initialized or partially initialized bus. */
+    if (phase >= PANEL_POWER_BUS_INIT_ATTEMPTED && desc->bus_ops && desc->bus_ops->disable) {
         ret = desc->bus_ops->disable(desc);
         if (ret != 0) {
             rt_kprintf("panel_generic_power_off: bus_ops->disable failed: %d\n", ret);
