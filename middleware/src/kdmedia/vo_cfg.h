@@ -36,7 +36,7 @@ void set_connector_type(k_connector_type &connector_type);
 void vo_enable();
 void vo_deinit();
 
-void vo_layer_init(k_u32 width,k_u32 height);
+k_s32 vo_layer_init(k_u32 width,k_u32 height);
 void vo_layer_deinit();
 
 #endif

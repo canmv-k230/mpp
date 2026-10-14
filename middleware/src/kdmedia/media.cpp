@@ -1732,7 +1732,12 @@ int KdMedia::Impl::SendVideoData(const uint8_t *data, size_t size, uint64_t time
         k_s32 ret = kd_mpi_vdec_query_status(vdec_chn_id_, &status);
         if (ret == K_SUCCESS && status.width != 0 && status.height != 0)
         {
-            vo_layer_init(status.width, status.height);
+            ret = vo_layer_init(status.width, status.height);
+            if (ret != K_SUCCESS)
+            {
+                printf("KdMedia::SendVideoData() : vo_layer_init failed, ret = %d\n", ret);
+                return ret;
+            }
             vo_cfg_done_.store(true);
         }
     }

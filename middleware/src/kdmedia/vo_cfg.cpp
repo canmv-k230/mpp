@@ -62,10 +62,13 @@ typedef struct {
 
 static k_s32 sample_vo_init(sample_vo_info* vo_info)
 {
-    k_u32 ret = 0;
+    k_s32 ret = K_SUCCESS;
+    k_s32 close_ret;
+    k_s32 deinit_ret;
     k_s32 connector_fd;
     k_connector_type connector_type = vo_info->type;
     k_connector_info connector_info;
+    k_vo_layer_attr vo_layer_attr;
 
     memset(&connector_info, 0, sizeof(k_connector_info));
 
@@ -82,16 +85,31 @@ static k_s32 sample_vo_init(sample_vo_info* vo_info)
         return K_ERR_VO_NOTREADY;
     }
 
-    // set connect power
-    kd_mpi_connector_power_set(connector_fd, K_TRUE);
     // connector init
-    kd_mpi_connector_init(connector_fd, connector_info);
+    ret = kd_mpi_connector_init(connector_fd, connector_info);
+    if (ret != K_SUCCESS) {
+        printf("ERROR: kd_mpi_connector_init failed, ret=%d\n", ret);
+        close_ret = kd_mpi_connector_close(connector_fd);
+        if (close_ret != K_SUCCESS)
+            printf("ERROR: kd_mpi_connector_close failed, ret=%d\n", close_ret);
+        return ret;
+    }
 
-    kd_mpi_vo_disable_layer(vo_info->layer_id);
+    // enable panel backlight after initialization
+    ret = kd_mpi_connector_power_set(connector_fd, K_TRUE);
+    if (ret != K_SUCCESS) {
+        printf("ERROR: kd_mpi_connector_power_set failed, ret=%d\n", ret);
+        goto connector_cleanup;
+    }
+
+    ret = kd_mpi_vo_disable_layer(vo_info->layer_id);
+    if (ret != K_SUCCESS) {
+        printf("ERROR: kd_mpi_vo_disable_layer failed, ret=%d\n", ret);
+        goto connector_cleanup;
+    }
 
     printf("%s>vo init width %d height %d\n", __func__, vo_info->width, vo_info->height);
 
-    k_vo_layer_attr vo_layer_attr;
     memset(&vo_layer_attr, 0, sizeof(vo_layer_attr));
     vo_layer_attr.layer_id           = vo_info->layer_id;
     vo_layer_attr.position.x         = 0;
@@ -111,16 +129,28 @@ static k_s32 sample_vo_init(sample_vo_info* vo_info)
     ret = kd_mpi_vo_set_layer_attr(vo_info->layer_id,&vo_layer_attr);
     if (ret != K_SUCCESS) {
         printf("ERROR: kd_mpi_vo_set_layer_attr failed, ret=%d\n", ret);
-        return ret;
+        goto connector_cleanup;
     }
 
     ret = kd_mpi_vo_enable_layer(vo_info->layer_id);
     if (ret != K_SUCCESS) {
         printf("ERROR: kd_mpi_vo_enable_layer failed, ret=%d\n", ret);
-        return ret;
+        goto connector_cleanup;
     }
-    //exit ;
-    return 0;
+
+    close_ret = kd_mpi_connector_close(connector_fd);
+    if (close_ret != K_SUCCESS)
+        printf("ERROR: kd_mpi_connector_close failed, ret=%d\n", close_ret);
+    return close_ret;
+
+connector_cleanup:
+    deinit_ret = kd_mpi_connector_deinit(connector_fd);
+    if (deinit_ret != K_SUCCESS)
+        printf("ERROR: kd_mpi_connector_deinit failed, ret=%d\n", deinit_ret);
+    close_ret = kd_mpi_connector_close(connector_fd);
+    if (close_ret != K_SUCCESS)
+        printf("ERROR: kd_mpi_connector_close failed, ret=%d\n", close_ret);
+    return ret;
 }
 
 void vo_deinit()
@@ -128,7 +158,7 @@ void vo_deinit()
     //kd_mpi_vo_disable();
 }
 
-void vo_layer_init(k_u32 width,k_u32 height)
+k_s32 vo_layer_init(k_u32 width,k_u32 height)
 {
     sample_vo_info vo_info;
     vo_info.type = g_connector_type;
@@ -146,7 +176,7 @@ void vo_layer_init(k_u32 width,k_u32 height)
         vo_info.ratation_90 = 0;
     }
 
-    sample_vo_init(&vo_info);
+    return sample_vo_init(&vo_info);
 }
 
 void vo_layer_deinit()
