@@ -1,11 +1,14 @@
 #include <functional>
 #include <future>
 #include <iostream>
+#include <new>
 #include <fstream>
 #include <memory>
 #include <atomic>
 #include <thread>
 #include <mutex>
+#include <pthread.h>
+#include <sched.h>
 #include "rtsp_client.h"
 #include "BasicUsageEnvironment.hh"
 #include "GroupsockHelper.hh"
@@ -15,12 +18,21 @@
 
 // Forward function definitions:
 
-static FramedSource *s_backchannel_source = nullptr;
-static IOnAudioData *s_on_audio_data = nullptr;
-static IOnVideoData *s_on_video_data = nullptr;
-static IOnBackChannel *s_on_backchannel = nullptr;
-bool s_bRequireBackChannel = false;
-static std::mutex s_client_state_mutex;
+struct RtspHooks {
+  IOnVideoData *video = nullptr;
+  IOnAudioData *audio = nullptr;
+  IOnBackChannel *backchannel = nullptr;
+  IRtspClientEvent *event = nullptr;
+  FramedSource *backchannel_source = nullptr;
+  bool require_backchannel = false;
+  // Points at KdRtspClient::Impl::watchVariable_. Non-zero means the owner
+  // asked the live555 thread to exit, so a dropped session must not reconnect.
+  char volatile *watch = nullptr;
+};
+
+// Back-channel setup runs on the live555 thread before the RTSPClient pointer
+// is stored on the subsession. Each KdRtspClient owns that thread.
+static thread_local FramedSource *tls_backchannel_source = nullptr;
 
 namespace backchannel_test {
 // RTSP 'response handlers':
@@ -36,13 +48,15 @@ void streamTimerHandler(void* clientData);
   // called at the end of a stream's expected duration (if the stream has not already signaled its end using a RTCP "BYE")
 
 // The main streaming routine (for each "rtsp://" URL):
-void openURL(UsageEnvironment& env, char const* progName, char const* rtspURL);
+void openURL(UsageEnvironment& env, char const* progName, char const* rtspURL, const RtspHooks &hooks);
 
 // Used to iterate through each stream's 'subsessions', setting up each one:
 void setupNextSubsession(RTSPClient* rtspClient);
 
-// Used to shut down and close a stream (including its "RTSPClient" object):
-void shutdownStream(RTSPClient* rtspClient, int exitCode = 1);
+// Used to shut down and close a stream (including its "RTSPClient" object).
+// allow_reconnect is false only for a finite stream whose SDP duration elapsed.
+// A dropped live session (TCP close, RTCP BYE, source closure) still reconnects.
+void shutdownStream(RTSPClient* rtspClient, int exitCode = 1, bool allow_reconnect = true);
 
 // A function that outputs a string that identifies each stream (for debugging output).  Modify this if you wish:
 UsageEnvironment& operator<<(UsageEnvironment& env, const RTSPClient& rtspClient) {
@@ -60,7 +74,7 @@ class MediaSubSessionExt : public MediaSubsession {
     explicit MediaSubSessionExt(MediaSessionExt& parent): MediaSubsession((MediaSession&)parent) {}
     virtual Boolean createBackChannelObjects(int useSpecialRTPoffset) override {
       do {
-        fReadSource =  s_backchannel_source;
+        fReadSource = tls_backchannel_source;
         printf("MediaSubSessionExt::createBackChannelObjects()  SimpleRTPSink::createNew  payloadFormat = %d\n",(int)fRTPPayloadFormat);
         fRTPSink = SimpleRTPSink::createNew(fParent.envir(), fRTPSocket, fRTPPayloadFormat, 8000, "audio", "PCMU", 1, false);
         if(!fRTPSink) {
@@ -131,9 +145,11 @@ protected:
 		int verbosityLevel, char const* applicationName, portNumBits tunnelOverHTTPPortNum);
     // called only by createNew();
   virtual ~ourRTSPClient();
+  virtual void handleTCPConnectionClosed();
 
 public:
   StreamClientState scs;
+  RtspHooks hooks;
 };
 
 // Define a data sink (a subclass of "MediaSink") to receive the data for each subsession (i.e., each audio or video 'substream').
@@ -166,6 +182,8 @@ private:
 private:
   void ProcessH264(unsigned frameSize, uint64_t ms);
   void ProcessH265(unsigned frameSize, uint64_t ms);
+  IOnVideoData *videoData() const;
+  IOnAudioData *audioData() const;
 
 private:
   u_int8_t* fReceiveBufferAlloc;
@@ -182,20 +200,86 @@ private:
 
 #define RTSP_CLIENT_VERBOSITY_LEVEL 1 // by default, print verbose output from each "RTSPClient"
 
-static int rtspClientCount = 0; // Counts how many streams (i.e., "RTSPClient"s) are currently in use.
-static IRtspClientEvent  *on_event = nullptr;
+static ourRTSPClient *as_our(RTSPClient *client) {
+  return (ourRTSPClient *)client;
+}
 
-void openURL(UsageEnvironment& env, char const* progName, char const* rtspURL) {
+// Set once PLAY succeeds on this live555 thread. A later socket drop then
+// reopens the same URL. The first DESCRIBE failure during init() does not.
+static thread_local bool tls_had_play = false;
+static thread_local unsigned tls_backoff_us = 1000000;
+static thread_local int tls_reconnect_left = 3;
+// The open RTSPClient on this live555 thread. runSession closes it when the
+// owner stops the loop; otherwise its socket, and the pbufs queued on it, leak.
+static thread_local ourRTSPClient *tls_client = nullptr;
+
+// Used only on the live555 thread. Close() sets watch and joins that thread
+// before Impl or the player is destroyed, so these pointers stay valid.
+struct ReconnectArgs {
+  UsageEnvironment *env;
+  char *url;
+  RtspHooks hooks;
+  TaskToken token;
+};
+
+static thread_local ReconnectArgs *tls_reconnect = nullptr;
+
+static void reconnectTask(void *clientData) {
+  ReconnectArgs *args = (ReconnectArgs *)clientData;
+  tls_reconnect = nullptr;
+  if (args->hooks.watch != nullptr && *args->hooks.watch == 0 && args->url != nullptr) {
+    printf("rtsp_client: reconnect %s\n", args->url);
+    openURL(*args->env, "BackChannel RTSP Client", args->url, args->hooks);
+  }
+  delete[] args->url;
+  delete args;
+}
+
+static void scheduleReconnect(UsageEnvironment &env, char *url, const RtspHooks &hooks) {
+  if (url == nullptr) {
+    return;
+  }
+  if (tls_reconnect != nullptr || hooks.watch == nullptr || *hooks.watch != 0) {
+    delete[] url;
+    return;
+  }
+  if (tls_reconnect_left <= 0) {
+    printf("rtsp_client: reconnect gave up\n");
+    delete[] url;
+    if (hooks.event != nullptr) {
+      hooks.event->OnRtspClientEvent(1);
+    }
+    return;
+  }
+  tls_reconnect_left--;
+  ReconnectArgs *args = new ReconnectArgs;
+  args->env = &env;
+  args->url = url;
+  args->hooks = hooks;
+  args->token = nullptr;
+  tls_reconnect = args;
+  unsigned delay = tls_backoff_us;
+  unsigned next = tls_backoff_us * 2;
+  tls_backoff_us = next > 5000000 ? 5000000 : next;
+  printf("rtsp_client: session closed, reconnect in %u s\n", delay / 1000000);
+  args->token = env.taskScheduler().scheduleDelayedTask((int64_t)delay, reconnectTask, args);
+}
+
+void openURL(UsageEnvironment& env, char const* progName, char const* rtspURL, const RtspHooks &hooks) {
   // Begin by creating a "RTSPClient" object.  Note that there is a separate "RTSPClient" object for each stream that we wish
   // to receive (even if more than stream uses the same "rtsp://" URL).
-  RTSPClient* rtspClient = ourRTSPClient::createNew(env, rtspURL, RTSP_CLIENT_VERBOSITY_LEVEL, progName);
+  ourRTSPClient* rtspClient = ourRTSPClient::createNew(env, rtspURL, RTSP_CLIENT_VERBOSITY_LEVEL, progName);
   if (rtspClient == NULL) {
     env << "Failed to create a RTSP client for URL \"" << rtspURL << "\": " << env.getResultMsg() << "\n";
+    if (tls_had_play) {
+      scheduleReconnect(env, strDup(rtspURL), hooks);
+    }
     return;
   }
 
-  ++rtspClientCount;
-  rtspClient->bRequireBackChannel = s_bRequireBackChannel;
+  tls_client = rtspClient;
+  rtspClient->hooks = hooks;
+  rtspClient->bRequireBackChannel = hooks.require_backchannel;
   // Next, send a RTSP "DESCRIBE" command, to get a SDP description for the stream.
   // Note that this command - like all RTSP commands - is sent asynchronously; we do not block, waiting for a response.
   // Instead, the following function call returns immediately, and we handle the RTSP response later, from within the event loop:
@@ -264,7 +348,7 @@ void setupNextSubsession(RTSPClient* rtspClient) {
       env << ")\n";
 
       // Continue setting up this subsession, by sending a RTSP "SETUP" command:
-      rtspClient->sendSetupCommand(*scs.subsession, continueAfterSETUP, False, False/*REQUEST_STREAMING_OVER_TCP*/);
+      rtspClient->sendSetupCommand(*scs.subsession, continueAfterSETUP, False, REQUEST_STREAMING_OVER_TCP);
     }
     return;
   }
@@ -320,7 +404,7 @@ void continueAfterSETUP(RTSPClient* rtspClient, int resultCode, char* resultStri
        if(!strcmp(scs.subsession->mediumName(), "video")) {
           IOnVideoData::VideoType type = IOnVideoData::VideoTypeInvalid;
           if(!strcmp(scs.subsession->codecName(),"H264")) {
-              if (s_on_video_data) {
+              if (as_our(rtspClient)->hooks.video) {
                   // TODO
                   uint8_t *extra_data = nullptr;
                   size_t extra_data_size = 0;
@@ -344,13 +428,13 @@ void continueAfterSETUP(RTSPClient* rtspClient, int resultCode, char* resultStri
                       extra_data_size += record[i].sPropLength;
                     }
 	                  }
-	                  s_on_video_data->OnVideoType(IOnVideoData::VideoTypeH264, extra_data, extra_data_size);
+	                  as_our(rtspClient)->hooks.video->OnVideoType(IOnVideoData::VideoTypeH264, extra_data, extra_data_size);
 
 	                  if (extra_data) delete []extra_data;
 	                  delete[] record;
 	              }
 	          } else if (!strcmp(scs.subsession->codecName(),"H265")) {
-              if (s_on_video_data) {
+              if (as_our(rtspClient)->hooks.video) {
                    // TODO
                   uint8_t *extra_data = nullptr;
                   size_t extra_data_size = 0;
@@ -374,18 +458,18 @@ void continueAfterSETUP(RTSPClient* rtspClient, int resultCode, char* resultStri
                       extra_data_size += record[i].sPropLength;
                     }
 	                  }
-	                  s_on_video_data->OnVideoType(IOnVideoData::VideoTypeH265, extra_data, extra_data_size);
+	                  as_our(rtspClient)->hooks.video->OnVideoType(IOnVideoData::VideoTypeH265, extra_data, extra_data_size);
 	                  if (extra_data) delete []extra_data;
 	                  delete[] record;
 	              }
           } else {
-              if (s_on_video_data) {
-                  s_on_video_data->OnVideoType(IOnVideoData::VideoTypeInvalid, nullptr, 0);
+              if (as_our(rtspClient)->hooks.video) {
+                  as_our(rtspClient)->hooks.video->OnVideoType(IOnVideoData::VideoTypeInvalid, nullptr, 0);
               }
           }
       } else if(!strcmp(scs.subsession->mediumName(), "audio")) {
-          if (s_on_audio_data) {
-            s_on_audio_data->OnAudioStart();
+          if (as_our(rtspClient)->hooks.audio) {
+            as_our(rtspClient)->hooks.audio->OnAudioStart();
           }
       }
     } else {
@@ -400,8 +484,8 @@ void continueAfterSETUP(RTSPClient* rtspClient, int resultCode, char* resultStri
 
        scs.subsession->sink->startPlaying(*(scs.subsession->readSource()),
                                           subsessionAfterPlaying, scs.subsession);
-       if (s_on_backchannel) {
-          s_on_backchannel->OnBackChannelStart();
+       if (as_our(rtspClient)->hooks.backchannel) {
+          as_our(rtspClient)->hooks.backchannel->OnBackChannelStart();
        }
     }
 
@@ -446,6 +530,9 @@ void continueAfterPLAY(RTSPClient* rtspClient, int resultCode, char* resultStrin
     }
     env << "...\n";
 
+    tls_had_play = true;
+    tls_backoff_us = 1000000;
+    tls_reconnect_left = 3;
     success = True;
   } while (0);
   delete[] resultString;
@@ -505,12 +592,17 @@ void streamTimerHandler(void* clientData) {
 
   scs.streamTimerTask = NULL;
 
+  // SDP duration elapsed. Live cameras advertise duration 0, so this does not
+  // run for them. Reconnecting would replay a file that has already finished.
   rtspClient->envir() << *rtspClient << "streamTimerHandler shutdownStream\n";
-  // Shut down the stream:
-  shutdownStream(rtspClient);
+  shutdownStream(rtspClient, 1, false);
 }
 
-void shutdownStream(RTSPClient* rtspClient, int exitCode) {
+void ourRTSPClient::handleTCPConnectionClosed() {
+  shutdownStream(this);
+}
+
+void shutdownStream(RTSPClient* rtspClient, int exitCode, bool allow_reconnect) {
   UsageEnvironment& env = rtspClient->envir(); // alias
   StreamClientState& scs = ((ourRTSPClient*)rtspClient)->scs; // alias
 
@@ -541,18 +633,29 @@ void shutdownStream(RTSPClient* rtspClient, int exitCode) {
   }
 
   env << *rtspClient << "Closing the stream.\n";
+  ourRTSPClient *ours = as_our(rtspClient);
+  RtspHooks hooks = ours->hooks;
+  char *urlCopy = strDup(rtspClient->url());
+  // PLAY already succeeded and the owner did not ask the thread to exit.
+  // A normal end (SDP duration) passes allow_reconnect false.
+  bool replay = allow_reconnect && tls_had_play && hooks.watch != nullptr && *hooks.watch == 0;
+  // Close() may hold the owner's lock while it joins this thread, so the
+  // owner-requested shutdown must not call back into it.
+  bool owner_closing = hooks.watch != nullptr && *hooks.watch != 0;
+  IRtspClientEvent *event = owner_closing ? nullptr : hooks.event;
+  if (tls_client == ours) {
+    tls_client = nullptr;
+  }
   Medium::close(rtspClient);
     // Note that this will also cause this stream's "StreamClientState" structure to get reclaimed.
 
-  if (--rtspClientCount == 0) {
-    // The final stream has ended, so exit the application now.
-    // (Of course, if you're embedding this code into your own application, you might want to comment this out,
-    // and replace it with "eventLoopWatchVariable = 1;", so that we leave the LIVE555 event loop, and continue running "main()".)
-    // exit(exitCode);
-    // eventLoopWatchVariable = 1;
-    if (on_event) {
-      on_event->OnRtspClientEvent(0);
-    }
+  if (event) {
+    event->OnRtspClientEvent(0);
+  }
+  if (replay) {
+    scheduleReconnect(env, urlCopy, hooks);
+  } else {
+    delete[] urlCopy;
   }
 }
 
@@ -570,6 +673,20 @@ ourRTSPClient::ourRTSPClient(UsageEnvironment& env, char const* rtspURL,
 }
 
 ourRTSPClient::~ourRTSPClient() {
+}
+
+IOnVideoData *DummySink::videoData() const {
+  if (fSubsession.miscPtr == nullptr) {
+    return nullptr;
+  }
+  return ((ourRTSPClient *)fSubsession.miscPtr)->hooks.video;
+}
+
+IOnAudioData *DummySink::audioData() const {
+  if (fSubsession.miscPtr == nullptr) {
+    return nullptr;
+  }
+  return ((ourRTSPClient *)fSubsession.miscPtr)->hooks.audio;
 }
 
 
@@ -626,6 +743,59 @@ void DummySink::afterGettingFrame(void* clientData, unsigned frameSize, unsigned
   sink->afterGettingFrame(frameSize, numTruncatedBytes, presentationTime, durationInMicroseconds);
 }
 
+static unsigned annexb_from_sprop(char const *sprop, u_int8_t *dst, unsigned dst_size) {
+  if (sprop == nullptr || sprop[0] == '\0' || dst == nullptr || dst_size < 4) {
+    return 0;
+  }
+  unsigned num = 0;
+  SPropRecord *record = parseSPropParameterSets(sprop, num);
+  if (record == nullptr || num == 0) {
+    delete[] record;
+    return 0;
+  }
+  unsigned off = 0;
+  static const u_int8_t start_code[4] = {0x00, 0x00, 0x00, 0x01};
+  for (unsigned i = 0; i < num; ++i) {
+    if (record[i].sPropBytes == nullptr || record[i].sPropLength == 0) {
+      continue;
+    }
+    if (off + 4 + record[i].sPropLength > dst_size) {
+      delete[] record;
+      return 0;
+    }
+    memcpy(dst + off, start_code, 4);
+    off += 4;
+    memcpy(dst + off, record[i].sPropBytes, record[i].sPropLength);
+    off += record[i].sPropLength;
+  }
+  delete[] record;
+  return off;
+}
+
+static unsigned annexb_from_h265_sprop(MediaSubsession &subsession, u_int8_t *dst, unsigned dst_size) {
+  char const *parts[3] = {
+    subsession.fmtp_spropvps(),
+    subsession.fmtp_spropsps(),
+    subsession.fmtp_sproppps(),
+  };
+  unsigned off = 0;
+  for (unsigned i = 0; i < 3; ++i) {
+    char const *sprop = parts[i];
+    if (sprop == nullptr || sprop[0] == '\0') {
+      continue;
+    }
+    if (off >= dst_size) {
+      return 0;
+    }
+    unsigned n = annexb_from_sprop(sprop, dst + off, dst_size - off);
+    if (n == 0) {
+      return 0;
+    }
+    off += n;
+  }
+  return off;
+}
+
 void DummySink::ProcessH264(unsigned frameSize, uint64_t ms) {
   #define H264_NAL(v) (v & 0x1F)
   enum class H264_NAL_TYPE : int {
@@ -669,15 +839,40 @@ void DummySink::ProcessH264(unsigned frameSize, uint64_t ms) {
     }
   } else if (nal_type == (int)H264_NAL_TYPE::NAL_IDR) {
     // printf("IDR\n");
-    if (fExtraState == ExtraState::OK) {
-      if (fExtraDataSize > DUMMY_SINK_EXTRA_BUFFER_SIZE) return;
-      u_int8_t *start = &data[-fExtraDataSize];
-      memcpy(start, fExtraData, fExtraDataSize);
-      if(s_on_video_data) s_on_video_data->OnVideoData(start, frame_size + fExtraDataSize, ms, true);
+    // SPS+PPS are a few dozen bytes. Keep the scratch on the stack small:
+    // a 64KB buffer here overflows the live555 thread, and writing the
+    // parameter sets in front of fReceiveBuffer walks off the allocation.
+    unsigned extra_size = 0;
+    u_int8_t extra_buf[512];
+    const u_int8_t *extra = nullptr;
+    if (fExtraState == ExtraState::OK && fExtraDataSize > 0 &&
+        fExtraDataSize <= sizeof(extra_buf)) {
+      extra = fExtraData;
+      extra_size = fExtraDataSize;
+    } else {
+      extra_size = annexb_from_sprop(fSubsession.fmtp_spropparametersets(), extra_buf, sizeof(extra_buf));
+      extra = extra_size > 0 ? extra_buf : nullptr;
+    }
+    IOnVideoData *video = videoData();
+    if (video == nullptr) {
+      return;
+    }
+    if (extra != nullptr && extra_size > 0) {
+      unsigned total = extra_size + frame_size;
+      u_int8_t *au = new (std::nothrow) u_int8_t[total];
+      if (au == nullptr) {
+        return;
+      }
+      memcpy(au, extra, extra_size);
+      memcpy(au + extra_size, data, frame_size);
+      video->OnVideoData(au, total, ms, true);
+      delete[] au;
+    } else {
+      video->OnVideoData(data, frame_size, ms, true);
     }
   } else if (nal_type < (int)H264_NAL_TYPE::NAL_IDR) {
     // printf("nonIDR\n");
-    if(s_on_video_data) s_on_video_data->OnVideoData(data,  frame_size, ms, false);
+    if (IOnVideoData *video = videoData()) video->OnVideoData(data, frame_size, ms, false);
   } else if (nal_type == (int)H264_NAL_TYPE::NAL_SEI) {
     // discard SEI
   } else {
@@ -750,18 +945,42 @@ void DummySink::ProcessH265(unsigned frameSize, uint64_t ms) {
       fExtraDataSize = 0;
     }
   } else if (nal_type == (int)H265_NAL_TYPE::NAL_IDR_W_RADL || nal_type == (int)H265_NAL_TYPE::NAL_IDR_N_LP) {
-    // printf("IDR\n");
-    if (fExtraState == ExtraState::OK) {
-      if (fExtraDataSize > DUMMY_SINK_EXTRA_BUFFER_SIZE) return;
-      u_int8_t *start = &data[-fExtraDataSize];
-      memcpy(start, fExtraData, fExtraDataSize);
-      if(s_on_video_data) s_on_video_data->OnVideoData(start, frame_size + fExtraDataSize, ms, true);
+    // Same as H264. Parameter sets go into a heap access unit. Writing them
+    // in front of fReceiveBuffer walks off the allocation once the start code
+    // has already used 4 bytes of the reserved prefix.
+    unsigned extra_size = 0;
+    u_int8_t extra_buf[512];
+    const u_int8_t *extra = nullptr;
+    if (fExtraState == ExtraState::OK && fExtraDataSize > 0 &&
+        fExtraDataSize <= sizeof(extra_buf)) {
+      extra = fExtraData;
+      extra_size = fExtraDataSize;
+    } else {
+      extra_size = annexb_from_h265_sprop(fSubsession, extra_buf, sizeof(extra_buf));
+      extra = extra_size > 0 ? extra_buf : nullptr;
+    }
+    IOnVideoData *video = videoData();
+    if (video == nullptr) {
+      return;
+    }
+    if (extra != nullptr && extra_size > 0) {
+      unsigned total = extra_size + frame_size;
+      u_int8_t *au = new (std::nothrow) u_int8_t[total];
+      if (au == nullptr) {
+        return;
+      }
+      memcpy(au, extra, extra_size);
+      memcpy(au + extra_size, data, frame_size);
+      video->OnVideoData(au, total, ms, true);
+      delete[] au;
+    } else {
+      video->OnVideoData(data, frame_size, ms, true);
     }
   } else if (nal_type == (int)H265_NAL_TYPE::NAL_TRAIL_N || nal_type == (int)H265_NAL_TYPE::NAL_TRAIL_R
         || nal_type == (int)H265_NAL_TYPE::NAL_RASL_N || nal_type == (int)H265_NAL_TYPE::NAL_RASL_R
         || ( nal_type >=16 && nal_type <= 21 /*I frame*/)) {
     // printf("nonIDR\n");
-    if(s_on_video_data) s_on_video_data->OnVideoData(data, frame_size, ms, false);
+    if (IOnVideoData *video = videoData()) video->OnVideoData(data, frame_size, ms, false);
   } else if( nal_type == (int)H265_NAL_TYPE::NAL_SEI_PREFIX){
     // discard SEI_PREFIX
   } else {
@@ -780,9 +999,9 @@ void DummySink::afterGettingFrame(unsigned frameSize, unsigned numTruncatedBytes
   }
 
   if (!strcmp(fSubsession.mediumName(), "audio") && !strcmp(fSubsession.codecName(),"PCMU")) {
-    if (s_on_audio_data) {
+    if (IOnAudioData *audio = audioData()) {
       uint64_t ms = presentationTime.tv_sec * 1000 + presentationTime.tv_usec/1000;
-      s_on_audio_data->OnAudioData(fReceiveBuffer, frameSize, ms);
+      audio->OnAudioData(fReceiveBuffer, frameSize, ms);
     }
   }
 
@@ -808,6 +1027,29 @@ Boolean DummySink::continuePlaying() {
                         afterGettingFrame, this,
                         onSourceClosure, this);
   return True;
+}
+
+void runSession(UsageEnvironment &env, const char *url, const RtspHooks &hooks, char volatile &watch) {
+  tls_backchannel_source = hooks.backchannel_source;
+  tls_had_play = false;
+  tls_backoff_us = 1000000;
+  tls_reconnect_left = 3;
+  openURL(env, "BackChannel RTSP Client", url, hooks);
+  env.taskScheduler().doEventLoop(&watch);
+  if (tls_client != nullptr) {
+    shutdownStream(tls_client, 0, false);
+  }
+  if (tls_reconnect != nullptr) {
+    if (tls_reconnect->token != nullptr) {
+      env.taskScheduler().unscheduleDelayedTask(tls_reconnect->token);
+    }
+    delete[] tls_reconnect->url;
+    delete tls_reconnect;
+    tls_reconnect = nullptr;
+  }
+  tls_backchannel_source = nullptr;
+  tls_had_play = false;
+  printf("KdRtspClient thread exit\n");
 }
 
 } //namespace
@@ -881,24 +1123,25 @@ int KdRtspClient::Impl::Open(const char *url) {
 	  watchVariable_ = 0;
 	  std::string rtsp_url = url ? url : "";
 	  thread_ = std::thread([this, rtsp_url]() {
-	        std::unique_lock<std::mutex> client_lck(s_client_state_mutex);
-	        s_bRequireBackChannel = enableBackchanel_;
-	        if (s_bRequireBackChannel) {
-          s_backchannel_source = g711_source_;
-          s_on_backchannel = on_backchannel_;
+        // RT-Thread takes this number as-is, and a smaller number runs first.
+        // MicroPython is 25. The old value 30 sits behind it, so a busy face
+        // detector stops this thread from reading the socket.
+        // 12 is just behind the lwIP tcpip thread (10).
+        struct sched_param param;
+        param.sched_priority = 12;
+        int sched_ret = pthread_setschedparam(pthread_self(), SCHED_FIFO, &param);
+        if (sched_ret != 0) {
+          printf("rtsp_client: reader priority 12 failed: %d\n", sched_ret);
         }
-        s_on_audio_data = on_audio_data_;
-        s_on_video_data = on_video_data_;
-        backchannel_test::on_event = on_event_;
-	        backchannel_test::openURL(*env_, "BackChannel RTSP Client", rtsp_url.c_str());
-        // All subsequent activity takes place within the event loop:
-        env_->taskScheduler().doEventLoop(&watchVariable_);
-        backchannel_test::on_event = nullptr;
-        s_backchannel_source = nullptr;
-        s_on_backchannel = nullptr;
-        s_on_audio_data = nullptr;
-        s_on_video_data = nullptr;
-        printf("KdRtspClient thread exit\n");
+        RtspHooks hooks;
+        hooks.video = on_video_data_;
+        hooks.audio = on_audio_data_;
+        hooks.backchannel = on_backchannel_;
+        hooks.event = on_event_;
+        hooks.require_backchannel = enableBackchanel_;
+        hooks.backchannel_source = enableBackchanel_ ? g711_source_ : nullptr;
+        hooks.watch = &watchVariable_;
+        backchannel_test::runSession(*env_, rtsp_url.c_str(), hooks, watchVariable_);
       });
   started_ = true;
   return 0;
@@ -908,6 +1151,11 @@ void KdRtspClient::Impl::Close() {
   std::unique_lock<std::mutex> lck(mutex_);
   if (!started_) return;
   if(thread_.joinable()) {
+    // watch is the live555 poll flag. join is the lifetime barrier: reconnect
+    // tasks and RtspHooks (raw pointers into this Impl and the player) run
+    // only on this thread, and runSession drops a pending reconnect before
+    // returning. Do not destroy Impl, the scheduler, or the player until
+    // join returns. Do not call Close() from the live555 thread.
     watchVariable_ = 1;
     thread_.join();
   }

@@ -131,6 +131,7 @@ private:
     k_u32 ao_dev_{0};
     k_u32 ao_chn_{0};
     bool ao_initialized{false};
+    bool adec_ao_started_{false};
     k_handle adec_handle_{0};
     IOnAEncData *on_aenc_data_{nullptr};
     std::mutex ai_aenc_mutex_;
@@ -760,6 +761,9 @@ static k_s32 kd_sample_adec_unbind_ao(k_u32 ao_dev, k_u32 ao_chn, k_handle adec_
 int KdMedia::Impl::StartADecAo()
 {
     std::unique_lock<std::mutex> lck(adec_ao_mutex_);
+    if (adec_ao_started_)
+        return 0;
+
     k_s32 ret;
     ret = kd_sample_ao_start(ao_dev_, ao_chn_);
     if (ret != K_SUCCESS)
@@ -772,8 +776,10 @@ int KdMedia::Impl::StartADecAo()
     if (ret != K_SUCCESS)
     {
         printf("kd_mpi_adec_bind_ao error: %x\n", ret);
+        kd_sample_ao_stop(ao_dev_, ao_chn_);
         return -1;
     }
+    adec_ao_started_ = true;
     return 0;
 }
 
@@ -828,6 +834,9 @@ k_s32 KdMedia::Impl::kd_sample_ao_stop(k_u32 dev, k_u32 chn)
 int KdMedia::Impl::StopADecAo()
 {
     std::unique_lock<std::mutex> lck(adec_ao_mutex_);
+    if (!adec_ao_started_)
+        return 0;
+
     k_s32 ret = kd_sample_adec_unbind_ao(ao_dev_, ao_chn_, adec_handle_);
     if (ret != K_SUCCESS)
     {
@@ -836,6 +845,7 @@ int KdMedia::Impl::StopADecAo()
     }
 
     kd_sample_ao_stop(ao_dev_, ao_chn_);
+    adec_ao_started_ = false;
     return 0;
 }
 

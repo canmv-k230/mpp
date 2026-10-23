@@ -504,11 +504,12 @@ void SocketDescriptor::updateBackgroundHandling() {
 
   TaskScheduler::BackgroundHandlerProc* handler
     = (TaskScheduler::BackgroundHandlerProc*)&tcpReadHandler;
-  // While an interleaved frame is incomplete, do not read RTSP commands that
-  // could produce a response in the middle of that frame. Resume reads after
-  // the pending tail has been written.
-  int conditionSet = SOCKET_EXCEPTION
-    | (fPendingWrite == NULL ? SOCKET_READABLE : SOCKET_WRITABLE);
+  // Local patch; reapply when upgrading live555.
+  // Always keep reading. RTP and RTCP share this TCP connection. Stopping
+  // reads while an outbound tail is pending fills the receive window, the
+  // server blocks in write, and that write then times out.
+  int conditionSet = SOCKET_EXCEPTION | SOCKET_READABLE;
+  if (fPendingWrite != NULL) conditionSet |= SOCKET_WRITABLE;
   fEnv.taskScheduler().setBackgroundHandling(fOurSocketNum, conditionSet,
 					      handler, this);
 }

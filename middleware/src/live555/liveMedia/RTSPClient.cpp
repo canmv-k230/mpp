@@ -398,7 +398,7 @@ RTSPClient::RTSPClient(UsageEnvironment& env, char const* rtspURL,
     fAllowBasicAuthentication(True), fTunnelOverHTTPPortNum(tunnelOverHTTPPortNum),
     fUserAgentHeaderStr(NULL), fUserAgentHeaderStrLen(0),
     fInputSocketNum(-1), fOutputSocketNum(-1), fBaseURL(NULL), fTCPStreamIdCount(0),
-    fLastSessionId(NULL), fSessionTimeoutParameter(0), fRequireStr(NULL),
+    fLastSessionId(NULL), fSessionTimeoutParameter(0), fTCPConnectionClosedTask(NULL), fRequireStr(NULL),
     fSessionCookieCounter(0), fHTTPTunnelingConnectionIsPending(False),
     fTLS(*this), fPOSTSocketTLS(*this),bRequireBackChannel(False) {
   fInputTLS = fOutputTLS = &fTLS; // fOutputTLS will change if we're doing RTSP-over-HTTPS
@@ -436,6 +436,8 @@ RTSPClient::RTSPClient(UsageEnvironment& env, char const* rtspURL,
 }
 
 RTSPClient::~RTSPClient() {
+  // The handler may already have been dequeued. unschedule is a no-op then.
+  envir().taskScheduler().unscheduleDelayedTask(fTCPConnectionClosedTask);
   reset();
 
   delete[] fRequireStr;
@@ -1492,10 +1494,25 @@ void RTSPClient::handleAlternativeRequestByte(void* rtspClient, u_int8_t request
   ((RTSPClient*)rtspClient)->handleAlternativeRequestByte1(requestByte);
 }
 
+void RTSPClient::tcpConnectionClosedHandler(void* clientData) {
+  ((RTSPClient*)clientData)->handleTCPConnectionClosed();
+}
+
+void RTSPClient::handleTCPConnectionClosed() {
+}
+
 void RTSPClient::handleAlternativeRequestByte1(u_int8_t requestByte) {
   if (requestByte == 0xFF) {
     // Hack: The new handler of the input TCP socket encountered an error reading it.  Indicate this:
+    // This runs from the socket descriptor's destructor. Pending RTSP requests
+    // already fail through handleResponseBytes(). After PLAY there is no such
+    // request, so defer the close until this destructor has returned.
+    Boolean noPendingRequest = fRequestsAwaitingResponse.isEmpty();
     handleResponseBytes(-1);
+    if (noPendingRequest) {
+      envir().taskScheduler().unscheduleDelayedTask(fTCPConnectionClosedTask);
+      fTCPConnectionClosedTask = envir().taskScheduler().scheduleDelayedTask(0, tcpConnectionClosedHandler, this);
+    }
   } else if (requestByte == 0xFE) {
     // Another hack: The new handler of the input TCP socket no longer needs it, so take back control:
     envir().taskScheduler().setBackgroundHandling(fInputSocketNum, SOCKET_READABLE|SOCKET_EXCEPTION,

@@ -305,6 +305,7 @@ private:
   char const* sessionURL(MediaSession const& session) const;
   static void handleAlternativeRequestByte(void*, u_int8_t requestByte);
   void handleAlternativeRequestByte1(u_int8_t requestByte);
+  static void tcpConnectionClosedHandler(void* clientData);
   void constructSubsessionURL(MediaSubsession const& subsession,
 			      char const*& prefix,
 			      char const*& separator,
@@ -335,6 +336,12 @@ public:
     // IP, UDP, and RTP headers) will be sent with each "SETUP" request.
 
 protected:
+  // Local patch; reapply when upgrading live555.
+  // After PLAY the request queue is empty, so a dead interleaved TCP socket
+  // used to be ignored. Subclasses reopen the session from here. It runs on
+  // the next scheduler turn, after the socket descriptor has finished closing.
+  virtual void handleTCPConnectionClosed();
+
   int fVerbosityLevel;
   unsigned fCSeq; // sequence number, used in consecutive requests
   Authenticator fCurrentAuthenticator;
@@ -350,6 +357,9 @@ private:
   unsigned char fTCPStreamIdCount; // used for (optional) RTP/TCP
   char* fLastSessionId;
   unsigned fSessionTimeoutParameter; // optionally set in response "Session:" headers
+  // Local patch. Cancelled in the destructor so a duration timer that runs
+  // first cannot leave this callback pointing at a freed RTSPClient.
+  TaskToken fTCPConnectionClosedTask;
   char* fResponseBuffer;
   unsigned fResponseBytesAlreadySeen, fResponseBufferBytesLeft;
   RequestQueue fRequestsAwaitingConnection, fRequestsAwaitingHTTPTunneling, fRequestsAwaitingResponse;
