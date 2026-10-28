@@ -55,21 +55,23 @@ COMPILE_X86ASM = $(call COMPILE,X86ASM)
 COMPILE_HOSTC = $(call COMPILE,HOSTCC)
 COMPILE_NVCC = $(call COMPILE,NVCC)
 
-%.o: %.c
+# The main build may supply additional dependencies for target compilation.
+%.o: %.c $(FFMPEG_BUILD_DEPS)
 	$(COMPILE_C)
 
-%.o: %.cpp
+%.o: %.cpp $(FFMPEG_BUILD_DEPS)
 	$(COMPILE_CXX)
 
-%.o: %.m
+%.o: %.m $(FFMPEG_BUILD_DEPS)
 	$(COMPILE_M)
 
-%.s: %.c
+%.s: %.c $(FFMPEG_BUILD_DEPS)
 	$(CC) $(CCFLAGS) -S -o $@ $<
 
-%.o: %.S
+%.o: %.S $(FFMPEG_BUILD_DEPS)
 	$(COMPILE_S)
 
+# Host tools use HOSTCCFLAGS and do not depend on target SDK settings.
 %_host.o: %.c
 	$(COMPILE_HOSTC)
 
@@ -84,7 +86,7 @@ COMPILE_NVCC = $(call COMPILE,NVCC)
 %.o: %.rc
 	$(WINDRES) $(IFLAGS) --preprocessor "$(DEPWINDRES) -E -xc-header -DRC_INVOKED $(CC_DEPFLAGS)" -o $@ $<
 
-%.i: %.c
+%.i: %.c $(FFMPEG_BUILD_DEPS)
 	$(CC) $(CCFLAGS) $(CC_E) $<
 
 %.h.c:

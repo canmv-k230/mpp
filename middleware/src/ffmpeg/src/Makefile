@@ -1,6 +1,12 @@
 MAIN_MAKEFILE=1
 include ffbuild/config.mak
 
+# Default to size optimization; override with SDK_FFMPEG_OPT=-O3 or '-O0 -g'.
+# CanMV's final link also uses --gc-sections for these static libraries.
+SDK_FFMPEG_OPT ?= -Os
+CFLAGS := $(filter-out -O%,$(CFLAGS)) $(SDK_FFMPEG_OPT) -ffunction-sections -fdata-sections
+LDFLAGS += -Wl,--gc-sections
+
 vpath %.c    $(SRC_PATH)
 vpath %.cpp  $(SRC_PATH)
 vpath %.h    $(SRC_PATH)
@@ -36,6 +42,17 @@ SKIPHEADERS = compat/w32pthreads.h
 
 # first so "all" becomes default target
 all: all-yes
+
+# Objects are shared by SDK profiles. Track the header path and compile flags
+# even when switching configurations with preserved timestamps.
+SDK_FFMPEG_BUILD_CONFIG := include=$(MPP_MIDDLEWARE_INC_INSTALL_PATH) cflags=$(CFLAGS) ecflags=$(ECFLAGS)
+FFMPEG_BUILD_DEPS = $(SRC_PATH)/Makefile ffbuild/config.mak $(SRC_PATH)/ffbuild/common.mak ffbuild/.sdk-build-config
+.PHONY: sdk-ffmpeg-force
+sdk-ffmpeg-force:
+
+ffbuild/.sdk-build-config: sdk-ffmpeg-force
+	@printf '%s\n' '$(subst ','"'"',$(SDK_FFMPEG_BUILD_CONFIG))' > $@.tmp
+	@if cmp -s $@.tmp $@; then rm -f $@.tmp; else mv -f $@.tmp $@; fi
 
 include $(SRC_PATH)/tools/Makefile
 include $(SRC_PATH)/ffbuild/common.mak
