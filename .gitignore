@@ -44,7 +44,6 @@ middleware/src/ffmpeg/src/ffprobe
 middleware/src/ffmpeg/src/ffprobe_g
 middleware/src/ffmpeg/src/lib_ffmpeg
 middleware/src/ffmpeg/src/ffbuild/.config
-middleware/src/ffmpeg/src/ffbuild/.sdk-build-config*
 
 middleware/src/x264/src/x264
 middleware/src/x264/src/lib_x264
