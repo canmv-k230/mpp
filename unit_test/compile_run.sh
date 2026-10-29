@@ -2,7 +2,7 @@
 set -euo pipefail
 
 UNIT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SRC_ROOT="${SRC_ROOT:-$(cd "$UNIT_ROOT/.." && pwd)}"
+SRC_ROOT="${SRC_ROOT:-$(cd "$UNIT_ROOT/../middleware/src" && pwd)}"
 DEFAULT_WORK_ROOT="${WORK_ROOT:-${TMPDIR:-/tmp}/mpp_middleware_unit_test}"
 
 BUILD_DIR="${BUILD_DIR:-$DEFAULT_WORK_ROOT/build}"

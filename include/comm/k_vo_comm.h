@@ -94,7 +94,15 @@ typedef struct {
     k_pixel_format    pixel_format; // Input format; note: for video layer only PIXEL_FORMAT_YUV_SEMIPLANAR_420 is supported
     k_gdma_rotation_e func; // Rotation angle or mirroring mode (handled by GDMA)
     k_u8              global_alpha; // Transparency level (0: fully transparent, 255: fully opaque)
-    k_u8              rot_buf_nr; // Number of rotation buffers; 2 is recommended for performance/stability
+    /* Separate GDMA output pool, in addition to the producer's source pool.
+     * Zero defaults to two; rotated VIDEO1 enforces a minimum of two,
+     * including rotation inherited from the panel/device. Two save memory
+     * by repeating scanout while the old output retires; five cover two bank
+     * references, two retired outputs and one fresh GDMA destination.
+     * A full rotation pool drops the incoming frame and reports success,
+     * like replacing pending input; it does not overwrite a retained output.
+     * Proc's GDMA NoBufDrop counts these drops. Sensor/WBC pools are separate. */
+    k_u8              rot_buf_nr;
     k_u8              rot_buf_bpp; // Bytes per pixel for rot-buffer; 0 to auto-calculate, 4 for dynamic format switching
 } k_vo_layer_attr;
 
@@ -193,8 +201,17 @@ typedef enum {
 } k_vo_osd __attribute__((deprecated("should use k_vo_layer_id")));
 
 /* for wbc */
+/* One WBC destination pool captures the composed display; it is independent
+ * of source and rotation pools. Configure before enabling WBC; zero selects
+ * three blocks. One destination and two retiring captures may occupy all three.
+ * Two blocks require every consumer to release its old capture before asking
+ * for another. Callers retaining the previous capture (including CanMV's
+ * writeback_dump wrapper) need at least three; extra consumers may need more.
+ * Larger pools improve throughput but do not remove retirement latency or
+ * establish DMA completion. See kernel/vo/BUFFER_OWNERSHIP.md for examples.
+ */
 typedef struct {
-    k_u32 blk_cnt; // Number of VB blocks to allocate in the pool
+    k_u32 blk_cnt; // WBC destination blocks; zero selects the default (three)
 } k_vo_wbc_attr;
 
 #ifdef __cplusplus

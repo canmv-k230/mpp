@@ -1,7 +1,9 @@
-# Unit Test Suggestions by Source File
+# Middleware Test Suggestions by Source File
+
+For test requirements and run commands, see [README.md](README.md).
 
 Source root:
-`/filesets/tatkin_tan/k230-src/relbuild/mpp/mpp/middleware/src`
+`middleware/src/` relative to the MPP repository root.
 
 ## Runnable coverage now
 

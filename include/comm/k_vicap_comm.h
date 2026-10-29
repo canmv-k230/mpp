@@ -397,6 +397,19 @@ typedef struct {
 /**
  * @brief Defines the attributes of a VICAP channel
  *
+ * buffer_num sizes this channel's output pool, not the device's RAW/input
+ * pool. Configure it through kd_mpi_vicap_set_chn_attr() before capture starts.
+ * A bound, unrotated VO layer retains references to these blocks; it does not
+ * allocate another source-image pool. Shared layers share references, while
+ * independent output channels need separate budgets. Include every consumer's
+ * hold time; WBC destinations and GDMA rotation outputs are separate pools.
+ *
+ * Size the pool for capture DMA, queued frames and all downstream holds.
+ * Small pools can reduce throughput or stop capture when all blocks are held;
+ * there is no universal buffer count for every sensor/pipeline combination.
+ * VIDEO1 retains sources longer than VIDEO2/3. Rotation uses separate GDMA
+ * outputs instead. See kernel/vo/BUFFER_OWNERSHIP.md for sizing examples,
+ * measured configurations and validation limits.
  */
 typedef struct {
     k_vicap_window out_win;
@@ -406,7 +419,7 @@ typedef struct {
     k_bool scale_enable;
     k_bool chn_enable;
     k_pixel_format pix_format;
-    k_u32 buffer_num;
+    k_u32 buffer_num; // Total channel output blocks; see ownership/sizing notes above
     k_u32 buffer_size;
     k_s32 buffer_pool_id; // set to VB_INVALID_POOLID will auto create
     k_u8 alignment; // 0: 1 byte, 1: 2 byte ... 12: 4096 byte

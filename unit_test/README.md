@@ -1,53 +1,43 @@
-# unit_test
+# Host unit tests
 
-This directory contains GoogleTest-based unit tests for sources under:
+Run these commands from the MPP repository root (the directory containing
+`kernel/`, `middleware/` and `unit_test/`). No board, firmware image or private
+RTL source is required.
 
-`mpp/mpp/middleware/src/`
+## Middleware tests
 
-Excluded 3rd party codes (per request): `ffmpeg`, `live555`, `mp4_player`, `mp4_format`, `x264`.
+Requirements: Bash, a C compiler, a C++17 compiler, `ar`, pthreads and GoogleTest.
 
-## Current coverage
-
-Runnable source-level tests:
-- `ogg/src/bitwise.c`
-- `ogg/src/framing.c`
-- `ogg/src/libogg.c`
-- `rtsp_server/JpegFrameParser.cpp`
-- `rtsp_server/LiveFrameSource.cpp`
-- `rtsp_server/g711LiveFrameSource.cpp`
-- `rtsp_server/h264LiveFrameSource.cpp`
-- `rtsp_server/h265LiveFrameSource.cpp`
-- `rtsp_pusher/rtsp_pusher.cpp` (with mocked `RTSPPusherImpl`)
-- `rtsp_client/LiveFrameSource.cpp` (in separate binary)
-- `rtsp_client/g711LiveFrameSource.cpp` (in separate binary)
-
-API-contract tests:
-- `kdmedia/include/media.h`
-- `rtsp_client/include/rtsp_client.h`
-- `rtsp_server/include/rtsp_server.h`
-
-Remaining heavy integration files are tracked as TODO placeholders in `tests/test_integration_scaffold.cpp`.
-
-## Run
-
-```bash
-cd mpp/middleware/src/unit_test
-./compile_run.sh
+```sh
+./unit_test/compile_run.sh
 ```
 
-`compile_run.sh` builds and runs:
-- `all_tests` (core + kdmedia + rtsp_server + rtsp_pusher + API tests)
-- `rtsp_client_tests` (separate binary to avoid symbol clashes with rtsp_server `LiveFrameSource`)
+The script locates GoogleTest or downloads it from its public upstream repository
+if unavailable. To use an existing installation without downloading, set
+`GTEST_ROOT` to the directory containing `src/gtest-all.cc` and `include/gtest/`.
+`CC`, `CXX`, `AR`, `BUILD_DIR`, `DEPS_DIR` and `SRC_ROOT` can also be overridden.
+The default source directory is `middleware/src`; build/dependency files go under
+`${TMPDIR:-/tmp}/mpp_middleware_unit_test`. The build directory is recreated on
+runs, so use a dedicated directory when overriding `BUILD_DIR`.
 
-## VO Timeout Boundaries
+The script builds and runs:
 
-From the MPP repository root, run:
+- `all_tests`: core media, RTSP server/pusher and API contract tests.
+- `rtsp_client_tests`: a separate binary to avoid symbol clashes between client
+  and server `LiveFrameSource` implementations.
 
-```bash
-python3 -B unit_test/tests/test_vo_wait_timeout.py
-```
+Runnable source coverage includes:
 
-This compiles the production timeout conversion with UndefinedBehaviorSanitizer
-at five tick frequencies. It checks nonblocking and infinite waits, tick
-rounding, invalid negative values, and both sides of the timer limit. It does
-not emulate interrupts or replace the board frame-release tests.
+- Ogg `bitwise.c`, `framing.c` and `libogg.c`.
+- RTSP server `JpegFrameParser.cpp`, `LiveFrameSource.cpp`,
+  `g711LiveFrameSource.cpp`, `h264LiveFrameSource.cpp` and
+  `h265LiveFrameSource.cpp`.
+- RTSP pusher `rtsp_pusher.cpp`, using a mocked backend.
+- RTSP client `LiveFrameSource.cpp` and `g711LiveFrameSource.cpp`.
+
+API contract checks cover `kdmedia/include/media.h`,
+`rtsp_client/include/rtsp_client.h` and `rtsp_server/include/rtsp_server.h`.
+The runtime tests use mocks where device or network services are required;
+passing them does not validate a real camera, encoder or RTSP connection.
+Integration placeholders in `tests/test_integration_scaffold.cpp` are disabled
+TODOs, not completed coverage. See [TEST_SUGGESTIONS.md](TEST_SUGGESTIONS.md).
