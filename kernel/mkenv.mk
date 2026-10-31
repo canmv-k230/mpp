@@ -25,7 +25,7 @@ RTSMART_CFLAGS := \
 	-I$(SDK_RTSMART_SRC_DIR)/rtsmart/kernel/rt-thread/components/lwp/arch/risc-v/rv64 \
 
 RTSMART_CDEFS := \
-	-DHAVE_CCONFIG_H -D__STDC_ISO_10646__=201206L -D_STDC_PREDEF_H -D__KERNEL__
+	-D__STDC_ISO_10646__=201206L -D_STDC_PREDEF_H -D__KERNEL__
 
 BSP_CFLGAS := \
 	-I$(SDK_RTSMART_SRC_DIR)/rtsmart/kernel/bsp/maix3/c908 \

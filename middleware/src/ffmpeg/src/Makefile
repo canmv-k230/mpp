@@ -1,5 +1,27 @@
 MAIN_MAKEFILE=1
-include ffbuild/config.mak
+SDK_FFMPEG_SRC_DIR := $(patsubst %/,%,$(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
+include $(SDK_FFMPEG_SRC_DIR)/ffbuild/config.mak
+
+SDK_FFMPEG_BUILD_DIR := $(abspath $(SDK_RTSMART_BUILD_DIR)/mpp/middleware/ffmpeg)
+
+ifneq ($(filter config,$(MAKECMDGOALS)),)
+ifneq ($(words $(MAKECMDGOALS)),1)
+$(error Run FFmpeg config separately, then run make to build the new configuration)
+endif
+endif
+
+ifneq ($(CURDIR),$(SDK_FFMPEG_BUILD_DIR))
+# Keep the existing source-directory entry point, but build each SDK profile's
+# objects, dependency files and configuration stamp in its own output directory.
+.DEFAULT_GOAL := all
+SDK_FFMPEG_GOALS := $(or $(MAKECMDGOALS),all)
+.PHONY: $(SDK_FFMPEG_GOALS) sdk-ffmpeg-dispatch
+$(SDK_FFMPEG_GOALS): sdk-ffmpeg-dispatch
+
+sdk-ffmpeg-dispatch:
+	@mkdir -p "$(SDK_FFMPEG_BUILD_DIR)/ffbuild" "$(SDK_FFMPEG_BUILD_DIR)/libavutil"
+	+@$(MAKE) -C "$(SDK_FFMPEG_BUILD_DIR)" -f "$(SDK_FFMPEG_SRC_DIR)/Makefile" $(SDK_FFMPEG_GOALS)
+else
 
 # Default to size optimization; override with SDK_FFMPEG_OPT=-O3 or '-O0 -g'.
 # CanMV's final link also uses --gc-sections for these static libraries.
@@ -9,7 +31,7 @@ LDFLAGS += -Wl,--gc-sections
 
 vpath %.c    $(SRC_PATH)
 vpath %.cpp  $(SRC_PATH)
-vpath %.h    $(SRC_PATH)
+vpath %.h    $(SDK_FFMPEG_CONFIG_DIR) $(SRC_PATH)
 vpath %.inc  $(SRC_PATH)
 vpath %.m    $(SRC_PATH)
 vpath %.S    $(SRC_PATH)
@@ -43,15 +65,26 @@ SKIPHEADERS = compat/w32pthreads.h
 # first so "all" becomes default target
 all: all-yes
 
-# Objects are shared by SDK profiles. Track the header path and compile flags
-# even when switching configurations with preserved timestamps.
-SDK_FFMPEG_BUILD_CONFIG := include=$(MPP_MIDDLEWARE_INC_INSTALL_PATH) cflags=$(CFLAGS) ecflags=$(ECFLAGS)
-FFMPEG_BUILD_DEPS = $(SRC_PATH)/Makefile ffbuild/config.mak $(SRC_PATH)/ffbuild/common.mak ffbuild/.sdk-build-config
+# Changing flags or the toolchain must still invalidate this output's objects.
+SDK_FFMPEG_CONFIG_INCLUDE := -I$(SDK_FFMPEG_CONFIG_DIR)
+SDK_FFMPEG_BUILD_CONFIG := config=$(SDK_FFMPEG_CONFIG_DIR) include=$(MPP_MIDDLEWARE_INC_INSTALL_PATH) cc=$(CC) cppflags=$(CPPFLAGS) cflags=$(CFLAGS) ecflags=$(ECFLAGS) asflags=$(ASFLAGS)
+FFMPEG_BUILD_DEPS = $(SRC_PATH)/Makefile $(SRC_PATH)/ffbuild/config.mak $(SDK_FFMPEG_CONFIG_DIR)/ffbuild/config.mak $(SRC_PATH)/ffbuild/common.mak ffbuild/.sdk-build-config
 .PHONY: sdk-ffmpeg-force
 sdk-ffmpeg-force:
 
 ffbuild/.sdk-build-config: sdk-ffmpeg-force
 	@printf '%s\n' '$(subst ','"'"',$(SDK_FFMPEG_BUILD_CONFIG))' > $@.tmp
+	@if cmp -s $@.tmp $@; then rm -f $@.tmp; else mv -f $@.tmp $@; fi
+
+# Both the checked-in preset and an output's custom configuration use the SDK's
+# current install paths when generating pkg-config files.
+ffbuild/config.sh: $(SDK_FFMPEG_CONFIG_DIR)/ffbuild/config.sh ffbuild/.sdk-build-config
+	@printf '%s\n' \
+		'. "$(SDK_FFMPEG_CONFIG_DIR)/ffbuild/config.sh"' \
+		'prefix="$(SDK_RTSMART_BUILD_DIR)/mpp/middleware"' \
+		'libdir="$(MPP_MIDDLEWARE_LIB_INSTALL_PATH)"' \
+		'incdir="$(MPP_MIDDLEWARE_INC_INSTALL_PATH)"' \
+		'source_path="$(SRC_PATH)"' > $@.tmp
 	@if cmp -s $@.tmp $@; then rm -f $@.tmp; else mv -f $@.tmp $@; fi
 
 include $(SRC_PATH)/tools/Makefile
@@ -84,8 +117,8 @@ CONFIGURABLE_COMPONENTS =                                           \
     $(SRC_PATH)/libavcodec/parsers.c                                \
     $(SRC_PATH)/libavformat/protocols.c                             \
 
-config.h: ffbuild/.config
-ffbuild/.config: $(CONFIGURABLE_COMPONENTS)
+config.h: $(SDK_FFMPEG_CONFIG_DIR)/ffbuild/.config
+$(SDK_FFMPEG_CONFIG_DIR)/ffbuild/.config: $(CONFIGURABLE_COMPONENTS)
 	@-tput bold 2>/dev/null
 	@-printf '\nWARNING: $(?) newer than config.h, rerun configure\n\n'
 	@-tput sgr0 2>/dev/null
@@ -133,7 +166,7 @@ endif
 VERSION_SH  = $(SRC_PATH)/ffbuild/version.sh
 GIT_LOG     = $(SRC_PATH)/.git/logs/HEAD
 
-.version: $(wildcard $(GIT_LOG)) $(VERSION_SH) ffbuild/config.mak
+.version: $(wildcard $(GIT_LOG)) $(VERSION_SH) $(SDK_FFMPEG_CONFIG_DIR)/ffbuild/config.mak
 .version: M=@
 
 libavutil/ffversion.h .version:
@@ -174,9 +207,18 @@ ifeq ($(SRC_LINK),src)
 	$(RM) src
 endif
 	$(RM) -rf doc/examples/pc-uninstalled
+	$(RM) -rf .sdk-config
 
 config:
-	$(SRC_PATH)/configure $(value FFMPEG_CONFIGURATION)
+	@python3 "$(SRC_PATH)/ffbuild/sdk_configure.py" \
+		--source "$(SRC_PATH)" --output "$(SDK_FFMPEG_BUILD_DIR)" -- \
+		$(FFMPEG_CONFIGURATION) \
+		--cross-prefix="$(CROSS_COMPILE)" \
+		--prefix="$(SDK_RTSMART_BUILD_DIR)/mpp/middleware" \
+		--libdir="$(MPP_MIDDLEWARE_LIB_INSTALL_PATH)" \
+		--incdir="$(MPP_MIDDLEWARE_INC_INSTALL_PATH)" \
+		--extra-cflags="-mcmodel=medany -march=rv64imafdcv -mabi=lp64d" \
+		--extra-ldflags="-mcmodel=medany -march=rv64imafdcv -mabi=lp64d -n --static"
 
 build: all alltools examples testprogs
 check: all alltools examples testprogs fate
@@ -196,3 +238,4 @@ $(sort $(OUTDIRS)):
 
 .PHONY: all all-yes alltools build check config testprogs
 .PHONY: *clean install* uninstall*
+endif
