@@ -47,14 +47,23 @@ void LiveFrameSource::pushData(const uint8_t *data, size_t data_size, uint64_t t
         fRawDropCount++;
     }
     fRawDataQueue.push_back(raw_data);
-    if (fRawDataQueue.size() > fMaxRawDepth.load()) {
-        fMaxRawDepth.store(fRawDataQueue.size());
+    const size_t depth = fRawDataQueue.size();
+    const bool new_max = depth > fMaxRawDepth.load();
+    if (new_max) {
+        fMaxRawDepth.store(depth);
     }
-    if (fRawDataQueue.size() >= fQueueSize / 2) {
-        std::cout << "LiveFrameSource raw queue depth " << fRawDataQueue.size() << "/"
-                  << fQueueSize << ", raw_drop " << fRawDropCount.load()
-                  << ", active_drop " << fPacketDropCount.load()
-                  << ", idle_drop " << fIdleDropCount.load() << std::endl;
+    // Past half full, report a new high-water mark at once and a backlog that
+    // stays there at most once a second, not on every push while the consumer
+    // is behind (e.g. with throttled CPU clocks).
+    if (depth >= fQueueSize / 2) {
+        const auto now = std::chrono::steady_clock::now();
+        if (new_max || now - fLastRawDepthLog >= std::chrono::seconds(1)) {
+            fLastRawDepthLog = now;
+            std::cout << "LiveFrameSource raw queue depth " << depth << "/"
+                      << fQueueSize << ", raw_drop " << fRawDropCount.load()
+                      << ", active_drop " << fPacketDropCount.load()
+                      << ", idle_drop " << fIdleDropCount.load() << std::endl;
+        }
     }
     lck.unlock();
     fCondRaw.notify_one();

@@ -6,6 +6,7 @@
 #include <mutex>
 #include <condition_variable>
 #include <atomic>
+#include <chrono>
 #include <memory>
 #include "JPEGVideoSource.hh"
 #include "JpegFrameParser.hh"
@@ -55,6 +56,7 @@ class MjpegLiveVideoSource : public JPEGVideoSource {
     std::atomic<unsigned long long> fPacketDropCount{0};
     std::atomic<unsigned long long> fDeliverCount{0};
     std::atomic<size_t> fMaxRawDepth{0};
+    std::chrono::steady_clock::time_point fLastRawDepthLog{}; // guarded by fMutexRaw
     std::atomic<size_t> fMaxPacketDepth{0};
     bool fHaveTimestampBase{false};
     uint64_t fTimestampBaseInput{0};
