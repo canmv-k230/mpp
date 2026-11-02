@@ -535,7 +535,7 @@ typedef struct {
     k_u8 fill_light_state;
     k_u32 frame_num;
     k_u64 timestamp;
-    k_u32 stride[3];
+    k_u32 stride[3]; /**< Bytes per row of each plane */
 } k_vicap_vb_info;
 
 /**

@@ -282,7 +282,7 @@ typedef struct
     k_color_gamut       color_gamut;
 
     k_u32               header_stride[3];
-    k_u32               stride[3];
+    k_u32               stride[3];    /**< Bytes per row of each plane; 0 if unknown */
 
     k_u64               header_phys_addr[3];
     k_u64               header_virt_addr[3];
