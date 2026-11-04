@@ -58,6 +58,11 @@ void setupNextSubsession(RTSPClient* rtspClient);
 // A dropped live session (TCP close, RTCP BYE, source closure) still reconnects.
 void shutdownStream(RTSPClient* rtspClient, int exitCode = 1, bool allow_reconnect = true);
 
+// Annex-B parameter sets from SDP. H.265 uses sprop-vps/sps/pps; some servers
+// still put VPS,SPS,PPS in the H.264 sprop-parameter-sets list.
+static unsigned annexb_from_sprop(char const *sprop, u_int8_t *dst, unsigned dst_size);
+static unsigned annexb_from_h265_sprop(MediaSubsession &subsession, u_int8_t *dst, unsigned dst_size);
+
 // A function that outputs a string that identifies each stream (for debugging output).  Modify this if you wish:
 UsageEnvironment& operator<<(UsageEnvironment& env, const RTSPClient& rtspClient) {
   return env << "[URL:\"" << rtspClient.url() << "\"]: ";
@@ -435,32 +440,24 @@ void continueAfterSETUP(RTSPClient* rtspClient, int resultCode, char* resultStri
 	              }
 	          } else if (!strcmp(scs.subsession->codecName(),"H265")) {
               if (as_our(rtspClient)->hooks.video) {
-                   // TODO
                   uint8_t *extra_data = nullptr;
                   size_t extra_data_size = 0;
-                  unsigned int len = 0;
-                  unsigned int numSpropRecords = 0;
-                  SPropRecord *record = parseSPropParameterSets(scs.subsession->fmtp_spropparametersets(), numSpropRecords);
-                  if (numSpropRecords == 3 && record) { // vps & sps & pps
-                    for (auto i = 0; i < numSpropRecords; i++) {
-                      len += 4;
-                      len += record[i].sPropLength;
+                  unsigned const cap = 4096;
+                  uint8_t *buf = new (std::nothrow) uint8_t[cap];
+                  if (buf != nullptr) {
+                    unsigned n = annexb_from_h265_sprop(*scs.subsession, buf, cap);
+                    if (n == 0) {
+                      n = annexb_from_sprop(scs.subsession->fmtp_spropparametersets(), buf, cap);
+                    }
+                    if (n > 0) {
+                      extra_data = buf;
+                      extra_data_size = n;
+                    } else {
+                      delete[] buf;
                     }
                   }
-                  if (len) {
-                    uint8_t start_code[4] = {0x00, 0x00, 0x00, 0x01};
-                    extra_data = new uint8_t[len];
-                    extra_data_size = 0;
-                    for (auto i = 0; i < numSpropRecords; i++) {
-                      memcpy(&extra_data[extra_data_size], start_code, 4);
-                      extra_data_size += 4;
-                      memcpy(&extra_data[extra_data_size], record[i].sPropBytes, record[i].sPropLength);
-                      extra_data_size += record[i].sPropLength;
-                    }
-	                  }
-	                  as_our(rtspClient)->hooks.video->OnVideoType(IOnVideoData::VideoTypeH265, extra_data, extra_data_size);
-	                  if (extra_data) delete []extra_data;
-	                  delete[] record;
+                  as_our(rtspClient)->hooks.video->OnVideoType(IOnVideoData::VideoTypeH265, extra_data, extra_data_size);
+                  delete[] extra_data;
 	              }
           } else {
               if (as_our(rtspClient)->hooks.video) {
