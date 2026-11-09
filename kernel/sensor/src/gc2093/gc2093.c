@@ -49,9 +49,12 @@
 #define GC2093_REG_DGAIN_H	            (0x00b1)
 #define GC2093_REG_DGAIN_L	            (0x00b2)
 #define GC2093_MIN_GAIN_STEP            (1.0f/64.0f)
-/* Keep the longer post-reset delay required for reliable restart on existing boards. */
-#define GC2093_RESET_DELAY_MS           (5)
-#define GC2093_POWER_STABLE_DELAY_MS    (20)
+/* GC2093 CSP Datasheet Beta 0.1, section 9.2 / 9.3.
+ * t6: RESETB rising to the first I2C transaction, minimum 50 us.
+ * t5: 1200 MCLK cycles before that transaction. At 24 MHz this is 50 us.
+ * Power-off: 2000 MCLK after the last I2C write. At 23.76 MHz this is 84 us.
+ * These waits are rt_thread_mdelay(1): 1 ms covers the minimum and yields the CPU.
+ */
 
 /* include sensor register configure */
 #include "sensor_reg_table.c"
@@ -88,7 +91,8 @@ static k_s32 _sensor_read_chip_id_r(struct sensor_driver_dev *dev, k_u32 *chip_i
         kd_pin_mode(reset_gpio, GPIO_DM_OUTPUT);
         kd_pin_write(reset_gpio, GPIO_PV_HIGH);
     }
-    rt_thread_mdelay(1); // wait reset stable.
+    /* t6: RESETB high to the first I2C transaction. */
+    rt_thread_mdelay(1);
 
     ret = sensor_reg_read(&dev->i2c_info, GC2093_REG_ID, &id_high);
     ret |= sensor_reg_read(&dev->i2c_info, GC2093_REG_ID + 1, &id_low);
@@ -102,7 +106,21 @@ static k_s32 _sensor_read_chip_id_r(struct sensor_driver_dev *dev, k_u32 *chip_i
 }
 
 /* Sensor functions **********************************************************/
-static int _sensor_power_state_set(struct sensor_driver_dev *dev, k_s32 on, k_u32 delay)
+static void gc2093_set_pwdn(k_s32 pwd_gpio, k_bool standby)
+{
+    if (pwd_gpio < 0)
+        return;
+
+    kd_pin_mode(pwd_gpio, GPIO_DM_OUTPUT);
+#if defined (CONFIG_BOARD_K230_CANMV_MRT)
+    /* This board's GPIO high is the sensor's normal-work level. */
+    kd_pin_write(pwd_gpio, standby ? GPIO_PV_LOW : GPIO_PV_HIGH);
+#else
+    kd_pin_write(pwd_gpio, standby ? GPIO_PV_HIGH : GPIO_PV_LOW);
+#endif
+}
+
+static int _sensor_power_state_set(struct sensor_driver_dev *dev, k_s32 on)
 {
     const k_s32 pwd_gpio = dev->pwd_gpio;
     const k_s32 reset_gpio = dev->reset_gpio;
@@ -113,26 +131,27 @@ static int _sensor_power_state_set(struct sensor_driver_dev *dev, k_s32 on, k_u3
         return 0;
     }
 
-    if(-1 != pwd_gpio) {
-        kd_pin_mode(pwd_gpio, GPIO_DM_OUTPUT);
-#if defined (CONFIG_BOARD_K230_CANMV_MRT)
-        kd_pin_write(pwd_gpio, GPIO_PV_HIGH);
-#else
-        kd_pin_write(pwd_gpio, GPIO_PV_LOW);
-#endif
-    }
-
     kd_pin_mode(reset_gpio, GPIO_DM_OUTPUT);
 
     if (on) {
-        kd_pin_write(reset_gpio, GPIO_PV_HIGH);
-        rt_thread_mdelay(delay);
+        /* Section 9.2: PWDN to normal work, then release RESETB.
+         * t3 minimum is 0. The low width is not specified; 1 ms makes a pin
+         * that was already high actually be seen low, and yields the CPU.
+         */
+        gc2093_set_pwdn(pwd_gpio, K_FALSE);
         kd_pin_write(reset_gpio, GPIO_PV_LOW);
-        rt_thread_mdelay(delay);
+        rt_thread_mdelay(1);
         kd_pin_write(reset_gpio, GPIO_PV_HIGH);
-        rt_thread_mdelay(GC2093_POWER_STABLE_DELAY_MS);
+        /* t5 (1200 MCLK) and t6 (50 us) before the caller writes I2C. */
+        rt_thread_mdelay(1);
     } else {
+        /* Section 9.3: 2000 MCLK after the last I2C write, RESETB low,
+         * then PWDN to standby. t2 minimum is 0. 1 ms covers the 84 us
+         * minimum and yields the CPU.
+         */
+        rt_thread_mdelay(1);
         kd_pin_write(reset_gpio, GPIO_PV_LOW);
+        gc2093_set_pwdn(pwd_gpio, K_TRUE);
     }
 
     return 0;
@@ -151,7 +170,7 @@ static k_s32 sensor_power_impl(void *ctx, k_s32 on)
             return 0;
         }
 
-        ret = _sensor_power_state_set(dev, K_TRUE, GC2093_RESET_DELAY_MS);
+        ret = _sensor_power_state_set(dev, K_TRUE);
         if (!ret) {
             dev->power_flag = K_TRUE;
             dev->init_flag = K_TRUE;
@@ -161,7 +180,7 @@ static k_s32 sensor_power_impl(void *ctx, k_s32 on)
 
     if (dev->power_flag) {
         ret = sensor_reg_write(&dev->i2c_info, 0x03fe, 0xf0);
-        ret |= _sensor_power_state_set(dev, K_FALSE, GC2093_RESET_DELAY_MS);
+        ret |= _sensor_power_state_set(dev, K_FALSE);
     }
 
     dev->power_flag = K_FALSE;
@@ -169,6 +188,52 @@ static k_s32 sensor_power_impl(void *ctx, k_s32 on)
     dev->mode_init_flag = K_FALSE;
 
     return ret;
+}
+
+/* Datasheet section 7.1 incremental write: one 16-bit address, then
+ * consecutive data bytes land at address+1. Same-address repeats stay
+ * separate transactions. A run does not cross a 256-byte page.
+ */
+#define GC2093_REG_BURST_MAX 32
+
+static k_s32 gc2093_reg_list_write(k_sensor_i2c_info *i2c_info, const k_sensor_reg *reg_list)
+{
+    k_u32 i = 0;
+
+    if (i2c_info == RT_NULL || i2c_info->i2c_bus == RT_NULL || reg_list == RT_NULL)
+        return -1;
+
+    while (reg_list[i].addr != REG_NULL) {
+        struct rt_i2c_msg msg;
+        k_u8 buf[2 + GC2093_REG_BURST_MAX];
+        k_u32 count = 1;
+        k_u32 n;
+        k_u16 addr = (k_u16)reg_list[i].addr;
+
+        while (count < GC2093_REG_BURST_MAX &&
+               reg_list[i + count].addr != REG_NULL &&
+               reg_list[i + count].addr == reg_list[i + count - 1].addr + 1 &&
+               (reg_list[i + count].addr & 0xff00) == (addr & 0xff00))
+            count++;
+
+        buf[0] = (k_u8)(addr >> 8);
+        buf[1] = (k_u8)(addr & 0xff);
+        for (n = 0; n < count; n++)
+            buf[2 + n] = (k_u8)reg_list[i + n].val;
+
+        msg.addr = i2c_info->slave_addr;
+        msg.flags = RT_I2C_WR;
+        msg.buf = buf;
+        msg.len = 2 + count;
+
+        if (rt_i2c_transfer(i2c_info->i2c_bus, &msg, 1) != 1) {
+            rt_kprintf("%s err, [0x%04x] count %u\n", __func__, addr, count);
+            return -1;
+        }
+        i += count;
+    }
+
+    return 0;
 }
 
 static k_s32 sensor_init_impl(void *ctx, k_sensor_mode mode)
@@ -225,8 +290,8 @@ static k_s32 sensor_init_impl(void *ctx, k_sensor_mode mode)
         } break;
     }
     // write sensor reg 
-    ret = sensor_reg_list_write(&dev->i2c_info, current_mode->reg_list);
-    ret |= sensor_reg_list_write(&dev->i2c_info, sensor_mirror_reg_list);
+    ret = gc2093_reg_list_write(&dev->i2c_info, current_mode->reg_list);
+    ret |= gc2093_reg_list_write(&dev->i2c_info, sensor_mirror_reg_list);
 
     current_mode->sensor_again = 0;
     current_mode->et_line = 0;
@@ -366,8 +431,6 @@ static k_s32 sensor_set_stream_impl(void *ctx, k_s32 enable)
         // ret = sensor_reg_write(&dev->i2c_info, 0x0100, 0x01);
     } else {
         // ret = sensor_reg_write(&dev->i2c_info, 0x0100, 0x00);
-        sensor_reg_write(&dev->i2c_info, 0x03fe, 0xf0);
-        sensor_reg_write(&dev->i2c_info, 0x03fe, 0xf0);
         sensor_reg_write(&dev->i2c_info, 0x03fe, 0xf0);
     }
     pr_info("%s exit, ret(%d)\n", __func__, ret);
@@ -881,7 +944,7 @@ k_s32 sensor_gc2093_probe(struct k_sensor_probe_cfg *cfg, struct sensor_driver_d
     /** NEW SENSOR MODIFY START */
     snprintf(dev->sensor_name, sizeof(dev->sensor_name), "gc2093_csi%d", cfg->csi_num);
 
-    _sensor_power_state_set(dev, 1, 1);
+    _sensor_power_state_set(dev, 1);
     dev->power_flag = K_TRUE;
     dev->init_flag = K_TRUE;
 
@@ -891,7 +954,7 @@ k_s32 sensor_gc2093_probe(struct k_sensor_probe_cfg *cfg, struct sensor_driver_d
     dev->i2c_info.slave_addr = (0x6E >> 1); /* TYS-K230-200W-V2 */
     ret = _sensor_read_chip_id_r(dev, &chip_id);
     if ((ret != 0x00) || (GC2093_CHIP_ID != chip_id)) {
-        _sensor_power_state_set(dev, 1, 1);
+        _sensor_power_state_set(dev, 1);
 
         dev->i2c_info.slave_addr = (0xFC >> 1); /* TYS-2093-V31 */
         ret = _sensor_read_chip_id_r(dev, &chip_id);

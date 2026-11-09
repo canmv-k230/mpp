@@ -37,8 +37,12 @@
 /* Sensor private ************************************************************/
 #define OV5647_CHIP_ID                                      (0x5647)
 
-#define OV5647_POWER_DELAY_MS                             CANMV_SENSOR_POWER_RESET_DELAY_MS
-#define OV5647_POWER_STABLE_DELAY_MS                      CANMV_SENSOR_POWER_STABLE_DELAY_MS
+/* OV5647 datasheet section 2.5 / 2.6.
+ * Hardware RESETB low pulse width is at least 1 ms.
+ * After RESETB goes high, wait 20 ms before SCCB initialization.
+ */
+#define OV5647_RESET_PULSE_MS                             (1)
+#define OV5647_SCCB_AFTER_RESET_MS                        (20)
 
 #define OV5647_REG_CHIP_ID_H                                (0x300a)
 #define OV5647_REG_CHIP_ID_L                                (0x300b)
@@ -115,7 +119,7 @@ static k_s32 _sensor_read_chip_id_r(struct sensor_driver_dev *dev, k_u32 *chip_i
 }
 
 /* Sensor functions **********************************************************/
-static int _sensor_power_state_set(struct sensor_driver_dev *dev, k_s32 on, k_u32 delay)
+static int _sensor_power_state_set(struct sensor_driver_dev *dev, k_s32 on)
 {
     const k_s32 pwd_gpio = dev->pwd_gpio;
     const k_s32 reset_gpio = dev->reset_gpio;
@@ -134,12 +138,14 @@ static int _sensor_power_state_set(struct sensor_driver_dev *dev, k_s32 on, k_u3
     kd_pin_mode(reset_gpio, GPIO_DM_OUTPUT);
 
     if (on) {
+        /* Drive RESETB high first so the following low pulse is a real edge. */
         kd_pin_write(reset_gpio, GPIO_PV_HIGH);
-        rt_thread_mdelay(delay);
+        rt_thread_mdelay(OV5647_RESET_PULSE_MS);
         kd_pin_write(reset_gpio, GPIO_PV_LOW);
-        rt_thread_mdelay(delay);
+        rt_thread_mdelay(OV5647_RESET_PULSE_MS);
         kd_pin_write(reset_gpio, GPIO_PV_HIGH);
-        rt_thread_mdelay(OV5647_POWER_STABLE_DELAY_MS);
+        /* Section 2.5: 20 ms after RESETB goes high before SCCB init. */
+        rt_thread_mdelay(OV5647_SCCB_AFTER_RESET_MS);
     } else {
         kd_pin_write(reset_gpio, GPIO_PV_LOW);
     }
@@ -160,7 +166,7 @@ static k_s32 sensor_power_impl(void *ctx, k_s32 on)
             return 0;
         }
 
-        ret = _sensor_power_state_set(dev, K_TRUE, OV5647_POWER_DELAY_MS);
+        ret = _sensor_power_state_set(dev, K_TRUE);
         if (!ret) {
             dev->power_flag = K_TRUE;
             dev->init_flag = K_TRUE;
@@ -171,7 +177,7 @@ static k_s32 sensor_power_impl(void *ctx, k_s32 on)
     if (dev->power_flag) {
         ret = sensor_reg_write(&dev->i2c_info, 0x3018, 0xff);
         ret |= sensor_reg_write(&dev->i2c_info, OV5647_SW_STANDBY, 0x00);
-        ret |= _sensor_power_state_set(dev, K_FALSE, OV5647_POWER_DELAY_MS);
+        ret |= _sensor_power_state_set(dev, K_FALSE);
     }
 
     dev->power_flag = K_FALSE;
@@ -864,7 +870,7 @@ k_s32 sensor_ov5647_probe(struct k_sensor_probe_cfg *cfg, struct sensor_driver_d
     /** NEW SENSOR MODIFY START */
     snprintf(dev->sensor_name, sizeof(dev->sensor_name), "ov5647_csi%d", cfg->csi_num);
 
-    _sensor_power_state_set(dev, 1, 1);
+    _sensor_power_state_set(dev, 1);
     dev->power_flag = K_TRUE;
     dev->init_flag = K_TRUE;
 

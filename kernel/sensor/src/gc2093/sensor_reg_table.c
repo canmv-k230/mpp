@@ -1,8 +1,6 @@
 
 static const k_sensor_reg gc2093_mipi2lane_1080p_15fps_hdr[] = {
     {0x03fe, 0xf0},
-    {0x03fe, 0xf0},
-    {0x03fe, 0xf0},
     {0x03fe, 0x00},
     {0x03f2, 0x00},
     {0x03f3, 0x00},
@@ -124,8 +122,6 @@ static const k_sensor_reg gc2093_mipi2lane_1080p_15fps_hdr[] = {
 };
 
 static const k_sensor_reg gc2093_mipi2lane_1080p_30fps_hdr[] = {
-    {0x03fe, 0xf0},
-    {0x03fe, 0xf0},
     {0x03fe, 0xf0},
     {0x03fe, 0x00},
     {0x03f2, 0x00},
@@ -249,8 +245,6 @@ static const k_sensor_reg gc2093_mipi2lane_1080p_30fps_hdr[] = {
 
 static const k_sensor_reg gc2093_mipi2lane_1080p_30fps_linear[] = {
 	//MCLK = 23.76MHz, PCLK = 47.52MHz = 2628 x 1206 x 29.98705/2
-    {0x03fe,0xf0},
-    {0x03fe,0xf0},
     {0x03fe,0xf0},
     {0x03fe,0x00},
     {0x03f2,0x00},
@@ -405,8 +399,6 @@ static const k_sensor_reg gc2093_mipi2lane_1080p_30fps_linear[] = {
 static const k_sensor_reg gc2093_mipi2lane_1080p_60fps_linear[] = {
     //MCLK = 23.76MHz, PCLK = 96.03MHz = 2628 x 1218 x 60/2
     /****system****/
-    {0x03fe, 0xf0},
-    {0x03fe, 0xf0},
     {0x03fe, 0xf0},
     {0x03fe, 0x00},
     {0x03f2, 0x00},
@@ -568,8 +560,6 @@ static const k_sensor_reg gc2093_mipi2lane_960p_90fps_linear[] = {
     //PCLK = 126.72MHz = 2628 x 1072 x 89.96/2
     /****system****/
     {0x03fe, 0xf0},
-    {0x03fe, 0xf0},
-    {0x03fe, 0xf0},
     {0x03fe, 0x00},
     {0x03f2, 0x00},
     {0x03f3, 0x00},
@@ -730,8 +720,6 @@ static const k_sensor_reg gc2093_mipi2lane_720p_90fps_linear[] = {
     //MCLK = 23.76MHz, PCLK = 99MHz = 2628 x 837 x 90.015/2
     /****system****/
     {0x03fe, 0xf0},
-    {0x03fe, 0xf0},
-    {0x03fe, 0xf0},
     {0x03fe, 0x00},
     {0x03f2, 0x00},
     {0x03f3, 0x00},
@@ -891,8 +879,6 @@ static const k_sensor_reg gc2093_mipi2lane_720p_90fps_linear[] = {
 static const k_sensor_reg gc2093_mipi2lane_1080p_30fps_mclk_24m_linear[] = {
 	//MCLK = 24MHz, PCLK = 48MHz = 2628 x 1218 x 29.99153/2
     {0x03fe,0xf0},
-    {0x03fe,0xf0},
-    {0x03fe,0xf0},
     {0x03fe,0x00},
     {0x03f2,0x00},
     {0x03f3,0x00},
@@ -1046,8 +1032,6 @@ static const k_sensor_reg gc2093_mipi2lane_1080p_30fps_mclk_24m_linear[] = {
 static const k_sensor_reg gc2093_mipi2lane_1080p_60fps_mclk_24m_linear[] = {
     //MCLK = 24MHz, PCLK = 96MHz = 2628 x 1218 x 59.983/2
     /****system****/
-    {0x03fe, 0xf0},
-    {0x03fe, 0xf0},
     {0x03fe, 0xf0},
     {0x03fe, 0x00},
     {0x03f2, 0x00},
@@ -1214,8 +1198,6 @@ static const k_sensor_reg gc2093_mipi2lane_960p_90fps_mclk_24m_linear[] = {
     //MCLK = 24MHz, PCLK = 120MHz = 2628 x 1074 x 85.03/2
     /****system****/
     {0x03fe, 0xf0},
-    {0x03fe, 0xf0},
-    {0x03fe, 0xf0},
     {0x03fe, 0x00},
     {0x03f2, 0x00},
     {0x03f3, 0x00},
@@ -1375,8 +1357,6 @@ static const k_sensor_reg gc2093_mipi2lane_960p_90fps_mclk_24m_linear[] = {
 static const k_sensor_reg gc2093_mipi2lane_720p_90fps_mclk_24m_linear[] = {
     //MCLK = 24MHz, PCLK = 99MHz = 2628 x 837 x 90.015/2, MIPI clk = 792Mbps
     /****system****/
-    {0x03fe, 0xf0},
-    {0x03fe, 0xf0},
     {0x03fe, 0xf0},
     {0x03fe, 0x00},
     {0x03f2, 0x00},
