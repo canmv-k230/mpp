@@ -881,16 +881,20 @@ void DummySink::ProcessH264(unsigned frameSize, uint64_t ms) {
 void DummySink::ProcessH265(unsigned frameSize, uint64_t ms) {
   #define H265_NAL(v)	 (((v)>> 1) & 0x3f)
   enum class H265_NAL_TYPE : int {
-    NAL_IDR_W_RADL = 19,
-    NAL_IDR_N_LP= 20,
-    NAL_VPS = 32,
-    NAL_SPS = 33,
-    NAL_PPS = 34,
-    NAL_SEI_PREFIX = 39,
     NAL_TRAIL_N = 0,
     NAL_TRAIL_R = 1,
     NAL_RASL_N = 8,
-    NAL_RASL_R = 9
+    NAL_RASL_R = 9,
+    NAL_BLA_W_LP = 16,
+    NAL_BLA_W_RADL = 17,
+    NAL_BLA_N_LP = 18,
+    NAL_IDR_W_RADL = 19,
+    NAL_IDR_N_LP = 20,
+    NAL_CRA_NUT = 21,
+    NAL_VPS = 32,
+    NAL_SPS = 33,
+    NAL_PPS = 34,
+    NAL_SEI_PREFIX = 39
   };
 
   u_int8_t *data = &fReceiveBuffer[-4];
@@ -898,6 +902,9 @@ void DummySink::ProcessH265(unsigned frameSize, uint64_t ms) {
   unsigned frame_size = frameSize + 4;
 
   int nal_type = H265_NAL(fReceiveBuffer[0]);
+  // BLA, IDR and CRA can all start decoding. Many cameras refresh on CRA.
+  const bool irap = nal_type >= (int)H265_NAL_TYPE::NAL_BLA_W_LP &&
+                    nal_type <= (int)H265_NAL_TYPE::NAL_CRA_NUT;
   if (nal_type == (int)H265_NAL_TYPE::NAL_VPS) {
     if (frame_size > DUMMY_SINK_EXTRA_BUFFER_SIZE) {
       fExtraState = ExtraState::INIT;
@@ -941,10 +948,10 @@ void DummySink::ProcessH265(unsigned frameSize, uint64_t ms) {
       fExtraState = ExtraState::INIT;
       fExtraDataSize = 0;
     }
-  } else if (nal_type == (int)H265_NAL_TYPE::NAL_IDR_W_RADL || nal_type == (int)H265_NAL_TYPE::NAL_IDR_N_LP) {
-    // Same as H264. Parameter sets go into a heap access unit. Writing them
-    // in front of fReceiveBuffer walks off the allocation once the start code
-    // has already used 4 bytes of the reserved prefix.
+  } else if (irap) {
+    // BLA, IDR and CRA can all start decoding. Parameter sets go into a heap
+    // access unit. Writing them in front of fReceiveBuffer walks off the
+    // allocation once the start code has already used 4 bytes of the prefix.
     unsigned extra_size = 0;
     u_int8_t extra_buf[512];
     const u_int8_t *extra = nullptr;
@@ -974,9 +981,10 @@ void DummySink::ProcessH265(unsigned frameSize, uint64_t ms) {
       video->OnVideoData(data, frame_size, ms, true);
     }
   } else if (nal_type == (int)H265_NAL_TYPE::NAL_TRAIL_N || nal_type == (int)H265_NAL_TYPE::NAL_TRAIL_R
-        || nal_type == (int)H265_NAL_TYPE::NAL_RASL_N || nal_type == (int)H265_NAL_TYPE::NAL_RASL_R
-        || ( nal_type >=16 && nal_type <= 21 /*I frame*/)) {
-    // printf("nonIDR\n");
+        || nal_type == (int)H265_NAL_TYPE::NAL_RASL_N || nal_type == (int)H265_NAL_TYPE::NAL_RASL_R) {
+    // RASL after CRA/BLA refers to pictures before that RAP. VDEC skips those
+    // NALs from the header type, so they are still forwarded. Drop them here
+    // only if a decoder shows corruption on the first RAP.
     if (IOnVideoData *video = videoData()) video->OnVideoData(data, frame_size, ms, false);
   } else if( nal_type == (int)H265_NAL_TYPE::NAL_SEI_PREFIX){
     // discard SEI_PREFIX
