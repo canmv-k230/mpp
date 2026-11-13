@@ -171,6 +171,38 @@ k_s32 sensor_drv_dev_init(struct sensor_driver_dev *pdriver_dev)
     return 0;
 }
 
+static void sensor_apply_ircut(struct sensor_driver_dev *dev,
+    const struct k_sensor_probe_cfg *cfg)
+{
+    k_bool supported = K_FALSE;
+
+    memset(&dev->ircut, 0, sizeof(dev->ircut));
+    dev->ircut.type = cfg->ircut_type;
+    dev->ircut_mode = K_IRCUT_MODE_COLOR;
+    dev->sensor_func.sensor_ircut_set = NULL;
+    dev->sensor_func.sensor_ircut_get = NULL;
+
+    if (cfg->ircut_type == K_IRCUT_CTRL_LEVEL && cfg->ircut_gpio >= 0) {
+        dev->ircut.level.gpio = cfg->ircut_gpio;
+        dev->ircut.level.color_level = cfg->ircut_color_level;
+        supported = K_TRUE;
+    } else if (cfg->ircut_type == K_IRCUT_CTRL_PULSE &&
+               cfg->ircut_open_gpio >= 0 && cfg->ircut_close_gpio >= 0) {
+        dev->ircut.pulse.open_gpio = cfg->ircut_open_gpio;
+        dev->ircut.pulse.close_gpio = cfg->ircut_close_gpio;
+        dev->ircut.pulse.pulse_ms = cfg->ircut_pulse_ms;
+        dev->ircut.pulse.idle_level = cfg->ircut_idle_level;
+        supported = K_TRUE;
+    }
+
+    if (!supported)
+        return;
+
+    dev->ircut.isSupport = 1;
+    dev->sensor_func.sensor_ircut_set = sensor_ircut_set_common;
+    dev->sensor_func.sensor_ircut_get = sensor_ircut_get_common;
+}
+
 k_s32 sensor_device_init(void) {
   struct k_sensor_probe_cfg probe_cfg[] = {
 #ifdef CONFIG_MPP_ENABLE_CSI_DEV_0
@@ -179,6 +211,13 @@ k_s32 sensor_device_init(void) {
           .i2c_name = CONFIG_MPP_CSI_DEV0_I2C_DEV,
           .pwd_gpio = CONFIG_MPP_CSI_DEV0_POWER,
           .reset_gpio = CONFIG_MPP_CSI_DEV0_RESET,
+          .ircut_type = CONFIG_MPP_CSI_DEV0_IRCUT_TYPE,
+          .ircut_gpio = CONFIG_MPP_CSI_DEV0_IRCUT_GPIO,
+          .ircut_color_level = CONFIG_MPP_CSI_DEV0_IRCUT_COLOR_LEVEL,
+          .ircut_open_gpio = CONFIG_MPP_CSI_DEV0_IRCUT_OPEN_GPIO,
+          .ircut_close_gpio = CONFIG_MPP_CSI_DEV0_IRCUT_CLOSE_GPIO,
+          .ircut_pulse_ms = CONFIG_MPP_CSI_DEV0_IRCUT_PULSE_MS,
+          .ircut_idle_level = CONFIG_MPP_CSI_DEV0_IRCUT_IDLE_LEVEL,
       },
 #endif // CONFIG_MPP_ENABLE_CSI_DEV_0
 #ifdef CONFIG_MPP_ENABLE_CSI_DEV_1
@@ -187,6 +226,13 @@ k_s32 sensor_device_init(void) {
           .i2c_name = CONFIG_MPP_CSI_DEV1_I2C_DEV,
           .pwd_gpio = CONFIG_MPP_CSI_DEV1_POWER,
           .reset_gpio = CONFIG_MPP_CSI_DEV1_RESET,
+          .ircut_type = CONFIG_MPP_CSI_DEV1_IRCUT_TYPE,
+          .ircut_gpio = CONFIG_MPP_CSI_DEV1_IRCUT_GPIO,
+          .ircut_color_level = CONFIG_MPP_CSI_DEV1_IRCUT_COLOR_LEVEL,
+          .ircut_open_gpio = CONFIG_MPP_CSI_DEV1_IRCUT_OPEN_GPIO,
+          .ircut_close_gpio = CONFIG_MPP_CSI_DEV1_IRCUT_CLOSE_GPIO,
+          .ircut_pulse_ms = CONFIG_MPP_CSI_DEV1_IRCUT_PULSE_MS,
+          .ircut_idle_level = CONFIG_MPP_CSI_DEV1_IRCUT_IDLE_LEVEL,
       },
 #endif // CONFIG_MPP_ENABLE_CSI_DEV_1
 #ifdef CONFIG_MPP_ENABLE_CSI_DEV_2
@@ -195,6 +241,13 @@ k_s32 sensor_device_init(void) {
           .i2c_name = CONFIG_MPP_CSI_DEV2_I2C_DEV,
           .pwd_gpio = CONFIG_MPP_CSI_DEV2_POWER,
           .reset_gpio = CONFIG_MPP_CSI_DEV2_RESET,
+          .ircut_type = CONFIG_MPP_CSI_DEV2_IRCUT_TYPE,
+          .ircut_gpio = CONFIG_MPP_CSI_DEV2_IRCUT_GPIO,
+          .ircut_color_level = CONFIG_MPP_CSI_DEV2_IRCUT_COLOR_LEVEL,
+          .ircut_open_gpio = CONFIG_MPP_CSI_DEV2_IRCUT_OPEN_GPIO,
+          .ircut_close_gpio = CONFIG_MPP_CSI_DEV2_IRCUT_CLOSE_GPIO,
+          .ircut_pulse_ms = CONFIG_MPP_CSI_DEV2_IRCUT_PULSE_MS,
+          .ircut_idle_level = CONFIG_MPP_CSI_DEV2_IRCUT_IDLE_LEVEL,
       },
 #endif // CONFIG_MPP_ENABLE_CSI_DEV_2
 
@@ -216,6 +269,7 @@ k_s32 sensor_device_init(void) {
     for(int j = 0; sensor_probes[j]; j++) {
         if(0x00 == sensor_probes[j](cfg, dev)) {
             sensor_drv_dev_init(dev);
+            sensor_apply_ircut(dev, cfg);
             rt_kprintf("find sensor(%s) on csi%d\n", dev->sensor_name, cfg->csi_num);
             break;
         }

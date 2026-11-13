@@ -287,6 +287,20 @@ int kd_mpi_isp_tuning(char* command, k_u32 command_size, char** response, k_u32*
 
 k_s32 kd_mpi_isp_get_chn_buf_size(k_isp_dev dev_num, k_isp_chn chn_num);
 
+/**
+ * @brief Read the current exposure ratio against the active AE table ceiling.
+ * Does not suggest a switch and does not touch the IR-Cut.
+ */
+k_s32 kd_mpi_isp_ir_query(k_isp_dev dev, k_isp_ir_meter *meter);
+
+/**
+ * @brief Suggest one IR-Cut switch from exposure, and from R/G B/G on the way back.
+ * Color to IR uses exposure_index only. IR to color also requires R/G or B/G
+ * outside the IR-lamp window, so a lit infrared scene is not read as daylight.
+ * Writes only attr->suggest. The app counts repeats and re-inits VICAP.
+ */
+k_s32 kd_mpi_isp_ir_auto_run_once(k_isp_dev dev, k_isp_ir_auto_attr *attr);
+
 /** @} */ /** <!-- ==== ISP End ==== */
 
 #ifdef __cplusplus

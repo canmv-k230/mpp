@@ -36,6 +36,7 @@
 #include "k_errno.h"
 #include "k_module.h"
 #include "k_video_comm.h"
+#include "k_sensor_comm.h"
 
 #include "k_vicap_comm.h"
 
@@ -549,6 +550,35 @@ typedef struct {
     k_u32 roi_count;
     k_u32 roi_count_flag;
 } k_isp_ae_roi_state;
+
+typedef struct {
+    float exposure_index;          /* 0..1, current exposure / current-mode AE ceiling */
+    float integration_time_s;
+    float again;
+    float dgain;
+    float max_integration_time_s;
+    float max_gain;                /* again * dgain of the sensor gain ceiling */
+    float rg;                      /* mean R / mean G of the 32x32 EXP grid */
+    float bg;                      /* mean B / mean G of the 32x32 EXP grid */
+} k_isp_ir_meter;
+
+typedef enum {
+    K_ISP_IR_SWITCH_NONE = 0,
+    K_ISP_IR_SWITCH_TO_IR,
+    K_ISP_IR_SWITCH_TO_COLOR,
+} k_isp_ir_switch;
+
+typedef struct {
+    k_bool enable;                 /* input. K_FALSE writes SWITCH_NONE */
+    float day2night;               /* input. color -> ir when index is above this */
+    float night2day;               /* input. ir -> color when index is below this */
+    float rg_min;                  /* input. IR-lamp R/G window, used only ir -> color */
+    float rg_max;
+    float bg_min;                  /* input. IR-lamp B/G window, used only ir -> color */
+    float bg_max;
+    k_ircut_mode mode;             /* input. mode last applied by the app */
+    k_isp_ir_switch suggest;       /* output. written only on success */
+} k_isp_ir_auto_attr;
 
 /*
 #define K_ERR_ISP_INVALID_DEVID     K_DEF_ERR(K_ID_ISP, K_ERR_LEVEL_ERROR, K_ERR_INVALID_DEVID)

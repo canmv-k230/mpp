@@ -323,6 +323,14 @@ k_s32 kd_mpi_sensor_intg_time_get(k_s32 fd, k_sensor_intg_time *time);
  */
 k_s32 kd_mpi_sensor_get_exposure_time_range(k_s32 fd, k_sensor_exposure_time_range *range);
 k_s32 kd_mpi_sensor_get_gain_range(k_s32 fd, k_sensor_gain_info *range);
+
+/**
+ * @brief Drive this sensor's IR-cut. set/get return an error when the sensor has none.
+ *        get_ircut_caps succeeds with isSupport == 0 in that case.
+ */
+k_s32 kd_mpi_sensor_ircut_set(k_s32 fd, k_ircut_mode mode);
+k_s32 kd_mpi_sensor_ircut_get(k_s32 fd, k_ircut_mode *mode);
+k_s32 kd_mpi_sensor_get_ircut_caps(k_s32 fd, k_sensor_ircut_caps *caps);
 k_s32 kd_mpi_sensor_list_mode(const char *sensor_name, k_sensor_mode_list *list);
 
 /**

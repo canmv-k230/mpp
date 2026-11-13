@@ -844,6 +844,37 @@ typedef struct {
     k_u32 minStep;
 } k_sensor_autofocus_caps;
 
+typedef enum {
+    K_IRCUT_MODE_COLOR = 0,
+    K_IRCUT_MODE_IR = 1,
+} k_ircut_mode;
+
+typedef enum {
+    K_IRCUT_CTRL_NONE = 0,   /* no IR-cut; isSupport stays 0 */
+    K_IRCUT_CTRL_LEVEL = 1,  /* one GPIO, level hold */
+    K_IRCUT_CTRL_PULSE = 2,  /* two GPIOs, pulse then idle */
+} k_ircut_ctrl_type;
+
+typedef struct {
+    k_s32 isSupport;           /* non-zero when this module has an IR-cut */
+
+    k_ircut_ctrl_type type;
+
+    union {
+        struct {
+            k_s32 gpio;            /* the only filter pin */
+            k_u32 color_level;     /* GPIO level for color. IR uses the opposite level */
+        } level;
+
+        struct {
+            k_s32 open_gpio;       /* driven high for color */
+            k_s32 close_gpio;      /* driven high for IR */
+            k_u32 pulse_ms;        /* coil on-time. 0 selects the 200 ms default */
+            k_u32 idle_level;      /* both pins after the pulse, usually 0 */
+        } pulse;
+    };
+} k_sensor_ircut_caps;
+
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */

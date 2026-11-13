@@ -79,6 +79,50 @@ menu "MPP Configuration"
                     help
                         If board have no Reset, set to -1
 
+                choice
+                    prompt "CSI0 IR-Cut"
+                    default MPP_CSI_DEV0_IRCUT_NONE
+
+                    config MPP_CSI_DEV0_IRCUT_NONE
+                        bool "None"
+                    config MPP_CSI_DEV0_IRCUT_LEVEL
+                        bool "Level hold, one GPIO"
+                    config MPP_CSI_DEV0_IRCUT_PULSE
+                        bool "Pulse, two GPIOs"
+                endchoice
+
+                config MPP_CSI_DEV0_IRCUT_TYPE
+                    int
+                    default 0 if MPP_CSI_DEV0_IRCUT_NONE
+                    default 1 if MPP_CSI_DEV0_IRCUT_LEVEL
+                    default 2 if MPP_CSI_DEV0_IRCUT_PULSE
+
+                config MPP_CSI_DEV0_IRCUT_GPIO
+                    int "CSI0 IR-Cut GPIO" if MPP_CSI_DEV0_IRCUT_LEVEL
+                    default -1
+
+                config MPP_CSI_DEV0_IRCUT_COLOR_LEVEL
+                    int "CSI0 IR-Cut color level" if MPP_CSI_DEV0_IRCUT_LEVEL
+                    range 0 1
+                    default 1
+
+                config MPP_CSI_DEV0_IRCUT_OPEN_GPIO
+                    int "CSI0 IR-Cut open GPIO" if MPP_CSI_DEV0_IRCUT_PULSE
+                    default -1
+
+                config MPP_CSI_DEV0_IRCUT_CLOSE_GPIO
+                    int "CSI0 IR-Cut close GPIO" if MPP_CSI_DEV0_IRCUT_PULSE
+                    default -1
+
+                config MPP_CSI_DEV0_IRCUT_PULSE_MS
+                    int "CSI0 IR-Cut pulse ms" if MPP_CSI_DEV0_IRCUT_PULSE
+                    default 200
+
+                config MPP_CSI_DEV0_IRCUT_IDLE_LEVEL
+                    int "CSI0 IR-Cut idle level" if MPP_CSI_DEV0_IRCUT_PULSE
+                    range 0 1
+                    default 0
+
                 config MPP_CSI_DEV0_I2C_DEV
                     string "CSI0 I2c Bus"
                     default "i2c0"
@@ -124,6 +168,50 @@ menu "MPP Configuration"
                     help
                         If board have no Reset, set to -1
 
+                choice
+                    prompt "CSI1 IR-Cut"
+                    default MPP_CSI_DEV1_IRCUT_NONE
+
+                    config MPP_CSI_DEV1_IRCUT_NONE
+                        bool "None"
+                    config MPP_CSI_DEV1_IRCUT_LEVEL
+                        bool "Level hold, one GPIO"
+                    config MPP_CSI_DEV1_IRCUT_PULSE
+                        bool "Pulse, two GPIOs"
+                endchoice
+
+                config MPP_CSI_DEV1_IRCUT_TYPE
+                    int
+                    default 0 if MPP_CSI_DEV1_IRCUT_NONE
+                    default 1 if MPP_CSI_DEV1_IRCUT_LEVEL
+                    default 2 if MPP_CSI_DEV1_IRCUT_PULSE
+
+                config MPP_CSI_DEV1_IRCUT_GPIO
+                    int "CSI1 IR-Cut GPIO" if MPP_CSI_DEV1_IRCUT_LEVEL
+                    default -1
+
+                config MPP_CSI_DEV1_IRCUT_COLOR_LEVEL
+                    int "CSI1 IR-Cut color level" if MPP_CSI_DEV1_IRCUT_LEVEL
+                    range 0 1
+                    default 1
+
+                config MPP_CSI_DEV1_IRCUT_OPEN_GPIO
+                    int "CSI1 IR-Cut open GPIO" if MPP_CSI_DEV1_IRCUT_PULSE
+                    default -1
+
+                config MPP_CSI_DEV1_IRCUT_CLOSE_GPIO
+                    int "CSI1 IR-Cut close GPIO" if MPP_CSI_DEV1_IRCUT_PULSE
+                    default -1
+
+                config MPP_CSI_DEV1_IRCUT_PULSE_MS
+                    int "CSI1 IR-Cut pulse ms" if MPP_CSI_DEV1_IRCUT_PULSE
+                    default 200
+
+                config MPP_CSI_DEV1_IRCUT_IDLE_LEVEL
+                    int "CSI1 IR-Cut idle level" if MPP_CSI_DEV1_IRCUT_PULSE
+                    range 0 1
+                    default 0
+
                 config MPP_CSI_DEV1_I2C_DEV
                     string "CSI1 I2c Bus"
                     default "i2c1"
@@ -165,6 +253,50 @@ menu "MPP Configuration"
                     default -1
                     help
                         If board have no Reset, set to -1
+
+                choice
+                    prompt "CSI2 IR-Cut"
+                    default MPP_CSI_DEV2_IRCUT_NONE
+
+                    config MPP_CSI_DEV2_IRCUT_NONE
+                        bool "None"
+                    config MPP_CSI_DEV2_IRCUT_LEVEL
+                        bool "Level hold, one GPIO"
+                    config MPP_CSI_DEV2_IRCUT_PULSE
+                        bool "Pulse, two GPIOs"
+                endchoice
+
+                config MPP_CSI_DEV2_IRCUT_TYPE
+                    int
+                    default 0 if MPP_CSI_DEV2_IRCUT_NONE
+                    default 1 if MPP_CSI_DEV2_IRCUT_LEVEL
+                    default 2 if MPP_CSI_DEV2_IRCUT_PULSE
+
+                config MPP_CSI_DEV2_IRCUT_GPIO
+                    int "CSI2 IR-Cut GPIO" if MPP_CSI_DEV2_IRCUT_LEVEL
+                    default -1
+
+                config MPP_CSI_DEV2_IRCUT_COLOR_LEVEL
+                    int "CSI2 IR-Cut color level" if MPP_CSI_DEV2_IRCUT_LEVEL
+                    range 0 1
+                    default 1
+
+                config MPP_CSI_DEV2_IRCUT_OPEN_GPIO
+                    int "CSI2 IR-Cut open GPIO" if MPP_CSI_DEV2_IRCUT_PULSE
+                    default -1
+
+                config MPP_CSI_DEV2_IRCUT_CLOSE_GPIO
+                    int "CSI2 IR-Cut close GPIO" if MPP_CSI_DEV2_IRCUT_PULSE
+                    default -1
+
+                config MPP_CSI_DEV2_IRCUT_PULSE_MS
+                    int "CSI2 IR-Cut pulse ms" if MPP_CSI_DEV2_IRCUT_PULSE
+                    default 200
+
+                config MPP_CSI_DEV2_IRCUT_IDLE_LEVEL
+                    int "CSI2 IR-Cut idle level" if MPP_CSI_DEV2_IRCUT_PULSE
+                    range 0 1
+                    default 0
 
                 config MPP_CSI_DEV2_I2C_DEV
                     string "CSI2 I2c Bus"

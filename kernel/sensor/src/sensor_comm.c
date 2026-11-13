@@ -237,14 +237,32 @@ k_s32 sensor_get_exposure_time_range_common(void *ctx, k_sensor_exposure_time_ra
 }
 
 
-/**
- * @brief Get sensor gain range
- * @note This is a common implementation for all sensors
- *       The gain range is stored in current_mode->ae_info.a_gain
- * @param ctx: sensor device context
- * @param range: pointer to gain range structure
- * @return 0 on success, -1 on failure
- */
+k_s32 sensor_ircut_set_common(void *ctx, k_ircut_mode mode)
+{
+    struct sensor_driver_dev *dev = ctx;
+    k_s32 ret;
+
+    if (!dev || !dev->ircut.isSupport || dev->ircut.type == K_IRCUT_CTRL_NONE)
+        return -1;
+
+    ret = ircut_ctrl_set(dev->sensor_name, &dev->ircut, mode);
+    if (ret)
+        return ret;
+
+    dev->ircut_mode = mode;
+    return 0;
+}
+
+k_s32 sensor_ircut_get_common(void *ctx, k_ircut_mode *mode)
+{
+    struct sensor_driver_dev *dev = ctx;
+
+    if (!dev)
+        return -1;
+
+    return ircut_ctrl_get(&dev->ircut, dev->ircut_mode, mode);
+}
+
 k_s32 sensor_get_gain_range_common(void *ctx, k_sensor_gain_info *range)
 {
     k_s32 ret = 0;
@@ -1042,6 +1060,61 @@ k_s32 sensor_priv_ioctl(struct sensor_driver_dev *dev, k_u32 cmd, void *args)
                 return -1;
             }
 
+            break;
+        }
+        case KD_IOC_SENSOR_S_IRCUT:
+        {
+            k_ircut_mode mode;
+
+            if (sizeof(mode) != lwp_get_from_user(&mode, args, sizeof(mode))) {
+                rt_kprintf("%s:%d lwp_get_from_user err\n", __func__, __LINE__);
+                return -1;
+            }
+            if (dev->sensor_func.sensor_ircut_set == NULL) {
+                rt_kprintf("%s (%s) ircut is not supported\n", __func__, dev->sensor_name);
+                return -1;
+            }
+            ret = dev->sensor_func.sensor_ircut_set(dev, mode);
+            if (ret) {
+                rt_kprintf("%s (%s) sensor_ircut_set err\n", __func__, dev->sensor_name);
+                return -1;
+            }
+            break;
+        }
+        case KD_IOC_SENSOR_G_IRCUT:
+        {
+            k_ircut_mode mode;
+
+            if (dev->sensor_func.sensor_ircut_get == NULL) {
+                rt_kprintf("%s (%s) ircut is not supported\n", __func__, dev->sensor_name);
+                return -1;
+            }
+            ret = dev->sensor_func.sensor_ircut_get(dev, &mode);
+            if (ret) {
+                rt_kprintf("%s (%s) sensor_ircut_get err\n", __func__, dev->sensor_name);
+                return -1;
+            }
+            if (sizeof(mode) != lwp_put_to_user(args, &mode, sizeof(mode))) {
+                rt_kprintf("%s:%d lwp_put_to_user err\n", __func__, __LINE__);
+                return -1;
+            }
+            break;
+        }
+        case KD_IOC_SENSOR_G_IRCUT_CAP:
+        {
+            k_sensor_ircut_caps caps;
+
+            memset(&caps, 0, sizeof(caps));
+            if (dev->sensor_func.sensor_ircut_set != NULL &&
+                dev->ircut.isSupport &&
+                dev->ircut.type != K_IRCUT_CTRL_NONE) {
+                caps = dev->ircut;
+            }
+            if (sizeof(caps) != lwp_put_to_user(args, &caps, sizeof(caps))) {
+                rt_kprintf("%s:%d lwp_put_to_user err\n", __func__, __LINE__);
+                return -1;
+            }
+            ret = 0;
             break;
         }
     	default:

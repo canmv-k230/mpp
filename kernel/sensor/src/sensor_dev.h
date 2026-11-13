@@ -86,6 +86,8 @@ typedef struct {
     k_s32 (*sensor_set_focus_power)(void *ctx, int on_off);
     k_s32 (*sensor_get_exposure_time_range)(void *ctx, k_sensor_exposure_time_range *range);
     k_s32 (*sensor_get_gain_range)(void *ctx, k_sensor_gain_info *range);
+    k_s32 (*sensor_ircut_set)(void *ctx, k_ircut_mode mode);
+    k_s32 (*sensor_ircut_get)(void *ctx, k_ircut_mode *mode);
 } k_sensor_function;
 
 typedef struct {
@@ -113,6 +115,13 @@ struct k_sensor_probe_cfg {
     const char *i2c_name;
     k_s32 pwd_gpio;
     k_s32 reset_gpio;
+    k_ircut_ctrl_type ircut_type;
+    k_s32 ircut_gpio;
+    k_u32 ircut_color_level;
+    k_s32 ircut_open_gpio;
+    k_s32 ircut_close_gpio;
+    k_u32 ircut_pulse_ms;
+    k_u32 ircut_idle_level;
 };
 
 struct sensor_driver_dev {
@@ -140,6 +149,9 @@ struct sensor_driver_dev {
     k_sensor_mode current_sensor_mode;
 
     k_sensor_af_dev *af_dev;
+
+    k_sensor_ircut_caps ircut;      /* filled from CSI board config after probe */
+    k_ircut_mode ircut_mode;        /* last mode applied by sensor_ircut_set */
 };
 
 extern struct sensor_driver_dev g_sensor_drv[3];
@@ -173,6 +185,10 @@ extern k_s32 sensor_imx675_probe(struct k_sensor_probe_cfg *cfg, struct sensor_d
 extern const k_sensor_af_dev af_dev_dw9714p;
 extern k_s32 sensor_get_exposure_time_range_common(void *ctx, k_sensor_exposure_time_range *range);
 extern k_s32 sensor_get_gain_range_common(void *ctx, k_sensor_gain_info *range);
+extern k_s32 sensor_ircut_set_common(void *ctx, k_ircut_mode mode);
+extern k_s32 sensor_ircut_get_common(void *ctx, k_ircut_mode *mode);
+extern k_s32 ircut_ctrl_set(const char *name, const k_sensor_ircut_caps *caps, k_ircut_mode mode);
+extern k_s32 ircut_ctrl_get(const k_sensor_ircut_caps *caps, k_ircut_mode stored, k_ircut_mode *mode);
 
 k_s32 sensor_autofocus_dev_probe(struct sensor_driver_dev *dev);
 k_s32 sensor_autofocus_dev_set_position(void *ctx, k_sensor_focus_pos* pos);

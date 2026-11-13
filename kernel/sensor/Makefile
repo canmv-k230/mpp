@@ -7,7 +7,7 @@ BUILD	:= $(SDK_RTSMART_BUILD_DIR)/mpp/kernel/$(DIR)
 # Direct target path for the library
 LIB		:= $(MPP_KERNEL_LIB_INSTALL_PATH)/lib$(DIR).a
 
-src-y := src/sensor_comm.c src/sensor_dev.c src/autofocus/sensor_autofocus.c
+src-y := src/sensor_comm.c src/sensor_dev.c src/ircut/ircut_ctrl.c src/autofocus/sensor_autofocus.c
 
 src-$(CONFIG_MPP_ENABLE_SENSOR_GC2093) += src/gc2093/gc2093.c
 src-$(CONFIG_MPP_ENABLE_SENSOR_OV5647) += src/ov5647/ov5647.c

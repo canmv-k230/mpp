@@ -1817,6 +1817,31 @@ k_s32 kd_mpi_sensor_get_gain_range(k_s32 fd, k_sensor_gain_info *range)
     return ret;
 }
 
+k_s32 kd_mpi_sensor_ircut_set(k_s32 fd, k_ircut_mode mode)
+{
+    return ioctl(fd, KD_IOC_SENSOR_S_IRCUT, &mode);
+}
+
+k_s32 kd_mpi_sensor_ircut_get(k_s32 fd, k_ircut_mode *mode)
+{
+    if (!mode) {
+        pr_err("%s, mode is null\n", __func__);
+        return K_ERR_VICAP_NULL_PTR;
+    }
+
+    return ioctl(fd, KD_IOC_SENSOR_G_IRCUT, mode);
+}
+
+k_s32 kd_mpi_sensor_get_ircut_caps(k_s32 fd, k_sensor_ircut_caps *caps)
+{
+    if (!caps) {
+        pr_err("%s, caps is null\n", __func__);
+        return K_ERR_VICAP_NULL_PTR;
+    }
+
+    return ioctl(fd, KD_IOC_SENSOR_G_IRCUT_CAP, caps);
+}
+
 k_s32 kd_mpi_sensor_fps_get(k_s32 fd, k_u32 *fps)
 {
     k_s32 ret;
