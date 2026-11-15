@@ -1,7 +1,7 @@
 /**
- * @file mpi_vvi_api.h
+ * @file mpi_connector_api.h
  * @author
- * @brief Defines APIs related to virtual video input device
+ * @brief Defines APIs related to the display connector
  * @version 1.0
  * @date 2022-09-22
  *
