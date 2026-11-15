@@ -35,6 +35,7 @@
 #include <fcntl.h>
 #include <sys/ioctl.h>
 #include <sys/select.h>
+#include <time.h>
 
 #include "uvc_host.h"
 
@@ -240,22 +241,61 @@ void uvc_host_exit()
             printf("VIDIOC_STREAMOFF fail: %s (errno: %d)\n", strerror(errno), errno);
         }
         uvc_dev.is_streamon = false;
-
-        if (fd != -1) {
-            close(fd);
-            uvc_dev.fd = -1;
-        }
     }
+
+    /*
+     * Close even when STREAMON never succeeded: the driver allows one open
+     * file, and CanMV keeps this process across soft resets, so a leaked fd
+     * leaves /dev/video0 busy until reboot.
+     */
+    close(fd);
+    uvc_dev.fd = -1;
 
     uvc_dev.format_valid = false;
     memset(&uvc_dev.format, 0, sizeof(uvc_dev.format));
 
 }
 
+/*
+ * Callers poll get_frame in a loop, so a camera that stalls or disappears
+ * would print on every call (thousands of lines a second after an unplug).
+ * Print the first failure of a kind, then at most one summary per second.
+ */
+struct uvc_err_ratelimit {
+    long long last_ms;
+    unsigned int suppressed;
+};
+
+static long long uvc_now_ms(void)
+{
+    struct timespec ts;
+
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (long long)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+}
+
+/* Returns -1 to stay quiet, else how many failures were suppressed. */
+static int uvc_err_ratelimit(struct uvc_err_ratelimit *rl)
+{
+    long long now = uvc_now_ms();
+    int suppressed;
+
+    if (rl->last_ms && now - rl->last_ms < 1000) {
+        rl->suppressed++;
+        return -1;
+    }
+    rl->last_ms = now;
+    suppressed = rl->suppressed;
+    rl->suppressed = 0;
+    return suppressed;
+}
+
 int uvc_host_get_frame(struct uvc_frame *frame, unsigned int timeout_ms)
 {
+    static struct uvc_err_ratelimit select_rl, dqbuf_rl;
     int fd = uvc_dev.fd;
     int ret = 0;
+    int sel, suppressed;
     fd_set readset;
     struct uvc_ioc_frame ioc_frame = {0};
 
@@ -272,14 +312,24 @@ int uvc_host_get_frame(struct uvc_frame *frame, unsigned int timeout_ms)
     FD_ZERO(&readset);
     FD_SET(fd, &readset);
 
-    if (select(fd + 1, &readset, NULL, NULL, &tv) == 0) {
-        printf("uvc_host_get_frame do select fail\n");
-        ret = -1;
+    sel = select(fd + 1, &readset, NULL, NULL, &tv);
+    if (sel <= 0) {
+        suppressed = uvc_err_ratelimit(&select_rl);
+        if (suppressed >= 0)
+            printf("uvc_host_get_frame: %s (%d more in the last second)\n",
+                   sel == 0 ? "no frame before timeout" : strerror(errno),
+                   suppressed);
+        ret = sel == 0 ? -ETIMEDOUT : -errno;
         goto err;
     }
 
-    if ((ret = ioctl(fd, VIDIOC_DQBUF, &ioc_frame))) {
-        printf("VIDIOC_DQBUF fail: %s (errno: %d)\n", strerror(errno), errno);
+    if (ioctl(fd, VIDIOC_DQBUF, &ioc_frame)) {
+        /* ENODEV: the camera was unplugged; the fd stays dead until closed. */
+        ret = -errno;
+        suppressed = uvc_err_ratelimit(&dqbuf_rl);
+        if (suppressed >= 0)
+            printf("VIDIOC_DQBUF fail: %s (errno: %d, %d more in the last second)\n",
+                   strerror(-ret), -ret, suppressed);
         goto err;
     }
 
