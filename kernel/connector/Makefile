@@ -23,6 +23,7 @@ src-$(CONFIG_MPP_ENABLE_QSPI_LCD) += src/bus/connector_bus_qspi.c
 src-$(CONFIG_MPP_DSI_ENABLE_VIRT) += src/panels/virtual_display.c
 
 src-$(CONFIG_MPP_DSI_ENABLE_HDMI_LT9611) += src/panels/hdmi_lt9611.c
+src-$(CONFIG_MPP_DSI_ENABLE_HDMI_LT9611) += src/panels/hdmi_edid.c
 src-$(CONFIG_MPP_DSI_ENABLE_LCD_HX8399) += src/panels/mipi_hx8399.c
 src-$(CONFIG_MPP_DSI_ENABLE_LCD_ST7701) += src/panels/mipi_st7701.c
 src-$(CONFIG_MPP_DSI_ENABLE_LCD_ILI9806) += src/panels/mipi_ili9806.c

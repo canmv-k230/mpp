@@ -254,10 +254,24 @@ static k_s32 connector_dev_ioctl(struct dfs_fd* file, k_s32 cmd, void* args)
             return -1;
         }
 
+        /* A run-time mode (EDID): report the timing init will use. Under the
+         * lock: resolving may touch the panel, which init also does. */
+        if (found_panel->ops && found_panel->ops->resolve) {
+            static struct panel_desc resolved;
+
+            rt_mutex_take(&g_connector_dev.lock, RT_WAITING_FOREVER);
+            if (found_panel->ops->resolve(found_panel, &resolved) == 0)
+                rt_memcpy(&info.timing, &resolved.timing, sizeof(k_vo_timing));
+            else
+                rt_memcpy(&info.timing, &found_panel->timing, sizeof(k_vo_timing));
+            rt_mutex_release(&g_connector_dev.lock);
+        } else {
+            rt_memcpy(&info.timing, &found_panel->timing, sizeof(k_vo_timing));
+        }
+
         rt_strncpy(info.connector_name, found_connector_name, sizeof(info.connector_name) - 1);
         info.connector_name[sizeof(info.connector_name) - 1] = '\0';
         info.type                                            = query_type;
-        rt_memcpy(&info.timing, &found_panel->timing, sizeof(k_vo_timing));
 
         info.bg_color = found_panel->bg_color;
 
@@ -329,7 +343,10 @@ static k_s32 connector_dev_ioctl(struct dfs_fd* file, k_s32 cmd, void* args)
             }
         }
 
-        rt_memcpy(&g_connector_dev.active_panel, panel, sizeof(g_connector_dev.active_panel));
+        /* A run-time mode is resolved now that no session uses the panel. */
+        if (!panel->ops || !panel->ops->resolve ||
+            panel->ops->resolve(panel, &g_connector_dev.active_panel) != 0)
+            rt_memcpy(&g_connector_dev.active_panel, panel, sizeof(g_connector_dev.active_panel));
         g_connector_dev.selected_panel = &g_connector_dev.active_panel;
         g_connector_dev.state = CONNECTOR_STATE_STARTING;
 

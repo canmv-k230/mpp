@@ -41,3 +41,18 @@ The runtime tests use mocks where device or network services are required;
 passing them does not validate a real camera, encoder or RTSP connection.
 Integration placeholders in `tests/test_integration_scaffold.cpp` are disabled
 TODOs, not completed coverage. See [TEST_SUGGESTIONS.md](TEST_SUGGESTIONS.md).
+
+## Connector tests
+
+Run with Python 3 and a host C compiler with AddressSanitizer and
+UndefinedBehaviorSanitizer:
+
+```sh
+python3 -B unit_test/connector/test_hdmi_edid.py
+python3 -B unit_test/connector/test_panel_video1_vporch.py
+```
+
+The EDID test builds the production parser and checks preferred and fallback
+modes, pixel clock and sink limits, and invalid checksums. The porch test
+checks the timing helper and fixed panel descriptors. These tests need only
+published connector sources and headers; they do not validate HDMI hardware.

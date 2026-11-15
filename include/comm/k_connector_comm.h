@@ -145,6 +145,9 @@ typedef k_u32 k_connector_type;
 #define LT9611_1280_720_HDMI_V5     K_CONN_TYPE(K_CHIP_LT9611,  K_BUS_HDMI, 1280,  720, 5) /* 50fps */
 #define LT9611_1280_720_HDMI_V6     K_CONN_TYPE(K_CHIP_LT9611,  K_BUS_HDMI, 1280,  720, 6) /* 30fps */
 #define LT9611_640_480_HDMI_V2      K_CONN_TYPE(K_CHIP_LT9611,  K_BUS_HDMI,  640,  480, 2) /* 60fps */
+/* The mode from the sink's EDID, resolved at init (fallback: K230 custom 1080p60).
+ * The resolution is not in the id: read it with KD_IOC_CONNECTOR_GET_PANEL_INFO. */
+#define LT9611_HDMI_AUTO            K_CONN_TYPE(K_CHIP_LT9611,  K_BUS_HDMI,    0,    0, 1)
 
 /* SPI / SPI-like panels */
 #define ST7789_320_240_SPI_V1       K_CONN_TYPE(K_CHIP_ST7789,   K_BUS_SPI,  320,  240, 1)

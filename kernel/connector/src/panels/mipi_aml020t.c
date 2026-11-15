@@ -104,7 +104,10 @@ static const struct panel_desc aml020t_panel_desc = {
          .vactive = 360,
          .vsync_len = 8,
          .vback_porch = 20,
-         .vfront_porch = 20,
+         /* 20 + 8 lines after active is short of the 33 a full-height
+          * VIDEO1 layer needs (PANEL_VIDEO1_MIN_TAIL_LINES); 5 more lines
+          * of front porch: 49.9 Hz instead of 50.6. */
+         .vfront_porch = 25,
      },
 
     .bg_color = PANEL_BG_COLOR_BLACK,

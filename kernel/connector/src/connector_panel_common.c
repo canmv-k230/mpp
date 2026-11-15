@@ -252,6 +252,24 @@ int panel_generic_backlight(const struct panel_desc* desc, k_u32 mode, k_u32 dut
  * Note: GPIO reset and backlight are handled in connector_power IOCTL,
  * NOT here. This matches the original driver split between power and init.
  */
+k_bool panel_timing_video1_vporch(k_vo_timing* t)
+{
+    k_u32 tail, need, spare;
+
+    if (!t)
+        return K_FALSE;
+    tail = t->vfront_porch + t->vsync_len;
+    if (tail >= PANEL_VIDEO1_MIN_TAIL_LINES)
+        return K_TRUE;
+    need  = PANEL_VIDEO1_MIN_TAIL_LINES - tail;
+    spare = t->vback_porch > PANEL_MIN_VBACK_PORCH ? t->vback_porch - PANEL_MIN_VBACK_PORCH : 0;
+    if (need > spare)
+        need = spare;
+    t->vback_porch -= need;
+    t->vfront_porch += need;
+    return t->vfront_porch + t->vsync_len >= PANEL_VIDEO1_MIN_TAIL_LINES;
+}
+
 k_s32 panel_generic_power_on(struct panel_desc* desc)
 {
     k_s32 ret = 0;
@@ -352,6 +370,15 @@ k_s32 panel_generic_power_on(struct panel_desc* desc)
         ret = sw_bridge_start(desc);
         if (ret != 0) {
             rt_kprintf("panel_generic_power_on: sw_bridge_start failed: %d\n", ret);
+            return ret;
+        }
+    }
+
+    /* VO now scans out: the bus carries video. */
+    if (desc->ops->post_enable) {
+        ret = desc->ops->post_enable(desc);
+        if (ret != 0) {
+            rt_kprintf("panel_generic_power_on: ops->post_enable failed: %d\n", ret);
             return ret;
         }
     }

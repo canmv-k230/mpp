@@ -153,12 +153,69 @@ struct panel_ops {
      * Returns: 24-bit chip ID on success, 0 if not supported/not readable
      */
     k_u32 (*read_chip_id)(const struct panel_desc* desc);
+
+    /**
+     * post_enable - After the bus started sending video (OPTIONAL)
+     * @desc: Panel descriptor
+     *
+     * Called once the bus is enabled and VO scans out (for DSI: video runs).
+     * For bridges that recover the pixel clock from their input (an HDMI
+     * bridge's PCR) and so cannot finish in init, which runs before video,
+     * and to check the input they receive.
+     *
+     * Returns: 0 on success, negative error code on failure
+     */
+    int (*post_enable)(const struct panel_desc* desc);
+
+    /**
+     * resolve - Make the concrete descriptor for a run-time mode (OPTIONAL)
+     * @desc: Panel descriptor as registered (its timing is the fallback)
+     * @out: Descriptor to use: panel info and init take this one
+     *
+     * For outputs whose timing is chosen at run time (an HDMI bridge reading
+     * the sink's EDID). Called for GET_PANEL_INFO and before power-on.
+     *
+     * Returns: 0 on success (@out filled), negative error code on failure
+     */
+    int (*resolve)(const struct panel_desc* desc, struct panel_desc* out);
 };
 
 /**
  * Panel descriptor structure
  * Canonical descriptor for panel configuration and initialization
  */
+/*
+ * VIDEO1 (RDMA1) takes a bank switch cleanly only when its layer ends at
+ * least this many lines before the end of the VO frame. For a full-height
+ * layer that is the vertical front porch plus the sync (VO puts the back
+ * porch at the start of its frame). Measured with WBC captures on k230-2:
+ *
+ * - 1080p60 broken at 9 and 29 lines (4+5, 24+5), clean at 33 (28+5, 24+9);
+ * - CEA 720p (5+5) and 480p60 VESA (10+2) broken;
+ * - custom 480p60 35, 720p50 39, 720p60 49, ST7701 480x640 45, HX8399 174
+ *   clean.
+ *
+ * Short of it, frames show only the top of the layer (60 Hz modes, every
+ * frame after a switch) or the whole picture rolled (long-line modes such as
+ * 720p30). See docs/issues/k230-vo-video1-green-flicker.md in the SDK, and
+ * the VIDEO1 (RDMA1) scanout constraints.
+ *
+ * Timings made at run time (EDID, virtual display) are moved towards this by
+ * panel_timing_video1_vporch(). Fixed descriptors are left as their standards
+ * define them: the CEA-861 `_vesa` modes are below it, the K230 custom and
+ * LCD timings meet it.
+ */
+#define PANEL_VIDEO1_MIN_TAIL_LINES 33
+#define PANEL_MIN_VBACK_PORCH       8
+
+/* Moves lines from the vertical back porch to the front porch until the
+ * front porch plus sync reaches PANEL_VIDEO1_MIN_TAIL_LINES, keeping
+ * PANEL_MIN_VBACK_PORCH. Totals, and so refresh and pixel clock, do not
+ * change. Returns K_TRUE if @t then meets the rule; K_FALSE if its vertical
+ * blank is too short (CEA 720p has 30 lines), so a full-height VIDEO1 layer
+ * will not show cleanly in it. */
+k_bool panel_timing_video1_vporch(k_vo_timing* t);
+
 struct panel_desc {
     const char*         name;
     k_u32               connector_type;

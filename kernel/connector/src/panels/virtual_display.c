@@ -146,6 +146,11 @@ k_s32 virtdev_calculate_timings(k_u32 hdisplay, k_u32 vdisplay, k_u32 fps, struc
     }
     runtime_desc->timing.vback_porch  = (vblank * 3) / 8;
     runtime_desc->timing.vfront_porch = vblank - (runtime_desc->timing.vsync_len + runtime_desc->timing.vback_porch);
+    /* At minimum blanking the front porch is about 19 lines: short of what
+     * hardware VIDEO1 needs for a full-height layer. */
+    if (!panel_timing_video1_vporch(&runtime_desc->timing))
+        rt_kprintf("virtdev: %u lines of vertical blank, too few for a full-height hardware VIDEO1 layer\n",
+                   vblank);
 
 #if 0
     {
