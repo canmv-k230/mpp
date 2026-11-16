@@ -693,7 +693,12 @@ static const struct panel_desc st7701_480x640_panel_desc = {
         .reset_delay_ms = 10,
         .backlight_delay_ms = 0,
         .reset_active_low = K_TRUE,
+#if defined(CONFIG_BOARD_K230_CANMV_DONGSHANPI_V3)
+        /* V3 uses a P-channel backlight switch on GPIO25. */
+        .backlight_active_low = K_TRUE,
+#else
         .backlight_active_low = K_FALSE,
+#endif
     },
 
     .bus.dsi = {
