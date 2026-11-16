@@ -26,7 +26,7 @@
 #include "vo_cfg.h"
 
 #define AUDIO_PERSEC_DIV_NUM 25
-#define BIND_VO_LAYER 1
+#define BIND_VO_LAYER K_VO_LAYER_VIDEO0
 #define VI_ALIGN_UP(addr, size) (((addr) + ((size)-1U)) & (~((size)-1U)))
 
 static k_s32 g_mmap_fd_tmp = 0;

@@ -35,6 +35,13 @@ Video Layer supported pixel format
 
     PIXEL_FORMAT_YUV_SEMIPLANAR_420
 
+Video Layer routing
+
+    K_VO_LAYER_VIDEO0 -> hardware VIDEO3
+    K_VO_LAYER_VIDEO1 -> hardware VIDEO2
+    K_VO_LAYER_VIDEO2 -> hardware VIDEO1
+    K_VO_LAYER_VIDEO3 -> hardware VIDEO0 (unsupported)
+
 OSD Layer supported pixel format
 
     PIXEL_FORMAT_RGB_565

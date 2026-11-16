@@ -65,11 +65,15 @@ typedef struct {
     k_gdma_rotation_e dev_rot_flg;
 } k_vo_dev_attr;
 
+/* Logical API layer IDs. Video layers are routed in reverse hardware order:
+ * VIDEO0 -> hardware VIDEO3, VIDEO1 -> hardware VIDEO2,
+ * VIDEO2 -> hardware VIDEO1, VIDEO3 -> hardware VIDEO0. VIDEO3 is unsupported
+ * because hardware VIDEO0 is unreliable. Numeric IDs remain ABI-compatible. */
 typedef enum {
-    K_VO_LAYER_VIDEO0 = 0, // current can not use this layer.
+    K_VO_LAYER_VIDEO0 = 0,
     K_VO_LAYER_VIDEO1 = 1,
     K_VO_LAYER_VIDEO2 = 2,
-    K_VO_LAYER_VIDEO3 = 3,
+    K_VO_LAYER_VIDEO3 = 3, // Unsupported.
     K_VO_LAYER_OSD0   = 4,
     K_VO_LAYER_OSD1   = 5,
     K_VO_LAYER_OSD2   = 6,
@@ -88,14 +92,14 @@ typedef struct {
 } k_vo_size;
 
 typedef struct {
-    k_vo_layer_id     layer_id; // Unique identifier for the hardware video layer
+    k_vo_layer_id     layer_id; // Logical video/OSD layer identifier
     k_vo_position     position; // Display coordinates (x, y) on the screen
     k_vo_size         img_size; // Dimensions (width, height) of the input image
     k_pixel_format    pixel_format; // Input format; note: for video layer only PIXEL_FORMAT_YUV_SEMIPLANAR_420 is supported
     k_gdma_rotation_e func; // Rotation angle or mirroring mode (handled by GDMA)
     k_u8              global_alpha; // Transparency level (0: fully transparent, 255: fully opaque)
     /* Separate GDMA output pool, in addition to the producer's source pool.
-     * Zero defaults to two; rotated VIDEO1 enforces a minimum of two,
+     * Zero defaults to two; rotated VIDEO2 enforces a minimum of two,
      * including rotation inherited from the panel/device. Two save memory
      * by repeating scanout while the old output retires; five cover two bank
      * references, two retired outputs and one fresh GDMA destination.
@@ -106,6 +110,10 @@ typedef struct {
     k_u8              rot_buf_bpp; // Bytes per pixel for rot-buffer; 0 to auto-calculate, 4 for dynamic format switching
 } k_vo_layer_attr;
 
+/* layerN_sel addresses API layer N and holds its mix priority. The driver
+ * translates video-layer field positions to hardware IDs; OSD fields retain
+ * their numbering. K_VO_DEFAULT_MIX_ORDER specifies the default API order.
+ */
 struct vo_disp_layer_mix_priority_t {
     union {
         struct {
