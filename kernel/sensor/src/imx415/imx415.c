@@ -100,6 +100,12 @@
 #if defined (CONFIG_MPP_ENABLE_CSI_DEV_0)
     #include "sensor_csi0_mode_list.c"
 #endif // CONFIG_MPP_ENABLE_CSI_DEV_0
+#if defined (CONFIG_MPP_ENABLE_CSI_DEV_1)
+    #include "sensor_csi1_mode_list.c"
+#endif // CONFIG_MPP_ENABLE_CSI_DEV_1
+#if defined (CONFIG_MPP_ENABLE_CSI_DEV_2)
+    #include "sensor_csi2_mode_list.c"
+#endif // CONFIG_MPP_ENABLE_CSI_DEV_2
 
 static k_s32 _sensor_read_chip_id_r(struct sensor_driver_dev *dev, k_u32 *chip_id)
 {
@@ -640,10 +646,9 @@ static k_s32 sensor_get_fps_impl(void *ctx, k_u32 *fps)
 {
     k_s32 ret = 0;
     struct sensor_driver_dev *dev = ctx;
-    (void)dev;
 
     pr_info("%s enter, %s\n", __func__, dev->sensor_name);
-    *fps = 30000;
+    *fps = dev->current_sensor_mode.fps ? dev->current_sensor_mode.fps : 30000;
 
     return ret;
 }
@@ -792,7 +797,10 @@ k_s32 sensor_imx415_probe(struct k_sensor_probe_cfg *cfg, struct sensor_driver_d
     k_u32 chip_id = 0;
     const k_sensor_mode *sensor_mode = NULL;
 
-    /* IMX415 currently only has CSI0 4-lane modes in this driver. */
+    /* CSI0: 2-lane 15/25/30fps, plus 4-lane 30fps when that option is on.
+     * CSI1/CSI2: 2-lane 15/25/30fps. 4-lane uses PHY0+PHY1 and stays on CSI0.
+     * The 2-lane 30fps mode is 1782 Mbps (PHY 1800M).
+     */
 #if defined (CONFIG_MPP_ENABLE_CSI_DEV_0)
     if(0x00 == cfg->csi_num) {
         dev->mode_count = sizeof(sensor_csi0_mode_list) / sizeof(sensor_csi0_mode_list[0]);
@@ -800,6 +808,20 @@ k_s32 sensor_imx415_probe(struct k_sensor_probe_cfg *cfg, struct sensor_driver_d
         sensor_mode = &dev->sensor_mode_list[0];
     }
 #endif // CONFIG_MPP_ENABLE_CSI_DEV_0
+#if defined (CONFIG_MPP_ENABLE_CSI_DEV_1)
+    if(0x01 == cfg->csi_num) {
+        dev->mode_count = sizeof(sensor_csi1_mode_list) / sizeof(sensor_csi1_mode_list[0]);
+        dev->sensor_mode_list = &sensor_csi1_mode_list[0];
+        sensor_mode = &dev->sensor_mode_list[0];
+    }
+#endif // CONFIG_MPP_ENABLE_CSI_DEV_1
+#if defined (CONFIG_MPP_ENABLE_CSI_DEV_2)
+    if(0x02 == cfg->csi_num) {
+        dev->mode_count = sizeof(sensor_csi2_mode_list) / sizeof(sensor_csi2_mode_list[0]);
+        dev->sensor_mode_list = &sensor_csi2_mode_list[0];
+        sensor_mode = &dev->sensor_mode_list[0];
+    }
+#endif // CONFIG_MPP_ENABLE_CSI_DEV_2
 
     if(0x00 == dev->mode_count) {
         goto _on_failed;

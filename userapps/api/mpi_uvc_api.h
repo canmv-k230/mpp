@@ -58,6 +58,8 @@ extern "C" {
 ///////////////////////////////////////////////////////////////////////////////
 // UVC Host ///////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
+#define UVC_HOST_MAX_DEVICES 8U
+
 struct uvc_frame {
     unsigned int index;
     unsigned int bytesused;
@@ -75,6 +77,13 @@ struct uvc_format {
     unsigned int frameinterval;
 };
 
+/* Select /dev/video<index> (index < UVC_HOST_MAX_DEVICES) while closed.
+ * Default: video0. This is the API index limit; the kernel configuration and
+ * attached cameras determine which device nodes are available.
+ * Returns -EINVAL for an invalid index, -EBUSY if already initialized.
+ * The selection persists across uvc_host_exit() and mode changes until it
+ * is selected again. */
+int uvc_host_select_device(unsigned int index);
 int uvc_host_init(struct uvc_format *fmt);
 int uvc_host_start_stream(void);
 int uvc_host_get_frame(struct uvc_frame *frame, unsigned int timeout_ms);
@@ -82,7 +91,7 @@ int uvc_host_put_frame(struct uvc_frame *frame);
 int uvc_host_raw_to_nv12(const struct uvc_frame *frame, void *dst, size_t dst_len);
 int uvc_host_raw_to_rgb565(const struct uvc_frame *frame, void *dst, size_t dst_len);
 int uvc_host_raw_to_yuyv(const struct uvc_frame *frame, void *dst, size_t dst_len);
-void uvc_host_exit();
+void uvc_host_exit(void);
 
 int uvc_host_get_devinfo(char *info, int len);
 int uvc_host_get_formats(struct uvc_format **fmts);

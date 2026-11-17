@@ -43,6 +43,11 @@ struct uvc_device {
     bool format_valid;
     struct uvc_format format;
     char *frame_buf[BUF_CNT];
+    size_t frame_buf_len[BUF_CNT];
+    unsigned int buf_cnt;   /* buffers queued at init */
+    unsigned int dq_cnt;    /* buffers currently dequeued by the caller */
+    unsigned int mjpeg_mismatch_cnt;  /* consecutive MJPEG frames of another size */
+    bool mjpeg_size_check_off;        /* camera's JPEG size differs for good; pass it through */
 };
 
 struct uvc_fmtdesc {

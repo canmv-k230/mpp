@@ -1261,6 +1261,60 @@ static const k_vicap_sensor_info sensor_info_list[] = {
 
 #if defined (CONFIG_MPP_ENABLE_SENSOR_IMX415)
 #if defined (CONFIG_MPP_ENABLE_CSI_DEV_0)
+    {
+        "imx415_csi0",
+        "imx415-3840x2160",
+        3840,
+        2160,
+        VICAP_CSI0,
+        VICAP_MIPI_2LANE,
+        VICAP_SOURCE_CSI0,
+        K_TRUE,
+        VICAP_MIPI_PHY_891M,
+        VICAP_CSI_DATA_TYPE_RAW10,
+        VICAP_LINERA_MODE,
+        VICAP_FLASH_DISABLE,
+        VICAP_VI_FIRST_FRAME_FS_TR0,
+        0,
+        15,
+        IMX415_MIPI_CSI0_2LANE_3840X2160_15FPS_10BIT_LINEAR,
+    },
+    {
+        "imx415_csi0",
+        "imx415-3840x2160",
+        3840,
+        2160,
+        VICAP_CSI0,
+        VICAP_MIPI_2LANE,
+        VICAP_SOURCE_CSI0,
+        K_TRUE,
+        VICAP_MIPI_PHY_1500M,
+        VICAP_CSI_DATA_TYPE_RAW10,
+        VICAP_LINERA_MODE,
+        VICAP_FLASH_DISABLE,
+        VICAP_VI_FIRST_FRAME_FS_TR0,
+        0,
+        25,
+        IMX415_MIPI_CSI0_2LANE_3840X2160_25FPS_10BIT_LINEAR,
+    },
+    {
+        "imx415_csi0",
+        "imx415-3840x2160",
+        3840,
+        2160,
+        VICAP_CSI0,
+        VICAP_MIPI_2LANE,
+        VICAP_SOURCE_CSI0,
+        K_TRUE,
+        VICAP_MIPI_PHY_1800M,
+        VICAP_CSI_DATA_TYPE_RAW10,
+        VICAP_LINERA_MODE,
+        VICAP_FLASH_DISABLE,
+        VICAP_VI_FIRST_FRAME_FS_TR0,
+        0,
+        30,
+        IMX415_MIPI_CSI0_2LANE_3840X2160_30FPS_10BIT_LINEAR,
+    },
 #if defined (CONFIG_MPP_SENSOR_IMX415_ENABLE_4LANE_CONFIGURE)
     {
         "imx415_csi0",
@@ -1282,6 +1336,118 @@ static const k_vicap_sensor_info sensor_info_list[] = {
     },
 #endif // CONFIG_MPP_SENSOR_IMX415_ENABLE_4LANE_CONFIGURE
 #endif // CONFIG_MPP_ENABLE_CSI_DEV_0
+#if defined (CONFIG_MPP_ENABLE_CSI_DEV_1)
+    {
+        "imx415_csi1",
+        "imx415-3840x2160",
+        3840,
+        2160,
+        VICAP_CSI1,
+        VICAP_MIPI_2LANE,
+        VICAP_SOURCE_CSI1,
+        K_TRUE,
+        VICAP_MIPI_PHY_891M,
+        VICAP_CSI_DATA_TYPE_RAW10,
+        VICAP_LINERA_MODE,
+        VICAP_FLASH_DISABLE,
+        VICAP_VI_FIRST_FRAME_FS_TR0,
+        0,
+        15,
+        IMX415_MIPI_CSI1_2LANE_3840X2160_15FPS_10BIT_LINEAR,
+    },
+    {
+        "imx415_csi1",
+        "imx415-3840x2160",
+        3840,
+        2160,
+        VICAP_CSI1,
+        VICAP_MIPI_2LANE,
+        VICAP_SOURCE_CSI1,
+        K_TRUE,
+        VICAP_MIPI_PHY_1500M,
+        VICAP_CSI_DATA_TYPE_RAW10,
+        VICAP_LINERA_MODE,
+        VICAP_FLASH_DISABLE,
+        VICAP_VI_FIRST_FRAME_FS_TR0,
+        0,
+        25,
+        IMX415_MIPI_CSI1_2LANE_3840X2160_25FPS_10BIT_LINEAR,
+    },
+    {
+        "imx415_csi1",
+        "imx415-3840x2160",
+        3840,
+        2160,
+        VICAP_CSI1,
+        VICAP_MIPI_2LANE,
+        VICAP_SOURCE_CSI1,
+        K_TRUE,
+        VICAP_MIPI_PHY_1800M,
+        VICAP_CSI_DATA_TYPE_RAW10,
+        VICAP_LINERA_MODE,
+        VICAP_FLASH_DISABLE,
+        VICAP_VI_FIRST_FRAME_FS_TR0,
+        0,
+        30,
+        IMX415_MIPI_CSI1_2LANE_3840X2160_30FPS_10BIT_LINEAR,
+    },
+#endif // CONFIG_MPP_ENABLE_CSI_DEV_1
+#if defined (CONFIG_MPP_ENABLE_CSI_DEV_2)
+    {
+        "imx415_csi2",
+        "imx415-3840x2160",
+        3840,
+        2160,
+        VICAP_CSI2,
+        VICAP_MIPI_2LANE,
+        VICAP_SOURCE_CSI2,
+        K_TRUE,
+        VICAP_MIPI_PHY_891M,
+        VICAP_CSI_DATA_TYPE_RAW10,
+        VICAP_LINERA_MODE,
+        VICAP_FLASH_DISABLE,
+        VICAP_VI_FIRST_FRAME_FS_TR0,
+        0,
+        15,
+        IMX415_MIPI_CSI2_2LANE_3840X2160_15FPS_10BIT_LINEAR,
+    },
+    {
+        "imx415_csi2",
+        "imx415-3840x2160",
+        3840,
+        2160,
+        VICAP_CSI2,
+        VICAP_MIPI_2LANE,
+        VICAP_SOURCE_CSI2,
+        K_TRUE,
+        VICAP_MIPI_PHY_1500M,
+        VICAP_CSI_DATA_TYPE_RAW10,
+        VICAP_LINERA_MODE,
+        VICAP_FLASH_DISABLE,
+        VICAP_VI_FIRST_FRAME_FS_TR0,
+        0,
+        25,
+        IMX415_MIPI_CSI2_2LANE_3840X2160_25FPS_10BIT_LINEAR,
+    },
+    {
+        "imx415_csi2",
+        "imx415-3840x2160",
+        3840,
+        2160,
+        VICAP_CSI2,
+        VICAP_MIPI_2LANE,
+        VICAP_SOURCE_CSI2,
+        K_TRUE,
+        VICAP_MIPI_PHY_1800M,
+        VICAP_CSI_DATA_TYPE_RAW10,
+        VICAP_LINERA_MODE,
+        VICAP_FLASH_DISABLE,
+        VICAP_VI_FIRST_FRAME_FS_TR0,
+        0,
+        30,
+        IMX415_MIPI_CSI2_2LANE_3840X2160_30FPS_10BIT_LINEAR,
+    },
+#endif // CONFIG_MPP_ENABLE_CSI_DEV_2
 #endif // CONFIG_MPP_ENABLE_SENSOR_IMX415
 
 #if defined (CONFIG_MPP_ENABLE_SENSOR_IMX675)
@@ -2313,12 +2479,29 @@ static k_s32 kd_mpi_sensor_adapt_get_impl(k_vicap_probe_config *config,
     {
         qsort(&info_list[0], sensor_info_count, sizeof(k_vicap_sensor_info), compare_sensor_info);
 
-        /* first find wanted fps */
+        /* Exact fps. 1800M is only used when nothing else matches that
+         * fps, so 3840x2160@30 keeps the 4-lane mode when it is built. */
         if(0x00 != config->fps)
         {
             for (k_u32 i = 0; i < sensor_info_count; i++)
             {
                 p_info_list = &info_list[i];
+
+                if (p_info_list->phy_freq == VICAP_MIPI_PHY_1800M)
+                    continue;
+
+                if ((config->width == p_info_list->width) && (config->height == p_info_list->height) && (config->fps == p_info_list->fps))
+                {
+                    memcpy(info, p_info_list, sizeof(k_vicap_sensor_info));
+                    goto _on_success;
+                }
+            }
+            for (k_u32 i = 0; i < sensor_info_count; i++)
+            {
+                p_info_list = &info_list[i];
+
+                if (p_info_list->phy_freq != VICAP_MIPI_PHY_1800M)
+                    continue;
 
                 if ((config->width == p_info_list->width) && (config->height == p_info_list->height) && (config->fps == p_info_list->fps))
                 {
@@ -2328,10 +2511,15 @@ static k_s32 kd_mpi_sensor_adapt_get_impl(k_vicap_probe_config *config,
             }
         }
 
-        /* find same resolution */
+        /* Same resolution without an fps match. 1500M and 1800M stay off
+         * this path so a request that does not name their fps stays on 891M. */
         for (k_u32 i = 0; i < sensor_info_count; i++)
         {
             p_info_list = &info_list[i];
+
+            if (p_info_list->phy_freq == VICAP_MIPI_PHY_1500M ||
+                p_info_list->phy_freq == VICAP_MIPI_PHY_1800M)
+                continue;
 
             if ((config->width == p_info_list->width) && (config->height == p_info_list->height) /* && (config->fps == p_info_list->fps) */)
             {
@@ -2345,7 +2533,28 @@ static k_s32 kd_mpi_sensor_adapt_get_impl(k_vicap_probe_config *config,
         {
             p_info_list = &info_list[i];
 
+            if (p_info_list->phy_freq == VICAP_MIPI_PHY_1500M ||
+                p_info_list->phy_freq == VICAP_MIPI_PHY_1800M)
+                continue;
+
             if ((config->width <= p_info_list->width) && (config->height <= p_info_list->height) /* && (config->fps == p_info_list->fps) */)
+            {
+                memcpy(info, p_info_list, sizeof(k_vicap_sensor_info));
+                goto _on_success;
+            }
+        }
+
+        /* Last resort when every non-1500M/1800M mode is smaller than the
+         * request. IMX415 always has an 891M mode at the same resolution, so
+         * this loop does not run for it; it covers a list that only has 1500M. */
+        for (k_u32 i = 0; i < sensor_info_count; i++)
+        {
+            p_info_list = &info_list[i];
+
+            if (p_info_list->phy_freq != VICAP_MIPI_PHY_1500M)
+                continue;
+
+            if ((config->width <= p_info_list->width) && (config->height <= p_info_list->height))
             {
                 memcpy(info, p_info_list, sizeof(k_vicap_sensor_info));
                 goto _on_success;

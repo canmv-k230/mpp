@@ -395,9 +395,10 @@ menu "MPP Configuration"
         menuconfig MPP_ENABLE_SENSOR_IMX415
             bool "Enable IMX415"
             default n
-            depends on MPP_CSI0_LINK_MODE_4LANE
+            depends on MPP_ENABLE_CSI_DEV_0 || MPP_ENABLE_CSI_DEV_1 || MPP_ENABLE_CSI_DEV_2
             help
-              IMX415 is CSI0 4-lane only; available when CSI0 link mode is 4LANE.
+              IMX415 2-lane 3840x2160 modes on each enabled CSI.
+              The 4-lane 3840x2160@30 mode is CSI0 only.
 
             if MPP_ENABLE_SENSOR_IMX415
 
@@ -417,6 +418,22 @@ menu "MPP Configuration"
                     help
                       Waveshare IMX415-98 has an on-module 37.125 MHz crystal;
                       leave this disabled unless the board has no sensor crystal.
+
+                config MPP_SENSOR_IMX415_ON_CSI1_USE_CHIP_CLK
+                    bool "IMX415 On CSI1 Use CHIP MCLK"
+                    default n
+                    depends on MPP_ENABLE_CSI_DEV_1
+                    help
+                      Same as the CSI0 option. The module crystal is used unless
+                      this board has no sensor crystal.
+
+                config MPP_SENSOR_IMX415_ON_CSI2_USE_CHIP_CLK
+                    bool "IMX415 On CSI2 Use CHIP MCLK"
+                    default n
+                    depends on MPP_ENABLE_CSI_DEV_2
+                    help
+                      Same as the CSI0 option. The module crystal is used unless
+                      this board has no sensor crystal.
             endif
 
         menuconfig MPP_ENABLE_SENSOR_SC132GS

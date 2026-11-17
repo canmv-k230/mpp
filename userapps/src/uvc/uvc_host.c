@@ -46,6 +46,28 @@
 #define UVC_HOST_RVV_CHUNK_PAIRS 64U
 
 static struct uvc_device uvc_dev = {.fd = -1, .is_streamon = false, .format_valid = false};
+static unsigned int uvc_device_index = 0;
+
+static int uvc_host_open_selected_device(void)
+{
+    char path[32];
+
+    snprintf(path, sizeof(path), "/dev/video%u", uvc_device_index);
+    return open(path, O_RDWR);
+}
+
+int uvc_host_select_device(unsigned int index)
+{
+    if (index >= UVC_HOST_MAX_DEVICES) {
+        return -EINVAL;
+    }
+    if (uvc_dev.fd >= 0) {
+        return -EBUSY;
+    }
+
+    uvc_device_index = index;
+    return 0;
+}
 
 extern void *hal_rvv_memcpy(void *dst, const void *src, size_t n);
 
@@ -68,6 +90,8 @@ static void uvc_public_to_ioc_frame(struct uvc_ioc_frame *dst, const struct uvc_
 
 #define uvc_host_get_current_format() uvc_host_get_current_format_impl(__func__)
 
+static void uvc_host_close(void);
+
 int uvc_host_init(struct uvc_format *fmt)
 {
     int fd;
@@ -80,16 +104,10 @@ int uvc_host_init(struct uvc_format *fmt)
     struct uvc_framedesc frame_desc;
     struct uvc_fpsdesc fps_desc;
 
-    if(0 <= uvc_dev.fd) {
-        uvc_host_exit();
-    }
+    /* A mode change must reopen the same selected camera. */
+    uvc_host_close();
 
-    uvc_dev.fd = -1;
-    uvc_dev.is_streamon = false;
-    uvc_dev.format_valid = false;
-    memset(&uvc_dev.format, 0, sizeof(uvc_dev.format));
-
-    fd = open("/dev/video0", O_RDWR);
+    fd = uvc_host_open_selected_device();
     if (fd < 0) {
         printf("open dev fail: %s (errno: %d)\n", strerror(errno), errno);
         return -1;
@@ -113,7 +131,6 @@ int uvc_host_init(struct uvc_format *fmt)
             printf("wWidth: %4d, wHeight: %4d, DefaultFrameInterval: %d\n",
                    frame_desc.width, frame_desc.height, frame_desc.defaultframeinterval);
 #endif
-
             fps_desc.fourcc = fmt_desc.fourcc;
             fps_desc.width = frame_desc.width;
             fps_desc.height = frame_desc.height;
@@ -162,6 +179,12 @@ int uvc_host_init(struct uvc_format *fmt)
         printf("VIDIOC_REQBUFS fail: %s (errno: %d)\n", strerror(errno), errno);
         goto err;
     }
+    /* frame_buf[] has BUF_CNT slots; buf_cnt bounds every index check. */
+    if (requset_buf.count == 0 || requset_buf.count > BUF_CNT) {
+        printf("VIDIOC_REQBUFS returned %u buffers, expected 1..%d\n", requset_buf.count, BUF_CNT);
+        ret = -1;
+        goto err;
+    }
 
     for (int i = 0; i < requset_buf.count; i ++) {
         struct dfs_mmap2_args mmap;
@@ -181,6 +204,7 @@ int uvc_host_init(struct uvc_format *fmt)
             goto err;
         }
         uvc_dev.frame_buf[i] = (char *)mmap.addr;
+        uvc_dev.frame_buf_len[i] = mmap.length;
 #if UVC_DEBUG
         printf("map addr = %p, len = %ld, offset = %d, vaddr = %p\n",
                mmap.addr, mmap.length, ioc_frame.offset, uvc_dev.frame_buf[i]);
@@ -191,16 +215,12 @@ int uvc_host_init(struct uvc_format *fmt)
             goto err;
         }
     }
+    uvc_dev.buf_cnt = requset_buf.count;
 
     return ret;
 
 err:
-    close(fd);
-
-    uvc_dev.fd = -1;
-    uvc_dev.is_streamon = false;
-    uvc_dev.format_valid = false;
-    memset(&uvc_dev.format, 0, sizeof(uvc_dev.format));
+    uvc_host_close();
 
     return ret;
 }
@@ -225,35 +245,33 @@ int uvc_host_start_stream(void)
     return 0;
 }
 
-void uvc_host_exit()
+static void uvc_host_close(void)
 {
     int ret;
     int fd = uvc_dev.fd;
 
-    if(0 > fd) {
-        uvc_dev.format_valid = false;
-        memset(&uvc_dev.format, 0, sizeof(uvc_dev.format));
-        return;
-    }
-
-    if (uvc_dev.is_streamon == true) {
-        if ((ret = ioctl(fd, VIDIOC_STREAMOFF, NULL))) {
-            printf("VIDIOC_STREAMOFF fail: %s (errno: %d)\n", strerror(errno), errno);
+    if (fd >= 0) {
+        if (uvc_dev.is_streamon) {
+            if ((ret = ioctl(fd, VIDIOC_STREAMOFF, NULL))) {
+                printf("VIDIOC_STREAMOFF fail: %s (errno: %d)\n", strerror(errno), errno);
+            }
         }
-        uvc_dev.is_streamon = false;
+
+        /* REQBUFS may have created a VB pool before streaming started.
+         * Closing releases that pool and any user mappings on error too. */
+        if (close(fd)) {
+            printf("close uvc fd fail: %s (errno: %d)\n", strerror(errno), errno);
+        }
     }
 
-    /*
-     * Close even when STREAMON never succeeded: the driver allows one open
-     * file, and CanMV keeps this process across soft resets, so a leaked fd
-     * leaves /dev/video0 busy until reboot.
-     */
-    close(fd);
+    memset(&uvc_dev, 0, sizeof(uvc_dev));
     uvc_dev.fd = -1;
+}
 
-    uvc_dev.format_valid = false;
-    memset(&uvc_dev.format, 0, sizeof(uvc_dev.format));
-
+/* The selected device survives exit: callers restart the camera they chose. */
+void uvc_host_exit(void)
+{
+    uvc_host_close();
 }
 
 /*
@@ -290,13 +308,124 @@ static int uvc_err_ratelimit(struct uvc_err_ratelimit *rl)
     return suppressed;
 }
 
+/* Reads the size from the frame header (SOF) of a JPEG. False when the data
+ * is not a well-formed JPEG up to its SOF, e.g. the empty buffers a bulk
+ * bridge delivers at startup. Segment lengths are untrusted; never read
+ * beyond len. */
+static bool uvc_mjpeg_frame_size(const unsigned char *data, size_t len,
+                                 unsigned int *width, unsigned int *height)
+{
+    size_t pos = 2;
+
+    if (len < 4 || data[0] != 0xff || data[1] != 0xd8) {
+        return false;
+    }
+    while (pos < len) {
+        unsigned int marker;
+        size_t segment_len;
+
+        if (data[pos++] != 0xff) {
+            return false;
+        }
+        while (pos < len && data[pos] == 0xff) {
+            pos++;
+        }
+        if (pos == len) {
+            return false;
+        }
+        marker = data[pos++];
+        if (marker == 0xda || marker == 0xd9 || marker == 0x00) {
+            return false;
+        }
+        if (marker == 0x01 || (marker >= 0xd0 && marker <= 0xd8)) {
+            continue;
+        }
+        if (len - pos < 2) {
+            return false;
+        }
+        segment_len = ((unsigned int)data[pos] << 8) | data[pos + 1];
+        /* pos points to the length field: segment_len includes those two
+         * bytes, and len - pos is all bytes remaining from that field. */
+        if (segment_len < 2 || segment_len > len - pos) {
+            return false;
+        }
+        /* SOF markers, excluding DHT, JPG and DAC. */
+        if (marker >= 0xc0 && marker <= 0xcf &&
+            marker != 0xc4 && marker != 0xc8 && marker != 0xcc) {
+            if (segment_len < 8 || data[pos + 7] == 0 ||
+                segment_len < 8U + 3U * data[pos + 7]) {
+                return false;
+            }
+            *height = ((unsigned int)data[pos + 3] << 8) | data[pos + 4];
+            *width = ((unsigned int)data[pos + 5] << 8) | data[pos + 6];
+            return true;
+        }
+        pos += segment_len;
+    }
+    return false;
+}
+
+/* After COMMIT a bulk bridge can still send a few JPEGs in its old mode; a
+ * decoder sized for the new mode must not get them. A camera may also encode
+ * a size other than the one it advertises (e.g. 1920x1088 for 1920x1080),
+ * and dropping every frame would starve the caller. So drop mismatched sizes
+ * only until this many arrive in a row, then pass them through. */
+#define UVC_MJPEG_SIZE_MISMATCH_LIMIT 30U
+
+/* Whether a dequeued MJPEG frame may be handed to the caller. Malformed
+ * frames are always dropped. */
+static bool uvc_mjpeg_frame_acceptable(const struct uvc_ioc_frame *ioc_frame)
+{
+    static struct uvc_err_ratelimit mjpeg_rl;
+    unsigned int width = 0, height = 0;
+    int suppressed;
+
+    if (ioc_frame->v_stream.len > uvc_dev.frame_buf_len[ioc_frame->index] ||
+        !uvc_mjpeg_frame_size((const unsigned char *)uvc_dev.frame_buf[ioc_frame->index],
+                              ioc_frame->v_stream.len, &width, &height)) {
+        suppressed = uvc_err_ratelimit(&mjpeg_rl);
+        if (suppressed >= 0) {
+            printf("uvc_host_get_frame: dropping MJPEG frame with invalid header (%d more in the last second)\n",
+                   suppressed);
+        }
+        return false;
+    }
+
+    if (width == uvc_dev.format.width && height == uvc_dev.format.height) {
+        uvc_dev.mjpeg_mismatch_cnt = 0;
+        return true;
+    }
+    if (uvc_dev.mjpeg_size_check_off) {
+        return true;
+    }
+    if (++uvc_dev.mjpeg_mismatch_cnt >= UVC_MJPEG_SIZE_MISMATCH_LIMIT) {
+        uvc_dev.mjpeg_size_check_off = true;
+        printf("uvc_host_get_frame: camera keeps sending %ux%u MJPEG frames for the %ux%u mode, passing them through\n",
+               width, height, uvc_dev.format.width, uvc_dev.format.height);
+        return true;
+    }
+    suppressed = uvc_err_ratelimit(&mjpeg_rl);
+    if (suppressed >= 0) {
+        printf("uvc_host_get_frame: dropping %ux%u MJPEG frame, expected %ux%u (%d more in the last second)\n",
+               width, height, uvc_dev.format.width, uvc_dev.format.height, suppressed);
+    }
+    return false;
+}
+
+/* Returns 0 on success, otherwise a negative errno (callers only need to test
+ * for non-zero): -ETIMEDOUT when no frame arrived in time, -EINTR when
+ * interrupted, -ENODEV when the camera is gone (POLLERR, a select() failure
+ * or a DQBUF failing with ENODEV), -EBADF when not initialised, or the
+ * errno of a failed DQBUF, or -ENOBUFS when the caller holds every buffer
+ * (nothing is queued for the camera to fill until one is put back). */
 int uvc_host_get_frame(struct uvc_frame *frame, unsigned int timeout_ms)
 {
     static struct uvc_err_ratelimit select_rl, dqbuf_rl;
     int fd = uvc_dev.fd;
-    int ret = 0;
-    int sel, suppressed;
+    int sel, err, suppressed;
+    long long deadline = uvc_now_ms() + timeout_ms;
     fd_set readset;
+    fd_set exceptset;
     struct uvc_ioc_frame ioc_frame = {0};
 
     struct timeval tv = {
@@ -306,38 +435,93 @@ int uvc_host_get_frame(struct uvc_frame *frame, unsigned int timeout_ms)
 
     if(0 > fd) {
         printf("uvc not init\n");
-        return -1;
+        return -EBADF;
     }
 
-    FD_ZERO(&readset);
-    FD_SET(fd, &readset);
-
-    sel = select(fd + 1, &readset, NULL, NULL, &tv);
-    if (sel <= 0) {
-        suppressed = uvc_err_ratelimit(&select_rl);
-        if (suppressed >= 0)
-            printf("uvc_host_get_frame: %s (%d more in the last second)\n",
-                   sel == 0 ? "no frame before timeout" : strerror(errno),
-                   suppressed);
-        ret = sel == 0 ? -ETIMEDOUT : -errno;
-        goto err;
+    /* The driver's poll reports POLLERR when no buffer is queued, which
+     * would read as a disconnect below. Name the real cause instead. */
+    if ((uvc_dev.buf_cnt != 0) && (uvc_dev.dq_cnt >= uvc_dev.buf_cnt)) {
+        printf("uvc_host_get_frame: all %u buffers are held, call uvc_host_put_frame first\n",
+               uvc_dev.buf_cnt);
+        return -ENOBUFS;
     }
 
-    if (ioctl(fd, VIDIOC_DQBUF, &ioc_frame)) {
-        /* ENODEV: the camera was unplugged; the fd stays dead until closed. */
-        ret = -errno;
-        suppressed = uvc_err_ratelimit(&dqbuf_rl);
-        if (suppressed >= 0)
-            printf("VIDIOC_DQBUF fail: %s (errno: %d, %d more in the last second)\n",
-                   strerror(-ret), -ret, suppressed);
-        goto err;
+    for (;;) {
+        FD_ZERO(&readset);
+        FD_SET(fd, &readset);
+        /* RT-Smart select() reports POLLERR only through exceptfds. Without it a
+         * disconnected device wakes select() at once but looks like a timeout. */
+        FD_ZERO(&exceptset);
+        FD_SET(fd, &exceptset);
+
+        sel = select(fd + 1, &readset, NULL, &exceptset, &tv);
+        if (sel == 0) {
+            suppressed = uvc_err_ratelimit(&select_rl);
+            if (suppressed >= 0)
+                printf("uvc_host_get_frame: no frame before timeout (%d more in the last second)\n",
+                       suppressed);
+            return -ETIMEDOUT;
+        }
+        if (sel < 0) {
+            err = errno;
+            if (err == EINTR) {
+                return -EINTR;
+            }
+            suppressed = uvc_err_ratelimit(&select_rl);
+            if (suppressed >= 0)
+                printf("uvc_host_get_frame select error: %s (errno: %d, %d more in the last second)\n",
+                       strerror(err), err, suppressed);
+            return -ENODEV;
+        }
+        if (FD_ISSET(fd, &exceptset)) {
+            suppressed = uvc_err_ratelimit(&select_rl);
+            if (suppressed >= 0)
+                printf("uvc_host_get_frame: device error, camera disconnected? (%d more in the last second)\n",
+                       suppressed);
+            return -ENODEV;
+        }
+
+        if (ioctl(fd, VIDIOC_DQBUF, &ioc_frame)) {
+            /* ENODEV: the camera was unplugged; the fd stays dead until closed. */
+            err = errno;
+            suppressed = uvc_err_ratelimit(&dqbuf_rl);
+            if (suppressed >= 0)
+                printf("VIDIOC_DQBUF fail: %s (errno: %d, %d more in the last second)\n",
+                       strerror(err), err, suppressed);
+            return err > 0 ? -err : -EIO;
+        }
+
+        if (ioc_frame.index >= uvc_dev.buf_cnt) {
+            /* Not a buffer this library mapped. Hand it back anyway, so a
+             * driver/library mismatch cannot silently shrink the queue. */
+            printf("uvc_host_get_frame: DQBUF returned index %u of %u buffers\n",
+                   ioc_frame.index, uvc_dev.buf_cnt);
+            (void)ioctl(fd, VIDIOC_QBUF, &ioc_frame);
+            return -EIO;
+        }
+        if (uvc_dev.format.fourcc == USBH_VIDEO_FOURCC_MJPEG &&
+            !uvc_mjpeg_frame_acceptable(&ioc_frame)) {
+            /* This frame was never lent to the caller: return it without
+             * changing dq_cnt, then use only the original timeout's remainder. */
+            if (ioctl(fd, VIDIOC_QBUF, &ioc_frame)) {
+                err = errno;
+                return err > 0 ? -err : -EIO;
+            }
+            long long remaining = deadline - uvc_now_ms();
+            if (remaining <= 0) {
+                return -ETIMEDOUT;
+            }
+            tv.tv_sec = remaining / 1000;
+            tv.tv_usec = (remaining % 1000) * 1000;
+            continue;
+        }
+
+        uvc_ioc_to_public_frame(frame, &ioc_frame);
+        frame->userptr = uvc_dev.frame_buf[frame->index];
+        uvc_dev.dq_cnt++;
+
+        return 0;
     }
-
-    uvc_ioc_to_public_frame(frame, &ioc_frame);
-    frame->userptr = uvc_dev.frame_buf[frame->index];
-
-err:
-    return ret;
 }
 
 int uvc_host_put_frame(struct uvc_frame *frame)
@@ -354,6 +538,8 @@ int uvc_host_put_frame(struct uvc_frame *frame)
     uvc_public_to_ioc_frame(&ioc_frame, frame);
     if ((ret = ioctl(fd, VIDIOC_QBUF, &ioc_frame))) {
         printf("VIDIOC_QBUF fail: %s (errno: %d)\n", strerror(errno), errno);
+    } else if (uvc_dev.dq_cnt > 0) {
+        uvc_dev.dq_cnt--;
     }
 
     return ret;
@@ -369,7 +555,7 @@ int uvc_host_get_devinfo(char *info, int len)
     int need_len = 0;
 
     if(0 > fd) {
-        fd = open("/dev/video0", O_RDWR);
+        fd = uvc_host_open_selected_device();
         if (fd < 0) {
             printf("open dev fail: %s (errno: %d)\n", strerror(errno), errno);
             return -1;
@@ -423,7 +609,7 @@ int uvc_host_get_formats(struct uvc_format **fmts)
     struct uvc_fpsdesc fps_desc = {0};
 
     if(0 > fd) {
-        fd = open("/dev/video0", O_RDWR);
+        fd = uvc_host_open_selected_device();
         if (fd < 0) {
             printf("open dev fail: %s (errno: %d)\n", strerror(errno), errno);
             return -1;
