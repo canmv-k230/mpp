@@ -119,9 +119,10 @@ typedef enum {
 typedef enum {
 	VICAP_MIPI_PHY_800M  = 1,
 	/*
-	 * 891 Mbps on either lane count: databook 850 bin, hsfreqrange 0x19.
-	 * 2-lane VICAP_MIPI_PHY_800M is the legacy 0x14 (~300 Mbps) code and
-	 * will not lock an 891 Mbps stream.
+	 * For 891 Mbps with two or four lanes, use the PHY databook's
+	 * 850 Mbps bin (hsfreqrange 0x19). The legacy two-lane
+	 * VICAP_MIPI_PHY_800M setting uses 0x14 (~300 Mbps) and cannot
+	 * lock an 891 Mbps stream.
 	 */
 	VICAP_MIPI_PHY_891M  = 2,
 	VICAP_MIPI_PHY_1200M = 3,
