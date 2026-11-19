@@ -56,3 +56,5 @@ tuning_server.elf
 .sisyphus
 fuzz_test/build
 unit_test/build
+
+__pycache__
