@@ -91,7 +91,8 @@ k_s32 kd_mpi_gsdma_get_dev_attr(k_gsdma_dev_attr_t* attr);
  * @return k_s32
  * @retval 0 success
  * @retval "not 0" see err code
- * @note This wraps an SDMA transfer ioctl on /dev/gsdma_device
+ * @note This wraps an SDMA transfer ioctl on /dev/gsdma_device. User transfers
+ *       must leave dec_en clear; use /dev/gzip_decomp for decompression.
  */
 k_s32 kd_mpi_gsdma_mem_transfer(k_sdma_transfer_cfg_t* cfg);
 
