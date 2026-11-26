@@ -63,6 +63,31 @@ static struct sensor_type_mirror_t type_mirror_tbl[] = {
     {.type = GC2093_MIPI_CSI2_1280X720_90FPS_10BIT_LINEAR, .mirror = 0},
 #endif // CONFIG_MPP_ENABLE_CSI_DEV_2
 #endif // CONFIG_MPP_ENABLE_SENSOR_GC2093
+#if defined (CONFIG_MPP_ENABLE_SENSOR_OV9732)
+#if defined (CONFIG_MPP_ENABLE_CSI_DEV_0)
+    {.type = OV9732_MIPI_CSI0_1LANE_1280X720_30FPS_10BIT_LINEAR, .mirror = 0},
+#endif
+#if defined (CONFIG_MPP_ENABLE_CSI_DEV_1)
+    {.type = OV9732_MIPI_CSI1_1LANE_1280X720_30FPS_10BIT_LINEAR, .mirror = 0},
+#endif
+#if defined (CONFIG_MPP_ENABLE_CSI_DEV_2)
+    {.type = OV9732_MIPI_CSI2_1LANE_1280X720_30FPS_10BIT_LINEAR, .mirror = 0},
+#endif
+#endif // CONFIG_MPP_ENABLE_SENSOR_OV9732
+#if defined (CONFIG_MPP_ENABLE_SENSOR_OV9286)
+#if defined (CONFIG_MPP_ENABLE_CSI_DEV_0)
+    {.type = OV9286_MIPI_CSI0_2LANE_1280X720_30FPS_10BIT_LINEAR, .mirror = 0},
+    {.type = OV9286_MIPI_CSI0_2LANE_1280X720_60FPS_10BIT_LINEAR, .mirror = 0},
+#endif
+#if defined (CONFIG_MPP_ENABLE_CSI_DEV_1)
+    {.type = OV9286_MIPI_CSI1_2LANE_1280X720_30FPS_10BIT_LINEAR, .mirror = 0},
+    {.type = OV9286_MIPI_CSI1_2LANE_1280X720_60FPS_10BIT_LINEAR, .mirror = 0},
+#endif
+#if defined (CONFIG_MPP_ENABLE_CSI_DEV_2)
+    {.type = OV9286_MIPI_CSI2_2LANE_1280X720_30FPS_10BIT_LINEAR, .mirror = 0},
+    {.type = OV9286_MIPI_CSI2_2LANE_1280X720_60FPS_10BIT_LINEAR, .mirror = 0},
+#endif
+#endif // CONFIG_MPP_ENABLE_SENSOR_OV9286
 };
 #elif defined(CONFIG_BOARD_K230_CANMV_V2)
 static struct sensor_type_mirror_t type_mirror_tbl[] = {
@@ -203,6 +228,31 @@ static struct sensor_type_mirror_t type_mirror_tbl[] = {
     {.type = SC130GS_MIPI_CSI2_2LANE_1280X1024_90FPS_10BIT_LINEAR, .mirror = 0},
 #endif // CONFIG_MPP_ENABLE_CSI_DEV_2
 #endif // CONFIG_MPP_ENABLE_SENSOR_SC130GS
+#if defined (CONFIG_MPP_ENABLE_SENSOR_OV9732)
+#if defined (CONFIG_MPP_ENABLE_CSI_DEV_0)
+    {.type = OV9732_MIPI_CSI0_1LANE_1280X720_30FPS_10BIT_LINEAR, .mirror = 0},
+#endif
+#if defined (CONFIG_MPP_ENABLE_CSI_DEV_1)
+    {.type = OV9732_MIPI_CSI1_1LANE_1280X720_30FPS_10BIT_LINEAR, .mirror = 0},
+#endif
+#if defined (CONFIG_MPP_ENABLE_CSI_DEV_2)
+    {.type = OV9732_MIPI_CSI2_1LANE_1280X720_30FPS_10BIT_LINEAR, .mirror = 0},
+#endif
+#endif // CONFIG_MPP_ENABLE_SENSOR_OV9732
+#if defined (CONFIG_MPP_ENABLE_SENSOR_OV9286)
+#if defined (CONFIG_MPP_ENABLE_CSI_DEV_0)
+    {.type = OV9286_MIPI_CSI0_2LANE_1280X720_30FPS_10BIT_LINEAR, .mirror = 0},
+    {.type = OV9286_MIPI_CSI0_2LANE_1280X720_60FPS_10BIT_LINEAR, .mirror = 0},
+#endif
+#if defined (CONFIG_MPP_ENABLE_CSI_DEV_1)
+    {.type = OV9286_MIPI_CSI1_2LANE_1280X720_30FPS_10BIT_LINEAR, .mirror = 0},
+    {.type = OV9286_MIPI_CSI1_2LANE_1280X720_60FPS_10BIT_LINEAR, .mirror = 0},
+#endif
+#if defined (CONFIG_MPP_ENABLE_CSI_DEV_2)
+    {.type = OV9286_MIPI_CSI2_2LANE_1280X720_30FPS_10BIT_LINEAR, .mirror = 0},
+    {.type = OV9286_MIPI_CSI2_2LANE_1280X720_60FPS_10BIT_LINEAR, .mirror = 0},
+#endif
+#endif // CONFIG_MPP_ENABLE_SENSOR_OV9286
 };
 #elif defined(CONFIG_BOARD_K230_CANMV_DONGSHANPI)
 static struct sensor_type_mirror_t type_mirror_tbl[] = {

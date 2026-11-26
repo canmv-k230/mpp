@@ -458,6 +458,70 @@ menu "MPP Configuration"
                     depends on MPP_ENABLE_CSI_DEV_2
             endif
 
+        menuconfig MPP_ENABLE_SENSOR_OV9732
+            bool "Enable OV9732"
+            default n
+            depends on BOARD_K230_EVB || BOARD_K230D_EVB
+            help
+              OV9732 1280x720@30fps RAW10, 1-lane MIPI. Used on the
+              structured-light camera. Chip MCLK is 16MHz (PLL0/4/25)
+              and selects the 16MHz register table. Shown when
+              BOARD_K230_EVB or BOARD_K230D_EVB is selected.
+
+            if MPP_ENABLE_SENSOR_OV9732
+
+                config MPP_ENABLE_SENSOR_OV9732_ON_CSI0_USE_CHIP_CLK
+                    bool "OV9732 On CSI0 Use CHIP MCLK"
+                    default n
+                    depends on MPP_ENABLE_CSI_DEV_0
+                    help
+                      Uses the 16MHz register table and chip MCLK2
+                      (PLL0/4/25), matching the previous OV9732 driver.
+                      Select CSI0 MCLK1 or MCLK3 to use that clock instead.
+
+                config MPP_ENABLE_SENSOR_OV9732_ON_CSI1_USE_CHIP_CLK
+                    bool "OV9732 On CSI1 Use CHIP MCLK"
+                    default n
+                    depends on MPP_ENABLE_CSI_DEV_1
+
+                config MPP_ENABLE_SENSOR_OV9732_ON_CSI2_USE_CHIP_CLK
+                    bool "OV9732 On CSI2 Use CHIP MCLK"
+                    default n
+                    depends on MPP_ENABLE_CSI_DEV_2
+            endif
+
+        menuconfig MPP_ENABLE_SENSOR_OV9286
+            bool "Enable OV9286"
+            default n
+            depends on BOARD_K230_EVB || BOARD_K230D_EVB
+            help
+              OV9286 1280x720 RAW10, 2-lane MIPI, mono. Used as the
+              speckle camera on the structured-light module. Chip MCLK
+              is 25MHz (PLL0/4/16). Shown when BOARD_K230_EVB or
+              BOARD_K230D_EVB is selected.
+
+            if MPP_ENABLE_SENSOR_OV9286
+
+                config MPP_ENABLE_SENSOR_OV9286_ON_CSI0_USE_CHIP_CLK
+                    bool "OV9286 On CSI0 Use CHIP MCLK"
+                    default n
+                    depends on MPP_ENABLE_CSI_DEV_0
+                    help
+                      Uses the 25MHz register table. If CSI0 MCLK num is
+                      still "external clock", the driver outputs chip MCLK1.
+                      Select CSI0 MCLK2 or MCLK3 to use that clock instead.
+
+                config MPP_ENABLE_SENSOR_OV9286_ON_CSI1_USE_CHIP_CLK
+                    bool "OV9286 On CSI1 Use CHIP MCLK"
+                    default n
+                    depends on MPP_ENABLE_CSI_DEV_1
+
+                config MPP_ENABLE_SENSOR_OV9286_ON_CSI2_USE_CHIP_CLK
+                    bool "OV9286 On CSI2 Use CHIP MCLK"
+                    default n
+                    depends on MPP_ENABLE_CSI_DEV_2
+            endif
+
         menuconfig MPP_ENABLE_SENSOR_IMX290
             bool "Enable IMX290"
             default n
