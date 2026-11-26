@@ -56,7 +56,7 @@ CXX_FLAGS       := $(C_CXX_FLAGS) -std=c++20 -Wno-register
 
 # --- Targets ---
 
-.PHONY: all clean install_isp_configs
+.PHONY: all clean install_isp_configs $(LIB)
 
 # 'all' now ensures the library is built directly into the target and headers are synced
 all: $(LIB)
@@ -65,6 +65,7 @@ all: $(LIB)
 # Rule to archive the library directly into the target folder
 $(LIB): $(OBJS) | $(MPP_USERAPPS_LIB_INSTALL_PATH)
 	@$(ECHO) "[AR] $@"
+	$(Q)rm -f $@
 	$(Q)$(AR) rcs $@ $^
 
 # Compilation rules for intermediate objects
@@ -109,5 +110,7 @@ endif
 
 clean:
 	$(Q)rm -rf $(LIB) $(BUILD)
+
+$(OBJS): $(SDK_SRC_ROOT_DIR)/.config
 
 -include $(DEPS)

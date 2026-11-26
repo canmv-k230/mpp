@@ -39,7 +39,7 @@ CXX_FLAGS       := $(C_CXX_FLAGS) -std=c++20 -Wno-register
 
 # --- Targets ---
 
-.PHONY: all clean
+.PHONY: all clean $(LIB)
 
 # 'all' now ensures the library is built directly into the target and headers are synced
 all: $(LIB) $(INCS_INSTALL)
@@ -54,6 +54,7 @@ $(MPP_MIDDLEWARE_INC_INSTALL_PATH)/%: include/% | $(MPP_MIDDLEWARE_INC_INSTALL_P
 # Rule to archive the library directly into the target folder
 $(LIB): $(OBJS) | $(MPP_MIDDLEWARE_LIB_INSTALL_PATH)
 	@echo "[AR] $@"
+	$(Q)rm -f $@
 	$(Q)$(AR) rcs $@ $^
 
 # Compilation rules for intermediate objects
@@ -69,6 +70,8 @@ $(OBJ_DIRS):
 	$(Q)mkdir -p $@
 
 clean:
-	$(Q)rm -rf $(LIB_TARGET) $(BUILD)
+	$(Q)rm -rf $(LIB) $(BUILD)
+
+$(OBJS): $(SDK_SRC_ROOT_DIR)/.config
 
 -include $(DEPS)
